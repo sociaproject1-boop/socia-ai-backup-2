@@ -18,7 +18,7 @@ import {
   claimNextJob, updateJobProgress, failJob, completeJob, heartbeat,
   recoverStuckJobs, type RenderJob,
 } from "./renderJobsDb.js";
-import { interpolateWithEngine } from "./fal.js";
+import { interpolateWithEngine, isMockMode } from "./fal.js";
 import { synthesizeAllVoiceTracks, type VoiceTrackConfig } from "./voiceSynthesis.js";
 import { uploadBufferToCloudinary } from "./cloudinaryServer.js";
 import { encodeCinematic }           from "./mediaEncoder.js";
@@ -102,7 +102,11 @@ async function processJob(job: RenderJob): Promise<void> {
 
   const segmentCount = Math.max(0, images.length - 1);
 
-  logger.info({ jobId: job.id, segments: segmentCount, engine: job.render_engine, workerId: WORKER_ID }, "[renderWorker] Starting job");
+  const mockRender = isMockMode();
+  logger.info({ jobId: job.id, segments: segmentCount, engine: job.render_engine, workerId: WORKER_ID, mockRender }, "[renderWorker] Starting job");
+  if (mockRender) {
+    logger.warn({ jobId: job.id }, "[renderWorker] FAL_KEY not set — running cinematic mock render (demo MP4 segments)");
+  }
 
   // ── Heartbeat loop ────────────────────────────────────────────────
   const hbInterval = setInterval(() => heartbeat(job.id).catch(() => {}), HEARTBEAT_MS);
@@ -142,15 +146,23 @@ async function processJob(job: RenderJob): Promise<void> {
       progress: 14,
       completed_stages: ["preparing_assets", "building_prompt_graph"],
     });
-    emit(job, "generating_motion", 14, "Starting AI motion generation…");
+    emit(job, "generating_motion", 14,
+      mockRender
+        ? "Starting cinematic demo render…"
+        : "Starting AI motion generation…",
+    );
 
-    // ── Stage: generating_motion — real fal.ai Luma calls ──────────
+    // ── Stage: generating_motion — real fal.ai calls (or mock demo) ─
     const segmentUrls: string[] = [];
-    const segmentMeta: Array<{ index: number; prompt: string; videoUrl: string }> = [];
+    const segmentMeta: Array<{ index: number; prompt: string; videoUrl: string; mock?: boolean }> = [];
 
     for (let i = 0; i < segmentCount; i++) {
       const segProgress = 14 + ((i / segmentCount) * 64);
-      emit(job, "generating_motion", segProgress, `Generating segment ${i + 1} of ${segmentCount}…`);
+      emit(job, "generating_motion", segProgress,
+        mockRender
+          ? `Rendering demo segment ${i + 1} of ${segmentCount}…`
+          : `Generating segment ${i + 1} of ${segmentCount}…`,
+      );
       await updateJobProgress(job.id, { progress: segProgress, worker_heartbeat: new Date().toISOString() });
 
       const url = await videoSemaphore.run(() =>
@@ -158,10 +170,14 @@ async function processJob(job: RenderJob): Promise<void> {
       );
 
       segmentUrls.push(url);
-      segmentMeta.push({ index: i, prompt: resolvedPrompts[i], videoUrl: url });
+      segmentMeta.push({ index: i, prompt: resolvedPrompts[i], videoUrl: url, ...(mockRender ? { mock: true } : {}) });
 
       const afterProgress = 14 + (((i + 1) / segmentCount) * 64);
-      emit(job, "generating_motion", afterProgress, `Segment ${i + 1}/${segmentCount} complete`);
+      emit(job, "generating_motion", afterProgress,
+        mockRender
+          ? `Demo segment ${i + 1}/${segmentCount} ready`
+          : `Segment ${i + 1}/${segmentCount} complete`,
+      );
       await updateJobProgress(job.id, {
         progress:     afterProgress,
         segment_meta: segmentMeta,
@@ -317,6 +333,7 @@ async function processJob(job: RenderJob): Promise<void> {
         expires_at:  expiresAt,
         quality, format, codec, transition,
         width: dims.w, height: dims.h,
+        ...(mockRender ? { is_mock: true } : {}),
       },
     });
 

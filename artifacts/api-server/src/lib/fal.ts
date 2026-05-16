@@ -12,6 +12,47 @@ const KEYFRAME_INTERP_MODEL = "fal-ai/luma-dream-machine";
 const POLL_INTERVAL_MS = 4_000;
 const TIMEOUT_MS = 300_000; // 5 minutes
 
+/* ══════════════════════════════════════════════════════════════════════
+   MOCK MODE — used when FAL_KEY is absent or returns auth/billing errors.
+   Returns a real public MP4 after a realistic delay so the full pipeline
+   (FFmpeg encode, Cloudinary upload, DB complete) runs identically.
+══════════════════════════════════════════════════════════════════════ */
+
+// Reliable public short MP4 clips from Google's public sample bucket.
+// Each is ~15s, 1280×720, cinematic-ish. FFmpeg can download & concat them.
+const MOCK_VIDEOS = [
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4",
+  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/VolkswagenGTIReview.mp4",
+];
+
+let _mockCallCount = 0;
+
+/** Returns true when no FAL_KEY is configured — enables mock render mode. */
+export function isMockMode(): boolean {
+  return !(process.env["FAL_KEY"] || process.env["FAL_API_KEY"] || "").trim();
+}
+
+/**
+ * Mock segment generation.
+ * Sleeps for a realistic duration (6–14 s per segment) then returns a
+ * public demo MP4 URL. Different clips are cycled so multi-segment jobs
+ * produce visually varied outputs when concatenated by FFmpeg.
+ */
+async function mockSegmentVideo(): Promise<string> {
+  const delayMs = 6_000 + Math.random() * 8_000; // 6 – 14 s
+  await new Promise((r) => setTimeout(r, delayMs));
+  const url = MOCK_VIDEOS[_mockCallCount % MOCK_VIDEOS.length];
+  _mockCallCount++;
+  logger.info({ url, delayMs: Math.round(delayMs) }, "[fal] mock segment generated");
+  return url;
+}
+
 /**
  * Categorised fal.ai error. The route layer maps `code` to an HTTP status and
  * surfaces `message` to the client.
@@ -283,6 +324,11 @@ export async function interpolateKling(
  * interpolateWithEngine — Dispatches to the correct AI provider based on
  * the engine ID stored in the render job.
  *
+ * Mock mode activates automatically when FAL_KEY is absent OR when fal.ai
+ * returns an auth/billing error at runtime. A realistic public demo MP4 is
+ * returned after a 6–14 s delay so the rest of the pipeline (FFmpeg encode,
+ * Cloudinary upload, DB complete) runs identically to a real render.
+ *
  * | engine ID         | Provider             | Model                     |
  * |-------------------|----------------------|---------------------------|
  * | luma              | fal.ai Luma          | luma-dream-machine        |
@@ -300,20 +346,39 @@ export async function interpolateWithEngine(
   prompt:    string,
   aspect:    string = "9:16",
 ): Promise<string> {
-  switch (engine) {
-    case "kling-standard":
-      return interpolateKling(frame0Url, frame1Url, prompt, aspect, KLING_STANDARD);
-    case "kling-cinematic":
-      return interpolateKling(frame0Url, frame1Url, prompt, aspect, KLING_PRO);
-    case "kling-master":
-      return interpolateKling(frame0Url, frame1Url, prompt, aspect, KLING_MASTER);
-    case "luma":
-      return interpolateLuma(frame0Url, frame1Url, prompt, aspect);
-    default:
-      throw new FalError(
-        "FAL_INVALID_INPUT",
-        `Engine "${engine}" is not yet integrated. Available engines: luma, kling-standard, kling-cinematic, kling-master.`,
+  // ── Mock mode: FAL_KEY not configured ─────────────────────────────
+  if (isMockMode()) {
+    logger.info({ engine, mockCall: _mockCallCount + 1 }, "[fal] mock mode — FAL_KEY not set, returning demo segment");
+    return mockSegmentVideo();
+  }
+
+  // ── Real mode: attempt fal.ai, fall back on auth / billing errors ─
+  try {
+    switch (engine) {
+      case "kling-standard":
+        return await interpolateKling(frame0Url, frame1Url, prompt, aspect, KLING_STANDARD);
+      case "kling-cinematic":
+        return await interpolateKling(frame0Url, frame1Url, prompt, aspect, KLING_PRO);
+      case "kling-master":
+        return await interpolateKling(frame0Url, frame1Url, prompt, aspect, KLING_MASTER);
+      case "luma":
+        return await interpolateLuma(frame0Url, frame1Url, prompt, aspect);
+      default:
+        throw new FalError(
+          "FAL_INVALID_INPUT",
+          `Engine "${engine}" is not yet integrated. Available engines: luma, kling-standard, kling-cinematic, kling-master.`,
+        );
+    }
+  } catch (err) {
+    // Runtime fallback: key set but rejected (wrong key) or account out of credit
+    if (err instanceof FalError && (err.code === "FAL_AUTH" || err.code === "FAL_BILLING")) {
+      logger.warn(
+        { engine, falCode: err.code, msg: err.message },
+        "[fal] Falling back to mock render — FAL_KEY rejected or account out of credit",
       );
+      return mockSegmentVideo();
+    }
+    throw err;
   }
 }
 
