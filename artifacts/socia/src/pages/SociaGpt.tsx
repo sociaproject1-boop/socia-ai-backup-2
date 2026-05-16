@@ -55,6 +55,14 @@ export default function SociaGpt() {
   const cooldownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const textareaRef   = useRef<HTMLTextAreaElement>(null);
 
+  /* ── textarea auto-resize ── */
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "42px";
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, [input]);
+
   /* plan shortcuts */
   const planCode = plan?.code ?? "free";
   const maxWords = plan?.maxWords ?? 300;
@@ -317,7 +325,12 @@ export default function SociaGpt() {
         {messages.length === 0 ? (
           <EmptyState />
         ) : (
-          <div className="space-y-4">
+          <motion.div
+            className="space-y-4"
+            initial="hidden"
+            animate="visible"
+            variants={{ visible: { transition: { staggerChildren: 0.035 } } }}
+          >
             {messages.map((m) => (
               <Bubble
                 key={m.id}
@@ -327,7 +340,7 @@ export default function SociaGpt() {
                 onUpgrade={openUpgrade}
               />
             ))}
-          </div>
+          </motion.div>
         )}
       </div>
 
@@ -439,7 +452,7 @@ export default function SociaGpt() {
                 label="Files"
                 color="#6366f1"
                 locked={false}
-                onClick={() => pickFiles("image")}
+                onClick={() => pickFiles("file")}
               />
               <QuickAction
                 icon={<Mic className="h-4 w-4" />}
@@ -452,76 +465,72 @@ export default function SociaGpt() {
           )}
         </AnimatePresence>
 
-        {/* ── Input row: [+] [pill with textarea] [mic/send] ── */}
+        {/* ── Input row: [+] [gap] [pill with textarea + mic/send] ── */}
         <form
           onSubmit={(e) => { e.preventDefault(); void send(input); }}
           className="flex items-end"
           style={{ gap: 0 }}
         >
-          {/* + button — springs apart on focus */}
-          <motion.div
-            animate={{
-              x: separated ? -6 : 0,
-              scale: separated ? 0.94 : 1,
-            }}
+          {/* + button — scales on focus, stays in layout flow */}
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.80 }}
+            animate={{ scale: separated ? 0.90 : 1 }}
             transition={SPRING_SNAPPY}
-            className="shrink-0 self-end"
-            style={{ willChange: "transform", marginBottom: "1px" }}
-          >
-            <motion.button
-              type="button"
-              whileTap={{ scale: 0.82 }}
-              onClick={() => {
-                setAttachOpen((v) => !v);
-                textareaRef.current?.focus();
-              }}
-              aria-label="Attach"
-              className="grid place-items-center"
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: "50%",
-                background: attachOpen
-                  ? "linear-gradient(135deg,rgba(168,85,247,0.35),rgba(236,72,153,0.25))"
-                  : "rgba(255,255,255,0.07)",
-                border: attachOpen
-                  ? "1.5px solid rgba(168,85,247,0.5)"
-                  : "1.5px solid rgba(255,255,255,0.1)",
-                boxShadow: attachOpen
-                  ? "0 0 16px rgba(168,85,247,0.3)"
-                  : "none",
-                color: attachOpen
-                  ? "rgba(216,180,254,1)"
-                  : "rgba(255,255,255,0.55)",
-                willChange: "transform",
-              }}
-            >
-              <motion.div
-                animate={{ rotate: attachOpen ? 45 : 0 }}
-                transition={SPRING_FAST}
-              >
-                <Plus className="h-[18px] w-[18px]" strokeWidth={2.5} />
-              </motion.div>
-            </motion.button>
-          </motion.div>
-
-          {/* Input pill */}
-          <motion.div
-            animate={{
-              marginLeft: separated ? 10 : 6,
-              flex: 1,
+            onClick={() => {
+              setAttachOpen((v) => !v);
+              textareaRef.current?.focus();
             }}
-            transition={SPRING_SNAPPY}
-            className="relative min-w-0 overflow-hidden"
+            aria-label="Attach"
+            className="grid shrink-0 self-end place-items-center"
             style={{
+              width: 42,
+              height: 42,
+              marginBottom: 1,
+              borderRadius: "50%",
+              background: attachOpen
+                ? "linear-gradient(135deg,rgba(168,85,247,0.35),rgba(236,72,153,0.25))"
+                : "rgba(255,255,255,0.07)",
+              border: attachOpen
+                ? "1.5px solid rgba(168,85,247,0.5)"
+                : "1.5px solid rgba(255,255,255,0.1)",
+              boxShadow: attachOpen
+                ? "0 0 18px rgba(168,85,247,0.35)"
+                : "none",
+              color: attachOpen
+                ? "rgba(216,180,254,1)"
+                : "rgba(255,255,255,0.55)",
               willChange: "transform",
+              transition: "background 0.15s, border-color 0.15s, box-shadow 0.15s",
+            }}
+          >
+            <motion.div
+              animate={{ rotate: attachOpen ? 45 : 0 }}
+              transition={SPRING_FAST}
+            >
+              <Plus className="h-[18px] w-[18px]" strokeWidth={2.5} />
+            </motion.div>
+          </motion.button>
+
+          {/* Animated gap spacer — grows when focused/open */}
+          <motion.div
+            animate={{ width: separated ? 10 : 6 }}
+            transition={SPRING_SNAPPY}
+            className="shrink-0"
+          />
+
+          {/* Input pill — flex-1, no motion animation on layout props */}
+          <div
+            className="relative min-w-0 flex-1"
+            style={{
               borderRadius: 24,
               background: "rgba(255,255,255,0.055)",
               border: `1.5px solid ${focused ? "rgba(168,85,247,0.5)" : attachOpen ? "rgba(168,85,247,0.28)" : "rgba(255,255,255,0.09)"}`,
               boxShadow: focused
-                ? "0 0 0 3px rgba(168,85,247,0.12), 0 4px 24px rgba(168,85,247,0.12)"
+                ? "0 0 0 3px rgba(168,85,247,0.12), 0 6px 28px rgba(168,85,247,0.14)"
                 : "none",
-              transition: "border-color 0.15s, box-shadow 0.15s",
+              transition: "border-color 0.15s, box-shadow 0.2s",
+              overflow: "visible",
             }}
           >
             <div className="flex items-end">
@@ -548,14 +557,14 @@ export default function SociaGpt() {
                     : "Message…"
                   }
                   disabled={cooldownSec > 0}
-                  className="w-full resize-none bg-transparent text-[14px] leading-relaxed text-white outline-none disabled:opacity-40"
+                  className="w-full resize-none bg-transparent text-[14px] leading-relaxed text-white placeholder-white/20 outline-none disabled:opacity-40"
                   style={{
                     caretColor: "#c084fc",
                     padding: "11px 4px 11px 14px",
                     maxHeight: 120,
                     minHeight: 42,
+                    overflow: "hidden",
                     WebkitOverflowScrolling: "touch",
-                    placeholderColor: "rgba(255,255,255,0.18)",
                   }}
                 />
                 {planCode === "free" && input.length > 0 && (
@@ -640,7 +649,7 @@ export default function SociaGpt() {
                 </AnimatePresence>
               </div>
             </div>
-          </motion.div>
+          </div>
         </form>
 
         {/* Hidden file inputs */}
@@ -839,7 +848,11 @@ const Bubble = memo(function Bubble({ m, onRegen, busy, onUpgrade }: {
 
   if (m.role === "user") {
     return (
-      <div className="flex justify-end">
+      <motion.div
+        variants={{ hidden: { opacity: 0, y: 10, scale: 0.97 }, visible: { opacity: 1, y: 0, scale: 1 } }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        className="flex justify-end"
+      >
         <div
           className="max-w-[80%] rounded-[20px] rounded-br-[5px] px-4 py-3 text-[14px] leading-relaxed text-white"
           style={{
@@ -854,12 +867,16 @@ const Bubble = memo(function Bubble({ m, onRegen, busy, onUpgrade }: {
             <p className="whitespace-pre-wrap">{m.content}</p>
           )}
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="flex justify-start">
+    <motion.div
+      variants={{ hidden: { opacity: 0, y: 10, scale: 0.97 }, visible: { opacity: 1, y: 0, scale: 1 } }}
+      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+      className="flex justify-start"
+    >
       <div className="w-full max-w-[92%]">
         <div
           className="rounded-[20px] rounded-bl-[5px] px-4 py-3.5"
@@ -922,7 +939,7 @@ const Bubble = memo(function Bubble({ m, onRegen, busy, onUpgrade }: {
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 });
 
