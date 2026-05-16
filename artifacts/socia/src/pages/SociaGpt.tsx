@@ -270,20 +270,20 @@ export default function SociaGpt() {
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <motion.div
             className="grid h-9 w-9 shrink-0 place-items-center rounded-[14px]"
-            animate={busy ? { boxShadow: ["0 4px 18px rgba(168,85,247,0.45)", "0 4px 28px rgba(236,72,153,0.65)", "0 4px 18px rgba(168,85,247,0.45)"] } : { boxShadow: "0 4px 18px rgba(168,85,247,0.45)" }}
-            transition={busy ? { duration: 1.6, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 }}
-            style={{ background: "linear-gradient(135deg,#a855f7,#ec4899,#6366f1)" }}
+            animate={busy ? { boxShadow: ["0 4px 16px rgba(139,92,246,0.4)", "0 4px 24px rgba(139,92,246,0.6)", "0 4px 16px rgba(139,92,246,0.4)"] } : { boxShadow: "0 4px 16px rgba(139,92,246,0.38)" }}
+            transition={busy ? { duration: 2.0, repeat: Infinity, ease: "easeInOut" } : { duration: 0.4 }}
+            style={{ background: "linear-gradient(145deg, #a78bfa, #8b5cf6, #6366f1)" }}
           >
             <motion.div
-              animate={busy ? { rotate: [0, 15, -10, 0] } : { rotate: 0 }}
-              transition={busy ? { duration: 2.2, repeat: Infinity, ease: "easeInOut" } : {}}
+              animate={busy ? { rotate: [0, 6, -4, 0] } : { rotate: 0 }}
+              transition={busy ? { duration: 3.0, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 }}
             >
-              <Sparkles className="h-4 w-4 text-white" />
+              <Sparkles className="h-4 w-4 text-white" strokeWidth={1.5} />
             </motion.div>
           </motion.div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h1 className="font-display text-[15px] font-bold leading-none tracking-tight text-white">
+              <h1 className="font-display text-[15px] font-semibold leading-none tracking-[-0.02em] text-white">
                 Socia <span className="text-gradient">GPT</span>
               </h1>
               {plan && (
@@ -332,17 +332,17 @@ export default function SociaGpt() {
         ref={scrollerRef}
         className="flex-1 overflow-y-auto overscroll-contain"
         style={{
-          padding: "20px 16px 8px",
+          padding: "20px 16px 72px",
           WebkitOverflowScrolling: "touch",
-          WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 88%, transparent 100%)",
-          maskImage: "linear-gradient(to bottom, black 0%, black 88%, transparent 100%)",
+          WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 82%, transparent 100%)",
+          maskImage: "linear-gradient(to bottom, black 0%, black 82%, transparent 100%)",
         }}
         onClick={() => { if (attachOpen) setAttachOpen(false); }}
       >
         {messages.length === 0 ? (
-          <EmptyState onHint={(h) => { setInput(h); setTimeout(() => textareaRef.current?.focus(), 0); }} />
+          <EmptyState />
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <AnimatePresence initial={false}>
               {messages.map((m) => (
                 <Bubble
@@ -429,52 +429,62 @@ export default function SociaGpt() {
           )}
         </AnimatePresence>
 
-        {/* ── Attachment quick-action bar ── */}
+        {/* ── Attachment glass panel ── */}
         <AnimatePresence>
           {attachOpen && (
             <motion.div
-              initial={{ opacity: 0, y: 8, scale: 0.96 }}
+              initial={{ opacity: 0, y: 8, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.96 }}
+              exit={{ opacity: 0, y: 6, scale: 0.97 }}
               transition={SPRING_FAST}
-              className="mb-2 flex items-center gap-2 overflow-x-auto pb-0.5"
-              style={{ scrollbarWidth: "none" }}
+              className="mb-3 overflow-hidden"
+              style={{
+                borderRadius: 20,
+                background: "rgba(11, 8, 20, 0.97)",
+                border: "1px solid rgba(255,255,255,0.07)",
+                boxShadow: "0 16px 48px rgba(0,0,0,0.65), 0 0 0 0.5px rgba(255,255,255,0.035) inset",
+                backdropFilter: "blur(48px)",
+                WebkitBackdropFilter: "blur(48px)",
+                width: "fit-content",
+                minWidth: 210,
+              }}
             >
-              <QuickAction
-                icon={<Camera className="h-4 w-4" />}
-                label="Camera"
-                color="#a855f7"
-                locked={false}
-                onClick={() => pickFiles("image")}
-              />
-              <QuickAction
-                icon={<ImageIcon className="h-4 w-4" />}
-                label="Photos"
-                color="#ec4899"
-                locked={false}
-                onClick={() => pickFiles("image")}
-              />
-              <QuickAction
-                icon={<Film className="h-4 w-4" />}
-                label="Videos"
-                color="#8b5cf6"
-                locked={planCode === "free"}
-                onClick={() => planCode === "free" ? openUpgrade() : pickFiles("video")}
-              />
-              <QuickAction
-                icon={<Folder className="h-4 w-4" />}
-                label="Files"
-                color="#6366f1"
-                locked={false}
-                onClick={() => pickFiles("file")}
-              />
-              <QuickAction
-                icon={<Mic className="h-4 w-4" />}
-                label="Voice"
-                color="#0ea5e9"
-                locked={planCode === "free"}
-                onClick={() => planCode === "free" ? openUpgrade() : pickFiles("audio")}
-              />
+              {([
+                { Icon: Camera,    label: "Camera", type: "image" as const, locked: false },
+                { Icon: ImageIcon, label: "Photos", type: "image" as const, locked: false },
+                { Icon: Film,      label: "Videos", type: "video" as const, locked: planCode === "free" },
+                { Icon: Folder,    label: "Files",  type: "file"  as const, locked: false },
+                { Icon: Mic,       label: "Voice",  type: "audio" as const, locked: planCode === "free" },
+              ] as const).map(({ Icon, label, type, locked }, i) => (
+                <motion.button
+                  key={label}
+                  type="button"
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => locked ? openUpgrade() : pickFiles(type)}
+                  className="flex w-full items-center gap-3.5 px-4 py-3.5"
+                  style={{
+                    borderBottom: i < 4 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                    willChange: "transform",
+                  }}
+                >
+                  <Icon
+                    className="h-[16px] w-[16px] shrink-0"
+                    style={{ color: locked ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.5)" }}
+                  />
+                  <span
+                    className="flex-1 text-left text-[13.5px] font-medium tracking-[-0.01em]"
+                    style={{ color: locked ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.78)" }}
+                  >
+                    {label}
+                  </span>
+                  {locked && (
+                    <Crown
+                      className="h-3 w-3 shrink-0"
+                      style={{ color: "rgba(234,179,8,0.45)" }}
+                    />
+                  )}
+                </motion.button>
+              ))}
             </motion.div>
           )}
         </AnimatePresence>
@@ -571,7 +581,7 @@ export default function SociaGpt() {
                   placeholder={
                     cooldownSec > 0 ? `Ready in ${cooldownSec}s…`
                     : pending.length  ? "Ask about your file…"
-                    : "Message…"
+                    : "Message Socia GPT…"
                   }
                   disabled={cooldownSec > 0}
                   className="w-full resize-none bg-transparent text-[14px] leading-relaxed text-white placeholder-white/20 outline-none disabled:opacity-40 [&::-webkit-scrollbar]:hidden"
@@ -741,119 +751,56 @@ export default function SociaGpt() {
   );
 }
 
-/* ─── QuickAction chip ───────────────────────────────────────────────── */
-const QuickAction = memo(function QuickAction({
-  icon, label, color, locked, onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  color: string;
-  locked: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <motion.button
-      type="button"
-      whileTap={{ scale: 0.88 }}
-      onClick={onClick}
-      className="relative flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2.5"
-      style={{
-        background: locked ? "rgba(255,255,255,0.04)" : `${color}18`,
-        border: `1px solid ${locked ? "rgba(255,255,255,0.07)" : `${color}38`}`,
-        color: locked ? "rgba(255,255,255,0.3)" : color,
-        backdropFilter: "blur(12px)",
-        willChange: "transform",
-      }}
-    >
-      {icon}
-      <span className="text-[12px] font-semibold whitespace-nowrap">
-        {label}
-      </span>
-      {locked && (
-        <span
-          className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full"
-          style={{
-            background: "rgba(234,179,8,0.9)",
-            boxShadow: "0 2px 6px rgba(234,179,8,0.35)",
-          }}
-        >
-          <Crown className="h-2 w-2 text-black" strokeWidth={3} />
-        </span>
-      )}
-    </motion.button>
-  );
-});
 
 /* ─── Empty state ────────────────────────────────────────────────────── */
-const EmptyState = memo(function EmptyState({ onHint }: { onHint: (h: string) => void }) {
+const EmptyState = memo(function EmptyState() {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-      className="flex flex-col items-center justify-center pt-14 pb-6 text-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.55, ease: "easeOut" }}
+      className="flex min-h-[58vh] flex-col items-center justify-center pb-6 text-center"
     >
-      <div className="relative mb-7">
+      {/* Orb */}
+      <div className="relative mb-9">
         <div
-          className="absolute inset-0 rounded-full blur-3xl opacity-40"
+          className="pointer-events-none absolute rounded-full blur-[80px]"
           style={{
-            background: "radial-gradient(circle,rgba(168,85,247,0.55) 0%,rgba(236,72,153,0.2) 55%,transparent 80%)",
-            transform: "scale(2.4)",
+            inset: "-40px",
+            background: "radial-gradient(circle, rgba(139,92,246,0.28) 0%, transparent 65%)",
           }}
         />
         <motion.div
-          initial={{ scale: 0.7, opacity: 0 }}
+          initial={{ scale: 0.75, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.08, duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
-          className="relative grid h-[72px] w-[72px] place-items-center rounded-[24px]"
+          transition={{ delay: 0.08, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+          className="relative grid h-[78px] w-[78px] place-items-center rounded-[26px]"
           style={{
-            background: "linear-gradient(135deg,#a855f7,#ec4899,#6366f1)",
-            boxShadow: "0 20px 50px -8px rgba(168,85,247,0.65), 0 0 0 1px rgba(255,255,255,0.08) inset",
+            background: "linear-gradient(145deg, #a78bfa 0%, #8b5cf6 45%, #6366f1 100%)",
+            boxShadow: "0 28px 64px -12px rgba(139,92,246,0.5), 0 0 0 1px rgba(255,255,255,0.1) inset",
           }}
         >
-          <Sparkles className="h-8 w-8 text-white" />
+          <Sparkles className="h-8 w-8 text-white" strokeWidth={1.5} />
         </motion.div>
       </div>
 
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.16 }}
+        transition={{ delay: 0.2, duration: 0.4, ease: "easeOut" }}
+        className="space-y-3"
       >
-        <h2 className="font-display text-[22px] font-bold tracking-tight text-white">
+        <h2
+          className="font-display text-[23px] font-semibold tracking-[-0.02em] text-white"
+        >
           Hi, I'm <span className="text-gradient">Socia GPT</span>
         </h2>
         <p
-          className="mx-auto mt-2.5 max-w-[260px] text-[13px] leading-relaxed"
-          style={{ color: "rgba(255,255,255,0.36)" }}
+          className="mx-auto max-w-[220px] text-[13px] leading-[1.65]"
+          style={{ color: "rgba(255,255,255,0.28)" }}
         >
-          Ask me anything — attach photos, voice notes, or videos and I'll help you create incredible content.
+          Your intelligent creative partner.
         </p>
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.26 }}
-        className="mt-7 flex flex-wrap justify-center gap-2"
-      >
-        {["Write captions", "Fix prompts", "TikTok scripts", "Cinematic shots", "Product ads"].map((hint) => (
-          <motion.button
-            key={hint}
-            type="button"
-            whileTap={{ scale: 0.92 }}
-            onClick={() => onHint(hint)}
-            className="rounded-full px-3 py-1.5 text-[11.5px] font-medium"
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.07)",
-              color: "rgba(255,255,255,0.36)",
-              willChange: "transform",
-            }}
-          >
-            {hint}
-          </motion.button>
-        ))}
       </motion.div>
     </motion.div>
   );
@@ -878,10 +825,10 @@ const Bubble = memo(function Bubble({ m, onRegen, busy, onUpgrade }: {
         className="flex justify-end"
       >
         <div
-          className="max-w-[80%] rounded-[20px] rounded-br-[5px] px-4 py-3 text-[14px] leading-relaxed text-white"
+          className="max-w-[82%] rounded-[22px] rounded-br-[6px] px-4 py-3.5 text-[14px] leading-relaxed text-white"
           style={{
-            background: "linear-gradient(135deg,#a855f7,#ec4899)",
-            boxShadow: "0 4px 20px rgba(168,85,247,0.28)",
+            background: "linear-gradient(145deg, rgba(168,85,247,0.92), rgba(236,72,153,0.82))",
+            boxShadow: "0 4px 24px rgba(168,85,247,0.22)",
           }}
         >
           {m.attachments && m.attachments.length > 0 && (
@@ -905,11 +852,10 @@ const Bubble = memo(function Bubble({ m, onRegen, busy, onUpgrade }: {
     >
       <div className="w-full max-w-[92%]">
         <div
-          className="rounded-[20px] rounded-bl-[5px] px-4 py-3.5"
+          className="rounded-[22px] rounded-bl-[6px] px-4 py-4"
           style={{
-            background: "rgba(255,255,255,0.04)",
+            background: "rgba(255,255,255,0.045)",
             border: "1px solid rgba(255,255,255,0.07)",
-            boxShadow: "0 2px 16px rgba(0,0,0,0.2)",
           }}
         >
           {m.content ? (
@@ -972,22 +918,16 @@ const Bubble = memo(function Bubble({ m, onRegen, busy, onUpgrade }: {
 /* ─── Typing dots ────────────────────────────────────────────────────── */
 function TypingDots() {
   return (
-    <div
-      className="flex items-center gap-2.5 text-[13px]"
-      style={{ color: "rgba(255,255,255,0.32)" }}
-    >
-      <div className="flex gap-1">
-        {[0, 0.18, 0.36].map((delay) => (
-          <motion.span
-            key={delay}
-            className="block h-1.5 w-1.5 rounded-full"
-            style={{ background: "rgba(192,38,211,0.5)" }}
-            animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1, 0.8] }}
-            transition={{ duration: 1.1, repeat: Infinity, delay }}
-          />
-        ))}
-      </div>
-      Thinking…
+    <div className="flex items-center gap-[5px] py-0.5">
+      {[0, 0.2, 0.42].map((delay) => (
+        <motion.span
+          key={delay}
+          className="block h-[6px] w-[6px] rounded-full"
+          style={{ background: "rgba(255,255,255,0.3)" }}
+          animate={{ opacity: [0.2, 0.65, 0.2], scale: [0.85, 1.1, 0.85] }}
+          transition={{ duration: 1.3, repeat: Infinity, delay, ease: "easeInOut" }}
+        />
+      ))}
     </div>
   );
 }
