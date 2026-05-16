@@ -41,31 +41,31 @@
   --accent-glow:      rgba(168, 85, 247, 0.30);
 }
 
-/* ─── DARK theme (default) ────────────────────────────────────────────── */
+/* ─── DARK theme (AMOLED pure black) ─────────────────────────────────── */
 html, html.dark {
-  --background:         240 17% 6%;
-  --surface:            240 20% 7%;
+  --background:         0 0% 0%;
+  --surface:            0 0% 4%;
   --foreground:         0 0% 98%;
-  --border:             240 15% 13%;
-  --input:              240 15% 13%;
+  --border:             0 0% 8%;
+  --input:              0 0% 6%;
   --ring:               280 100% 64%;
 
-  --card:               240 18% 8%;
+  --card:               0 0% 4%;
   --card-foreground:    0 0% 98%;
-  --card-border:        240 15% 13%;
+  --card-border:        0 0% 8%;
 
-  --popover:            240 20% 7%;
+  --popover:            0 0% 4%;
   --popover-foreground: 0 0% 98%;
-  --popover-border:     240 15% 13%;
+  --popover-border:     0 0% 8%;
 
   --primary:            280 100% 64%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary:          240 18% 12%;
+  --secondary:          0 0% 6%;
   --secondary-foreground: 0 0% 98%;
 
-  --muted:              240 15% 11%;
-  --muted-foreground:   240 8% 60%;
+  --muted:              0 0% 5%;
+  --muted-foreground:   0 0% 55%;
 
   --accent:             320 100% 58%;
   --accent-foreground:  0 0% 100%;
@@ -74,14 +74,14 @@ html, html.dark {
   --destructive-foreground: 0 0% 100%;
 
   /* Structural surfaces (raw, non-hsl for inline style use) */
-  --s-bg:          13, 13, 20;    /* rgb components */
-  --s-card:        17, 17, 26;
-  --s-surface:     22, 22, 32;
-  --s-border-a:    rgba(255,255,255,0.07);
-  --s-border-b:    rgba(255,255,255,0.06);
+  --s-bg:          0, 0, 0;       /* pure AMOLED black */
+  --s-card:        10, 10, 10;
+  --s-surface:     14, 14, 14;
+  --s-border-a:    rgba(255,255,255,0.04);
+  --s-border-b:    rgba(255,255,255,0.03);
   --s-text:        255, 255, 255;
   --s-text-muted:  rgba(255,255,255,0.45);
-  --s-overlay:     rgba(0,0,0,0.55);
+  --s-overlay:     rgba(0,0,0,0.6);
 
   color-scheme: dark;
 }
@@ -219,7 +219,7 @@ html.light {
   .card-premium {
     background: rgb(var(--s-card));
     border: 1px solid var(--s-border-a);
-    box-shadow: 0 2px 12px -4px rgba(0,0,0,0.18), 0 1px 0 0 rgba(255,255,255,0.04) inset;
+    box-shadow: 0 1px 6px -2px rgba(0,0,0,0.5), 0 1px 0 0 rgba(255,255,255,0.02) inset;
   }
 
   /* Accent gradient — uses JS-set CSS vars so colour changes apply everywhere */

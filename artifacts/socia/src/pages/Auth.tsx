@@ -208,7 +208,7 @@ export default function Auth() {
           whileHover={{ borderColor: "rgba(255,255,255,0.18)", backgroundColor: "rgba(255,255,255,0.08)" }}
           onClick={handleGoogle}
           disabled={loading}
-          className="relative flex h-12 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] text-sm font-semibold text-white transition-colors disabled:opacity-60"
+          className="relative flex h-12 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0a0a0a] text-sm font-semibold text-white transition-colors disabled:opacity-60"
         >
           {/* Subtle shimmer on hover */}
           <motion.div

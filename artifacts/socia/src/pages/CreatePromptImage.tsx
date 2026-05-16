@@ -1023,7 +1023,7 @@ function HistoryCard({
             <Heart className="h-3 w-3 fill-white text-white" />
           </div>
         )}
-        <div className="absolute bottom-2 left-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[9px] font-medium text-white/60 backdrop-blur-sm">
+        <div className="absolute bottom-2 left-2 rounded-md bg-[#000000] px-1.5 py-0.5 text-[9px] font-medium text-white/60">
           {item.style}
         </div>
       </div>

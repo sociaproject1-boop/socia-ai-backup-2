@@ -43,17 +43,17 @@ export default function PostDetail() {
           className="absolute inset-x-0 top-0 z-20 flex items-center justify-between px-4"
           style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 14px)` }}
         >
-          <button onClick={() => navigate("/")} className="grid h-9 w-9 place-items-center rounded-full bg-black/55 border border-white/15 text-white backdrop-blur-md">
+          <button onClick={() => navigate("/")} className="grid h-9 w-9 place-items-center rounded-full bg-[#000000] border border-white/[0.08] text-white">
             <ArrowLeft className="h-4 w-4" />
           </button>
           <motion.button
             whileTap={{ scale: 0.88 }}
             onClick={() => toggleSavePost(post.id)}
             className={
-              "grid h-9 w-9 place-items-center rounded-full backdrop-blur-md border transition " +
+              "grid h-9 w-9 place-items-center rounded-full border transition " +
               (isSaved
                 ? "bg-purple-600/70 border-purple-400/40 text-white"
-                : "bg-black/55 border-white/15 text-white")
+                : "bg-[#000000] border-white/[0.08] text-white")
             }
           >
             <Bookmark className={"h-4 w-4 " + (isSaved ? "fill-white" : "")} />
@@ -73,7 +73,7 @@ export default function PostDetail() {
             <button onClick={() => setVideoOpen(true)} className="absolute inset-0 grid place-items-center">
               <motion.span
                 whileTap={{ scale: 0.88 }}
-                className="grid h-16 w-16 place-items-center rounded-full border border-white/25 bg-gradient-to-br from-purple-600/80 via-pink-500/80 to-blue-500/80 backdrop-blur-xl shadow-[0_0_40px_8px_rgba(168,85,247,0.45)]"
+                className="grid h-16 w-16 place-items-center rounded-full border border-white/20 bg-gradient-to-br from-purple-600/80 via-pink-500/80 to-blue-500/80"
               >
                 <Play className="h-7 w-7 fill-white text-white" />
               </motion.span>
@@ -81,7 +81,7 @@ export default function PostDetail() {
           )}
 
           {post.duration && (
-            <span className="absolute right-4 top-16 rounded-full bg-black/55 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-md">
+            <span className="absolute right-4 top-16 rounded-full bg-[#000000] px-2.5 py-1 text-xs font-semibold text-white">
               {post.duration}
             </span>
           )}
@@ -174,7 +174,7 @@ function ActionBtn({
   return (
     <motion.button
       whileTap={{ scale: 0.92 }} onClick={onClick}
-      className="flex items-center gap-1.5 rounded-full bg-white/8 border border-white/15 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md"
+      className="flex items-center gap-1.5 rounded-full bg-[#0a0a0a] border border-white/[0.08] px-3 py-1.5 text-xs font-semibold text-white"
     >
       <Icon className={"h-4 w-4 " + (active ? "fill-pink-500 text-pink-500" : "text-white")} />
       {label}

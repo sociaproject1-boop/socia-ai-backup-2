@@ -89,7 +89,7 @@ function GenerationOverlay({ phase, preset }: { phase: "preparing" | "rendering"
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex flex-col items-center justify-center"
-      style={{ background: "rgba(3,0,16,0.92)", backdropFilter: "blur(12px)" }}
+      style={{ background: "rgba(0,0,0,0.96)" }}
     >
       {/* Pulsing ring animation */}
       <div className="relative mb-8">
@@ -203,7 +203,7 @@ function ResultOverlay({
         {/* Close */}
         <button
           onClick={onClose}
-          className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-black/70 text-white backdrop-blur-sm"
+          className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-[#000000] text-white"
         >
           <X className="h-4 w-4" />
         </button>
@@ -514,12 +514,12 @@ export default function StudioPreset() {
     >
       {/* Top bar */}
       <div className="sticky top-0 z-20 px-4 pt-4 pb-2"
-        style={{ background: "rgba(3,0,16,0.88)", backdropFilter: "blur(16px)" }}>
+        style={{ background: "#000000" }}>
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate("/studio")}
             className="grid h-9 w-9 place-items-center rounded-full text-white/80 active:scale-95"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}
+            style={{ background: "#0a0a0a", border: "1px solid rgba(255,255,255,0.06)" }}
             aria-label="Back"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -532,7 +532,7 @@ export default function StudioPreset() {
             <button
               onClick={() => toggleFav(preset.id)}
               className="grid h-9 w-9 place-items-center rounded-full active:scale-90 transition-all"
-              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}
+              style={{ background: "#0a0a0a", border: "1px solid rgba(255,255,255,0.06)" }}
               aria-label="Favorite"
             >
               <Heart
@@ -585,12 +585,12 @@ export default function StudioPreset() {
                 <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/70 to-transparent" />
                 <button
                   onClick={() => setImageUrl(null)}
-                  className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/70 text-white backdrop-blur-sm"
+                  className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-[#000000] text-white"
                   aria-label="Remove"
                 >
                   <X className="h-4 w-4" />
                 </button>
-                <div className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2.5 py-1 text-[10.5px] font-medium text-green-400 backdrop-blur-sm">
+                <div className="absolute bottom-2 left-2 rounded-full bg-[#000000] px-2.5 py-1 text-[10.5px] font-medium text-green-400">
                   ✓ Ready
                 </div>
               </div>

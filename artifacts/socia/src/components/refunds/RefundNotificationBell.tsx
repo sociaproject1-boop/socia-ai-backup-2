@@ -109,7 +109,7 @@ export function RefundNotificationBell() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.96 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 top-11 z-50 w-80 overflow-hidden rounded-2xl border border-white/10 bg-[#0d0d18]/95 shadow-2xl backdrop-blur-2xl"
+            className="absolute right-0 top-11 z-50 w-80 overflow-hidden rounded-2xl border border-white/[0.05] bg-[#0a0a0a] shadow-2xl"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/8">

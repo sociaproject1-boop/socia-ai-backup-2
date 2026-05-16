@@ -50,7 +50,7 @@ function CreationCard({
         <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/85 to-transparent" />
 
         {/* Kind badge */}
-        <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/65 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+        <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-[#000000] px-1.5 py-0.5 text-[10px] font-medium text-white">
           {creation.type === "video" ? <Film className="h-2.5 w-2.5" /> : <ImageIcon className="h-2.5 w-2.5" />}
           {creation.type === "video" ? `${creation.durationSec || 5}s` : "image"}
         </div>
@@ -110,16 +110,15 @@ function DetailOverlay({
         onClick={(e) => e.stopPropagation()}
         className="relative w-full max-w-md overflow-hidden rounded-t-3xl sm:rounded-3xl"
         style={{
-          background: "rgba(10,4,24,0.98)",
-          border: "1px solid rgba(168,85,247,0.25)",
-          boxShadow: "0 0 50px -15px rgba(168,85,247,0.35)",
+          background: "#0a0a0a",
+          border: "1px solid rgba(255,255,255,0.06)",
           maxHeight: "90vh",
           overflowY: "auto",
         }}
       >
         <button
           onClick={onClose}
-          className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-black/70 text-white backdrop-blur-sm"
+          className="absolute right-3 top-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-[#000000] text-white"
         >
           <X className="h-4 w-4" />
         </button>

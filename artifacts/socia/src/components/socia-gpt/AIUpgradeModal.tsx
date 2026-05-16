@@ -108,7 +108,7 @@ export function AIUpgradeModal({ open, onClose, currentPlan, highlightPlan }: AI
           {/* Backdrop */}
           <motion.div
             className="fixed inset-0 z-50"
-            style={{ background: "rgba(0,0,0,0.78)", backdropFilter: "blur(6px)" }}
+            style={{ background: "rgba(0,0,0,0.85)" }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -119,11 +119,10 @@ export function AIUpgradeModal({ open, onClose, currentPlan, highlightPlan }: AI
           <motion.div
             className="fixed inset-x-0 bottom-0 z-50 mx-auto max-w-[480px] rounded-t-[28px] overflow-hidden"
             style={{
-              background: "rgba(9,5,20,0.99)",
-              border: "1px solid rgba(255,255,255,0.08)",
+              background: "#0a0a0a",
+              border: "1px solid rgba(255,255,255,0.06)",
               borderBottom: "none",
               boxShadow: "0 -24px 80px rgba(0,0,0,0.75)",
-              backdropFilter: "blur(40px)",
               maxHeight: "92dvh",
             }}
             initial={{ y: "100%" }}
@@ -154,7 +153,7 @@ export function AIUpgradeModal({ open, onClose, currentPlan, highlightPlan }: AI
                     </div>
                     <button onClick={handleClose}
                       className="grid h-8 w-8 place-items-center rounded-full transition-colors"
-                      style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.45)" }}>
+                      style={{ background: "#141414", color: "rgba(255,255,255,0.45)" }}>
                       <X className="h-4 w-4" />
                     </button>
                   </div>
@@ -174,16 +173,16 @@ export function AIUpgradeModal({ open, onClose, currentPlan, highlightPlan }: AI
                           onClick={() => setSelected(plan.code as Exclude<AIPlanCode, "free">)}
                           className="w-full rounded-2xl p-4 text-left transition-all"
                           style={{
-                            background: isSel ? colors.accent : "rgba(255,255,255,0.03)",
-                            border: `1.5px solid ${isSel ? colors.border : "rgba(255,255,255,0.07)"}`,
-                            boxShadow: isSel ? `0 0 20px -4px ${colors.border}` : "none",
+                            background: isSel ? colors.accent : "#000000",
+                            border: `1.5px solid ${isSel ? colors.border : "rgba(255,255,255,0.06)"}`,
+                            boxShadow: "none",
                           }}
                         >
                           {/* Top row: icon + name + badge + price — all in one flex row */}
                           <div className="flex items-center gap-3">
                             {/* Icon */}
                             <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[12px]"
-                              style={{ background: isSel ? colors.border : "rgba(255,255,255,0.06)" }}>
+                              style={{ background: isSel ? colors.border : "#141414" }}>
                               <Icon className="h-4 w-4" style={{ color: isSel ? colors.text : "rgba(255,255,255,0.4)" }} />
                             </div>
 
@@ -257,9 +256,9 @@ export function AIUpgradeModal({ open, onClose, currentPlan, highlightPlan }: AI
                       disabled={currentPlan === selected}
                       className="flex h-14 w-full items-center justify-center gap-2.5 rounded-2xl font-display text-[15px] font-bold text-white transition-all disabled:opacity-40"
                       style={{
-                        background: currentPlan !== selected ? selColors.btnGrad : "rgba(255,255,255,0.06)",
-                        border: currentPlan !== selected ? "none" : "1px solid rgba(255,255,255,0.08)",
-                        boxShadow: currentPlan !== selected ? `0 8px 28px -6px ${selColors.border}` : "none",
+                        background: currentPlan !== selected ? selColors.btnGrad : "#141414",
+                        border: currentPlan !== selected ? "none" : "1px solid rgba(255,255,255,0.06)",
+                        boxShadow: "none",
                       }}
                     >
                       {currentPlan === selected ? "Current Plan" : (
@@ -280,7 +279,7 @@ export function AIUpgradeModal({ open, onClose, currentPlan, highlightPlan }: AI
                   <div className="flex items-center gap-3 px-5 py-4">
                     <button onClick={() => setStep("plans")}
                       className="grid h-8 w-8 shrink-0 place-items-center rounded-full"
-                      style={{ background: "rgba(255,255,255,0.06)" }}>
+                      style={{ background: "#141414" }}>
                       <ArrowLeft className="h-4 w-4 text-white/55" />
                     </button>
                     <div className="flex-1 min-w-0">
@@ -293,7 +292,7 @@ export function AIUpgradeModal({ open, onClose, currentPlan, highlightPlan }: AI
                     </div>
                     <button onClick={handleClose}
                       className="grid h-8 w-8 shrink-0 place-items-center rounded-full"
-                      style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.4)" }}>
+                      style={{ background: "#141414", color: "rgba(255,255,255,0.4)" }}>
                       <X className="h-4 w-4" />
                     </button>
                   </div>
@@ -301,7 +300,7 @@ export function AIUpgradeModal({ open, onClose, currentPlan, highlightPlan }: AI
                   <div className="px-5 pb-4 space-y-4">
                     {/* Payment accounts */}
                     <div className="rounded-2xl p-4 space-y-3"
-                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                      style={{ background: "#000000", border: "1px solid rgba(255,255,255,0.05)" }}>
                       <p className="text-[10.5px] font-semibold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.28)" }}>
                         Send Payment To
                       </p>
@@ -315,7 +314,7 @@ export function AIUpgradeModal({ open, onClose, currentPlan, highlightPlan }: AI
                           </div>
                           <button onClick={() => copyNumber(acc.number, acc.method)}
                             className="grid h-8 w-8 place-items-center rounded-xl transition-colors"
-                            style={{ background: copied === acc.method ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.05)" }}>
+                            style={{ background: copied === acc.method ? "rgba(34,197,94,0.12)" : "#141414" }}>
                             {copied === acc.method
                               ? <Check className="h-3.5 w-3.5 text-green-400" />
                               : <Copy className="h-3.5 w-3.5 text-white/35" />}
@@ -340,8 +339,8 @@ export function AIUpgradeModal({ open, onClose, currentPlan, highlightPlan }: AI
                         placeholder="e.g. 1234567890"
                         className="w-full rounded-2xl px-4 py-3.5 text-[14px] font-medium text-white placeholder-white/18 outline-none"
                         style={{
-                          background: "rgba(255,255,255,0.05)",
-                          border: `1.5px solid ${error ? "rgba(239,68,68,0.45)" : payRef ? selColors.border : "rgba(255,255,255,0.09)"}`,
+                          background: "#0a0a0a",
+                          border: `1.5px solid ${error ? "rgba(239,68,68,0.45)" : payRef ? selColors.border : "rgba(255,255,255,0.07)"}`,
                           caretColor: selColors.text,
                         }}
                       />
@@ -418,7 +417,7 @@ export function AIUpgradeModal({ open, onClose, currentPlan, highlightPlan }: AI
                     onClick={handleClose}
                     initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
                     className="mt-8 rounded-2xl px-8 py-3 text-[13.5px] font-semibold text-white"
-                    style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}
+                    style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.06)" }}
                   >
                     Done
                   </motion.button>

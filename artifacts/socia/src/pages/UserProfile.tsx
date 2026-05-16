@@ -202,7 +202,7 @@ export default function UserProfile() {
     return (
       <div className="app-bg flex h-full flex-col">
         <div
-          className="flex items-center gap-3 border-b border-white/[0.06] bg-background/70 px-4 backdrop-blur-2xl"
+          className="flex items-center gap-3 border-b border-white/[0.04] bg-[#000000] px-4"
           style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)`, paddingBottom: 12 }}
         >
           <button onClick={() => navigate(-1 as any)} className="card-premium grid h-9 w-9 place-items-center rounded-full text-white">
@@ -224,7 +224,7 @@ export default function UserProfile() {
     return (
       <div className="app-bg flex h-full flex-col">
         <div
-          className="flex items-center gap-3 border-b border-white/[0.06] bg-background/70 px-4 backdrop-blur-2xl"
+          className="flex items-center gap-3 border-b border-white/[0.04] bg-[#000000] px-4"
           style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)`, paddingBottom: 12 }}
         >
           <button onClick={() => navigate(-1 as any)} className="card-premium grid h-9 w-9 place-items-center rounded-full text-white">
@@ -245,7 +245,7 @@ export default function UserProfile() {
     <div className="app-bg flex h-full flex-col overflow-y-auto hide-scrollbar">
       {/* Header */}
       <div
-        className="flex items-center gap-3 border-b border-white/[0.06] bg-background/70 px-4 backdrop-blur-2xl"
+        className="flex items-center gap-3 border-b border-white/[0.04] bg-[#000000] px-4"
         style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)`, paddingBottom: 12 }}
       >
         <button

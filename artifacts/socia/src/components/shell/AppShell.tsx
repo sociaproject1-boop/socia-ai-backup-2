@@ -168,7 +168,7 @@ function NotificationBanner({
       exit={{    opacity: 0, y: -64, scale: 0.95 }}
       transition={{ type: "spring", stiffness: 480, damping: 38 }}
       onClick={onTap}
-      className="absolute inset-x-3 top-3 z-50 flex cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border border-white/10 bg-[#0d0d14]/90 px-4 py-3 shadow-[0_8px_40px_-8px_rgba(168,85,247,0.35)] backdrop-blur-2xl"
+      className="absolute inset-x-3 top-3 z-50 flex cursor-pointer items-center gap-3 overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0a0a0a] px-4 py-3 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.8)]"
       style={{ maxWidth: 440, margin: "0 auto", left: "12px", right: "12px" }}
     >
       {/* Accent left bar */}

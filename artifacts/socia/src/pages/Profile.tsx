@@ -209,8 +209,7 @@ export default function Profile() {
                 ? "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))"
                 : saveStatus === "error"
                 ? "rgba(239,68,68,0.9)"
-                : "rgba(255,255,255,0.12)",
-              backdropFilter: "blur(12px)",
+                : "#0a0a0a",
             }}
           >
             {saveStatus === "saving" && "Saving…"}

@@ -276,7 +276,7 @@ function QRUploadZone({
               <motion.div
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-2xl"
-                style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(4px)" }}>
+                style={{ background: "rgba(0,0,0,0.88)" }}>
                 <button type="button" onClick={() => setZoomed(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs text-white transition-colors">
                   <ZoomIn size={12} /> Preview
@@ -312,7 +312,7 @@ function QRUploadZone({
             <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-8"
-              style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)" }}
+              style={{ background: "rgba(0,0,0,0.92)" }}
               onClick={() => setZoomed(false)}>
               <motion.img
                 src={url} alt="QR Code"
@@ -664,10 +664,9 @@ function StickyActionBar({
       className="sticky bottom-0 z-20 mt-6 -mx-1">
       <div className="rounded-2xl p-3 flex items-center justify-between gap-3"
         style={{
-          background: "rgba(6,10,16,0.9)",
-          backdropFilter: "blur(20px)",
-          border: "1px solid rgba(255,255,255,0.1)",
-          boxShadow: "0 -4px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)",
+          background: "#0a0a0a",
+          border: "1px solid rgba(255,255,255,0.06)",
+          boxShadow: "0 -4px 40px rgba(0,0,0,0.5)",
         }}>
         {/* Status */}
         <div className="flex items-center gap-2">

@@ -129,16 +129,14 @@ export default function CreateImageVideo() {
           paddingTop: "calc(env(safe-area-inset-top,0px) + 14px)",
           paddingBottom: 14,
           borderBottom: "1px solid rgba(255,255,255,0.05)",
-          background: "rgba(8,4,16,0.92)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
+          background: "#000000",
         }}
       >
         <motion.button
           whileTap={{ scale: 0.88 }}
           onClick={() => navigate("/create")}
           className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-white/50 hover:text-white transition-colors"
-          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)" }}
+          style={{ background: "#0a0a0a", border: "1px solid rgba(255,255,255,0.06)" }}
         >
           <ArrowLeft className="h-4 w-4" />
         </motion.button>
@@ -554,7 +552,7 @@ function FrameCard({
               whileTap={{ scale: 0.9 }}
               onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
               className="absolute bottom-2 left-2 rounded-xl px-2.5 py-1.5 text-[10px] font-semibold text-white"
-              style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
+              style={{ background: "#000000" }}
             >
               Change
             </motion.button>
@@ -563,7 +561,7 @@ function FrameCard({
               whileTap={{ scale: 0.88 }}
               onClick={(e) => { e.stopPropagation(); onChange(null); setUploadError(null); }}
               className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full"
-              style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)" }}
+              style={{ background: "#000000" }}
             >
               <X className="h-3.5 w-3.5 text-white" />
             </motion.button>
@@ -622,7 +620,7 @@ function LoadingOverlay() {
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       transition={{ duration: 0.35 }}
       className="absolute inset-0 z-30 flex items-center justify-center"
-      style={{ background: "rgba(6,3,14,0.95)", backdropFilter: "blur(12px)" }}
+      style={{ background: "rgba(0,0,0,0.96)" }}
     >
       <div className="flex flex-col items-center gap-6 px-8">
         {/* Rings */}
@@ -685,7 +683,7 @@ function ResultOverlay({ result, aspect, saveStatus, saveError, onClose, onSave,
         style={{ paddingTop: "calc(env(safe-area-inset-top,0px) + 16px)", paddingBottom: 12 }}>
         <motion.button whileTap={{ scale: 0.9 }} onClick={onClose}
           className="grid h-9 w-9 place-items-center rounded-full"
-          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
+          style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.06)" }}>
           <X className="h-4 w-4 text-white" />
         </motion.button>
         <h3 className="font-display text-[14px] font-bold text-white">
@@ -696,7 +694,7 @@ function ResultOverlay({ result, aspect, saveStatus, saveError, onClose, onSave,
 
       <div className="flex flex-1 flex-col items-center justify-center px-5">
         <div className="relative w-full max-w-sm overflow-hidden rounded-3xl"
-          style={{ aspectRatio: ratio, border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 24px 60px -12px rgba(168,85,247,0.5)" }}>
+          style={{ aspectRatio: ratio, border: "1px solid rgba(255,255,255,0.07)" }}>
           <motion.img src={result.url} alt={result.prompt} decoding="async"
             initial={{ opacity: 0, filter: "blur(18px) saturate(0.7)", scale: 1.03 }}
             animate={{ opacity: 1, filter: "blur(0px) saturate(1)", scale: 1 }}
@@ -709,8 +707,8 @@ function ResultOverlay({ result, aspect, saveStatus, saveError, onClose, onSave,
               <motion.span
                 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.2, type: "spring", stiffness: 320, damping: 20 }}
-                className="grid h-14 w-14 place-items-center rounded-full border border-white/25 backdrop-blur-xl"
-                style={{ background: "linear-gradient(135deg,rgba(168,85,247,0.8),rgba(236,72,153,0.8))", boxShadow: "0 0 36px 6px rgba(168,85,247,0.5)" }}
+                className="grid h-14 w-14 place-items-center rounded-full border border-white/20"
+                style={{ background: "linear-gradient(135deg,rgba(168,85,247,0.8),rgba(236,72,153,0.8))" }}
               >
                 <Play className="h-6 w-6 fill-white text-white" />
               </motion.span>

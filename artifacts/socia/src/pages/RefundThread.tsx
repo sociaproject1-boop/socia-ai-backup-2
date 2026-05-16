@@ -146,7 +146,7 @@ function ComposeBox({ refundId, onSent }: { refundId: string; onSent: () => void
   };
 
   return (
-    <div className="border-t border-white/8 bg-[#06060c]/80 backdrop-blur px-4 py-3">
+    <div className="border-t border-white/[0.05] bg-[#000000] px-4 py-3">
       <div className="flex items-end gap-2">
         <textarea
           value={text}

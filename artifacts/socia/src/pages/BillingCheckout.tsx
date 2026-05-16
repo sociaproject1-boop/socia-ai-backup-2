@@ -336,12 +336,12 @@ function PaymentDetails({ method, pmc, amount }: { method: Method; pmc: PaymentS
       {lightbox && (
         <div
           className="fixed inset-0 z-50 flex flex-col items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.93)", backdropFilter: "blur(8px)" }}
+          style={{ background: "rgba(0,0,0,0.96)" }}
           onClick={() => setLightbox(null)}
         >
           <button
             onClick={() => setLightbox(null)}
-            className="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20"
+            className="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full bg-[#141414] text-white hover:bg-[#1e1e1e]"
             aria-label="Close QR viewer"
           >
             <X className="h-5 w-5" />

@@ -248,7 +248,7 @@ function PaymentMethodsSheet({ onClose }: { onClose: () => void }) {
   if (!pmc) return null;
   const set = (k: keyof PaymentMethodsConfig, v: string) => setPmc({ ...pmc, [k]: v });
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80" onClick={onClose}>
       <motion.div initial={{ y: 50 }} animate={{ y: 0 }} className="app-bg w-full max-w-lg rounded-t-3xl p-4 max-h-[90vh] overflow-y-auto"
                   onClick={(e) => e.stopPropagation()}>
         <div className="text-lg font-bold app-text mb-2">Payment methods</div>

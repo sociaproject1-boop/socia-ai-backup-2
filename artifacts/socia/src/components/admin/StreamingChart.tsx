@@ -58,7 +58,7 @@ const CustomTooltip = memo(function CustomTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-[#0d1628]/95 p-3 text-xs shadow-xl backdrop-blur-sm">
+    <div className="rounded-xl border border-white/[0.08] bg-[#0d1628] p-3 text-xs shadow-xl">
       <p className="mb-1.5 font-mono text-[10px] text-white/40">{label}</p>
       {payload.map((p) => (
         <div key={p.name} className="flex items-center gap-2">

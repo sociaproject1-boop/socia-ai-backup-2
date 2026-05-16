@@ -386,7 +386,7 @@ function SupportModal({
         key="backdrop"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         className="fixed inset-0 z-[200] flex items-end justify-center"
-        style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
+        style={{ background: "rgba(0,0,0,0.88)" }}
         onClick={onClose}
       >
         <motion.div

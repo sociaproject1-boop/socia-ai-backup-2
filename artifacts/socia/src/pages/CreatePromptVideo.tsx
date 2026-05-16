@@ -223,12 +223,12 @@ export default function CreatePromptVideo() {
 
       {/* ── HEADER ──────────────────────────────────────────── */}
       <div
-        className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/[0.05] bg-[#08080f]/90 px-4 backdrop-blur-xl"
+        className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/[0.04] bg-[#000000] px-4"
         style={{ paddingTop: `calc(env(safe-area-inset-top,0px) + 12px)`, paddingBottom: 12 }}
       >
         <button
           onClick={() => navigate("/create")}
-          className="grid h-9 w-9 place-items-center rounded-full border border-white/[0.08] bg-white/[0.04] text-white/60 transition hover:bg-white/[0.08]"
+          className="grid h-9 w-9 place-items-center rounded-full border border-white/[0.06] bg-[#0a0a0a] text-white/60 transition hover:bg-[#141414]"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
@@ -668,7 +668,7 @@ export default function CreatePromptVideo() {
 
       {/* ── GENERATE BAR ────────────────────────────────────── */}
       <div
-        className="sticky bottom-0 z-20 border-t border-white/[0.05] bg-[#08080f]/95 px-4 pt-3 backdrop-blur-xl"
+        className="sticky bottom-0 z-20 border-t border-white/[0.04] bg-[#000000] px-4 pt-3"
         style={{ paddingBottom: `calc(env(safe-area-inset-bottom,0px) + 16px)` }}
       >
         {/* Settings summary */}
@@ -933,14 +933,14 @@ function VideoResultOverlay({
                 initial={{ scale: 0.7, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.25, type: "spring", stiffness: 300, damping: 22 }}
-                className="grid h-14 w-14 place-items-center rounded-full border border-white/20 bg-gradient-to-br from-purple-600/80 via-pink-500/80 to-blue-500/80 backdrop-blur-xl shadow-[0_0_36px_6px_rgba(168,85,247,0.45)]"
+                className="grid h-14 w-14 place-items-center rounded-full border border-white/20 bg-gradient-to-br from-purple-600/80 via-pink-500/80 to-blue-500/80"
               >
                 <Play className="h-5 w-5 fill-white text-white ml-0.5" />
               </motion.span>
             </button>
           )}
           {result.durationSec && (
-            <span className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-semibold text-white/80 backdrop-blur-sm">
+            <span className="absolute right-2 top-2 rounded-full bg-[#000000] px-2 py-0.5 text-[10px] font-semibold text-white/80">
               {result.durationSec}s
             </span>
           )}

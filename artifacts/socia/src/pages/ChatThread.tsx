@@ -157,7 +157,7 @@ const AudioPlayer = memo(function AudioPlayer({ url }: { url: string }) {
   };
 
   return (
-    <div className="flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2.5 backdrop-blur-xl min-w-[200px] max-w-[260px]">
+    <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.06] bg-[#0a0a0a] px-3 py-2.5 min-w-[200px] max-w-[260px]">
       <audio
         ref={audioRef}
         src={url}
@@ -221,7 +221,7 @@ function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/92 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95"
       onClick={onClose}
     >
       <motion.img
@@ -242,13 +242,13 @@ function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white backdrop-blur hover:bg-white/20"
+          className="grid h-10 w-10 place-items-center rounded-full bg-[#141414] text-white hover:bg-[#1e1e1e]"
         >
           <Download className="h-4 w-4" />
         </a>
         <button
           onClick={onClose}
-          className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white backdrop-blur hover:bg-white/20"
+          className="grid h-10 w-10 place-items-center rounded-full bg-[#141414] text-white hover:bg-[#1e1e1e]"
         >
           <X className="h-4 w-4" />
         </button>
@@ -378,12 +378,12 @@ const MessageBubble = memo(function MessageBubble({
               <div className="absolute inset-0 bg-black/0 transition-colors group-active:bg-black/25" />
               <a
                 href={msg.image_url!} download target="_blank" rel="noopener noreferrer"
-                className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/50 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100 active:opacity-100"
+                className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-[#000000] text-white opacity-0 transition-opacity group-hover:opacity-100 active:opacity-100"
                 onClick={(e) => e.stopPropagation()}
               >
                 <Download className="h-3.5 w-3.5" />
               </a>
-              <div className="absolute bottom-2 right-2 grid h-6 w-6 place-items-center rounded-full bg-black/40 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100 active:opacity-100">
+              <div className="absolute bottom-2 right-2 grid h-6 w-6 place-items-center rounded-full bg-[#000000] text-white opacity-0 transition-opacity group-hover:opacity-100 active:opacity-100">
                 <svg viewBox="0 0 16 16" fill="none" className="h-3 w-3" stroke="currentColor" strokeWidth="1.5">
                   <path d="M10 2h4v4M6 14H2v-4M14 6l-4 4M2 10l4-4" />
                 </svg>
@@ -399,7 +399,7 @@ const MessageBubble = memo(function MessageBubble({
                 onChange={(e) => onEditChange(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onEditSave(); } if (e.key === "Escape") onEditCancel(); }}
                 rows={2}
-                className="w-full resize-none rounded-xl border border-purple-500/60 bg-white/10 px-3 py-2 text-sm text-white outline-none focus:border-purple-400 backdrop-blur-xl"
+                className="w-full resize-none rounded-xl border border-purple-500/50 bg-[#0a0a0a] px-3 py-2 text-sm text-white outline-none focus:border-purple-400"
               />
               <div className="flex justify-end gap-2">
                 <button onClick={onEditCancel} className="rounded-lg px-2.5 py-1 text-[11px] text-white/50 hover:bg-white/5">Cancel</button>
@@ -411,8 +411,8 @@ const MessageBubble = memo(function MessageBubble({
             /* ── Prompt bubble (Send Prompt to Chat) ───────────────── */
             <div
               className={
-                "relative flex flex-col gap-2 rounded-2xl border px-3.5 py-3 backdrop-blur-xl shadow-[0_4px_22px_-6px_rgba(168,85,247,0.45)] " +
-                "bg-[linear-gradient(135deg,rgba(168,85,247,0.18),rgba(236,72,153,0.14),rgba(59,130,246,0.18))] " +
+                "relative flex flex-col gap-2 rounded-2xl border px-3.5 py-3 " +
+                "bg-[#0a0a0a] " +
                 (senderIsKing
                   ? "border-yellow-300/60 ring-2 ring-yellow-300/30 shadow-[0_4px_28px_-4px_rgba(251,191,36,0.5)]"
                   : "border-white/15") +
@@ -459,7 +459,7 @@ const MessageBubble = memo(function MessageBubble({
             <div className={
               mine
                 ? `${isGrouped ? "rounded-2xl rounded-tr-md" : ""} ${isGroupedNext ? "rounded-br-2xl" : "rounded-br-md"} rounded-2xl bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 px-3.5 py-2 text-sm text-white shadow-[0_4px_18px_-4px_rgba(236,72,153,0.45)]`
-                : `${isGrouped ? "rounded-2xl rounded-tl-md" : ""} ${isGroupedNext ? "rounded-bl-2xl" : "rounded-bl-md"} rounded-2xl border border-white/10 bg-white/[0.06] px-3.5 py-2 text-sm text-white backdrop-blur-xl`
+                : `${isGrouped ? "rounded-2xl rounded-tl-md" : ""} ${isGroupedNext ? "rounded-bl-2xl" : "rounded-bl-md"} rounded-2xl border border-white/[0.06] bg-[#0d0d0d] px-3.5 py-2 text-sm text-white`
             }>
               {msg.text}
               {msg.edited && (
@@ -826,7 +826,7 @@ export default function ChatThread() {
       <div className="flex h-full flex-col">
         {/* ── Header ────────────────────────────────────────────────────── */}
         <div
-          className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/[0.06] bg-background/70 px-4 backdrop-blur-2xl"
+          className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/[0.04] bg-[#000000] px-4"
           style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)`, paddingBottom: 12 }}
         >
           <button onClick={() => navigate("/messages")} className="card-premium grid h-9 w-9 place-items-center rounded-full text-white">
@@ -982,7 +982,7 @@ export default function ChatThread() {
                           ? <img src={peerAvatar} alt="" loading="lazy" className="h-full w-full object-cover" />
                           : <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-[10px] font-bold text-white">{peerName.charAt(0)}</div>}
                       </div>
-                      <div className="rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.06] px-4 py-3 backdrop-blur-xl">
+                      <div className="rounded-2xl rounded-bl-md border border-white/[0.05] bg-[#0d0d0d] px-4 py-3">
                         <TypingDots />
                       </div>
                     </div>
@@ -1043,14 +1043,14 @@ export default function ChatThread() {
 
         {/* ── Composer ──────────────────────────────────────────────────── */}
         <div
-          className="relative border-t border-white/[0.06] bg-background/85 px-3 pt-2 backdrop-blur-2xl"
+          className="relative border-t border-white/[0.04] bg-[#000000] px-3 pt-2"
           style={{ paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + 12px)` }}
         >
           <AnimatePresence>
             {showAttach && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-                className="absolute bottom-full left-3 mb-2 flex gap-2 rounded-2xl border border-white/10 bg-background/95 p-2 backdrop-blur-2xl shadow-2xl"
+                className="absolute bottom-full left-3 mb-2 flex gap-2 rounded-2xl border border-white/[0.05] bg-[#0a0a0a] p-2 shadow-lg"
               >
                 <AttachBtn icon={ImageIcon} label="Photo" onClick={() => { setShowAttach(false); fileRef.current?.click(); }} />
                 <AttachBtn icon={X} label="Close" onClick={() => setShowAttach(false)} />
@@ -1067,7 +1067,7 @@ export default function ChatThread() {
             )}
 
             {/* Input area */}
-            <div className="flex flex-1 items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-4 backdrop-blur-xl">
+            <div className="flex flex-1 items-center rounded-full border border-white/[0.06] bg-[#0a0a0a] px-4">
               {uploading ? (
                 <div className="flex h-10 flex-1 items-center gap-2 text-xs text-white/60">
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-purple-500" />
@@ -1138,11 +1138,11 @@ export default function ChatThread() {
             className="fixed inset-0 z-50 flex items-end justify-center"
             onClick={() => setActionSheet(null)}
           >
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <div className="absolute inset-0 bg-black/80" />
             <motion.div
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 260 }}
-              className="relative w-full max-w-md rounded-t-3xl border-t border-white/10 bg-[#111] p-4 pb-8 shadow-2xl"
+              className="relative w-full max-w-md rounded-t-3xl border-t border-white/[0.05] bg-[#0a0a0a] p-4 pb-8 shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Reaction row */}
@@ -1191,11 +1191,11 @@ export default function ChatThread() {
             className="fixed inset-0 z-50 flex items-end justify-center"
             onClick={() => setNicknamingOpen(false)}
           >
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <div className="absolute inset-0 bg-black/80" />
             <motion.div
               initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 260 }}
-              className="relative w-full max-w-md rounded-t-3xl border-t border-white/10 bg-[#111] p-6 pb-10 shadow-2xl"
+              className="relative w-full max-w-md rounded-t-3xl border-t border-white/[0.05] bg-[#0a0a0a] p-6 pb-10 shadow-2xl"
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="mb-4 text-center text-sm font-semibold text-white">
@@ -1208,7 +1208,7 @@ export default function ChatThread() {
                 onKeyDown={(e) => { if (e.key === "Enter") handleSaveNickname(); if (e.key === "Escape") setNicknamingOpen(false); }}
                 placeholder={otherUser?.name || "Nickname…"}
                 maxLength={40}
-                className="w-full rounded-xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-purple-500 backdrop-blur-xl"
+                className="w-full rounded-xl border border-white/[0.08] bg-[#0a0a0a] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-purple-500"
               />
               <p className="mt-1.5 text-[10px] text-white/30 text-center">Leave blank to use real name. Right-click the name in the header to reopen.</p>
               <div className="mt-4 flex gap-2">

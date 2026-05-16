@@ -66,7 +66,7 @@ function FloatingOrbs() {
         style={{
           left: "-15%", top: "-8%",
           width: "55vw", height: "55vw",
-          background: "radial-gradient(circle, rgba(168,85,247,0.12) 0%, transparent 70%)",
+          background: "transparent",
         }}
       />
       <motion.div
@@ -76,7 +76,7 @@ function FloatingOrbs() {
         style={{
           right: "-12%", top: "25%",
           width: "45vw", height: "45vw",
-          background: "radial-gradient(circle, rgba(236,72,153,0.09) 0%, transparent 70%)",
+          background: "transparent",
         }}
       />
       <motion.div
@@ -86,7 +86,7 @@ function FloatingOrbs() {
         style={{
           left: "15%", bottom: "8%",
           width: "35vw", height: "35vw",
-          background: "radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 70%)",
+          background: "transparent",
         }}
       />
     </div>
@@ -121,7 +121,7 @@ function BadgeChip({ badge }: { badge: string }) {
   if (!style) return null;
   return (
     <div
-      className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-[9px] font-bold backdrop-blur-sm"
+      className="absolute right-2 top-2 rounded-full px-2 py-0.5 text-[9px] font-bold"
       style={{ background: style.bg, color: style.text }}
     >
       {style.label}
@@ -161,9 +161,9 @@ function PresetCard({
         whileTap={{ scale: 0.96 }}
         className="relative w-full overflow-hidden rounded-2xl text-left"
         style={{
-          background: "rgba(8,4,22,0.96)",
-          border: `1px solid ${hovered ? glow : "rgba(255,255,255,0.07)"}`,
-          boxShadow: hovered ? `0 0 28px -6px ${glow}` : "none",
+          background: "#0a0a0a",
+          border: `1px solid ${hovered ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.05)"}`,
+          boxShadow: "none",
           transition: "border-color 0.25s, box-shadow 0.25s",
         }}
       >
@@ -195,7 +195,7 @@ function PresetCard({
           />
 
           {/* Kind + duration badge */}
-          <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+          <div className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-[#000000] px-1.5 py-0.5 text-[10px] font-medium text-white">
             {preset.kind === "video"
               ? <Film className="h-2.5 w-2.5" />
               : <ImageIcon className="h-2.5 w-2.5" />}
@@ -207,7 +207,7 @@ function PresetCard({
 
           {/* Upload required indicator */}
           {needsUpload && (
-            <div className="absolute bottom-2 left-2 rounded-full bg-black/55 px-1.5 py-0.5 text-[9px] text-white/75 backdrop-blur-sm">
+            <div className="absolute bottom-2 left-2 rounded-full bg-[#000000] px-1.5 py-0.5 text-[9px] text-white/75">
               📎 photo
             </div>
           )}
@@ -227,7 +227,7 @@ function PresetCard({
                 <span
                   key={tag}
                   className="rounded-full px-1.5 py-0.5 text-[9px] text-white/45"
-                  style={{ background: "rgba(255,255,255,0.07)" }}
+                  style={{ background: "rgba(255,255,255,0.04)" }}
                 >
                   {tag}
                 </span>
@@ -250,10 +250,10 @@ function PresetCard({
       {/* Fav button */}
       <button
         onClick={(e) => { e.stopPropagation(); onToggleFav(); }}
-        className="absolute right-2 z-10 grid h-7 w-7 place-items-center rounded-full backdrop-blur-sm transition-all active:scale-90"
+        className="absolute right-2 z-10 grid h-7 w-7 place-items-center rounded-full transition-all active:scale-90"
         style={{
           top: "calc(75% - 18px)",
-          background: "rgba(0,0,0,0.6)",
+          background: "#000000",
         }}
         aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
       >
@@ -280,8 +280,8 @@ function FeaturedBanner({ featured, onTap }: { featured: ClientPreset[]; onTap: 
       transition={{ duration: 0.35 }}
       className="mb-4 overflow-hidden rounded-3xl"
       style={{
-        background: `linear-gradient(135deg, ${p.thumb.from}55, ${p.thumb.to}44)`,
-        border: "1px solid rgba(255,255,255,0.1)",
+        background: "#0a0a0a",
+        border: "1px solid rgba(255,255,255,0.05)",
       }}
     >
       <button
@@ -292,7 +292,7 @@ function FeaturedBanner({ featured, onTap }: { featured: ClientPreset[]; onTap: 
           className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl text-4xl"
           style={{
             background: `linear-gradient(135deg, ${p.thumb.from}, ${p.thumb.to})`,
-            boxShadow: `0 10px 28px -8px ${p.glowColor ?? "rgba(168,85,247,0.5)"}`,
+            boxShadow: "none",
           }}
         >
           {p.thumb.emoji}
@@ -391,12 +391,7 @@ export default function Studio() {
   return (
     <div
       className="relative min-h-screen pb-28"
-      style={{
-        background:
-          "radial-gradient(ellipse 70% 40% at 15% -5%, rgba(168,85,247,0.13) 0%, transparent 60%)," +
-          "radial-gradient(ellipse 55% 35% at 85% 105%, rgba(236,72,153,0.09) 0%, transparent 60%)," +
-          "#030010",
-      }}
+      style={{ background: "#000000" }}
     >
       <FloatingOrbs />
 
@@ -405,8 +400,8 @@ export default function Studio() {
         <div className="mb-4 flex items-center gap-3">
           <button
             onClick={() => navigate("/create")}
-            className="grid h-9 w-9 place-items-center rounded-full bg-white/6 text-white/80 active:scale-95"
-            style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+            className="grid h-9 w-9 place-items-center rounded-full bg-[#0a0a0a] text-white/80 active:scale-95"
+            style={{ border: "1px solid rgba(255,255,255,0.06)" }}
             aria-label="Back"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -423,8 +418,8 @@ export default function Studio() {
             onClick={() => setShowFavsOnly((v) => !v)}
             className="grid h-9 w-9 place-items-center rounded-full transition-all active:scale-95"
             style={{
-              background: showFavsOnly ? "rgba(244,114,182,0.2)" : "rgba(255,255,255,0.06)",
-              border: showFavsOnly ? "1px solid rgba(244,114,182,0.4)" : "1px solid rgba(255,255,255,0.08)",
+              background: showFavsOnly ? "rgba(244,114,182,0.15)" : "#0a0a0a",
+              border: showFavsOnly ? "1px solid rgba(244,114,182,0.35)" : "1px solid rgba(255,255,255,0.06)",
             }}
             aria-label="Favorites"
           >
@@ -435,8 +430,8 @@ export default function Studio() {
           </button>
           <button
             onClick={() => navigate("/studio/creations")}
-            className="relative grid h-9 w-9 place-items-center rounded-full bg-white/6 text-white/80 active:scale-95"
-            style={{ border: "1px solid rgba(255,255,255,0.08)" }}
+            className="relative grid h-9 w-9 place-items-center rounded-full bg-[#0a0a0a] text-white/80 active:scale-95"
+            style={{ border: "1px solid rgba(255,255,255,0.06)" }}
             aria-label="My Creations"
           >
             <History className="h-4 w-4" />
@@ -452,8 +447,8 @@ export default function Studio() {
         <div
           className="mb-4 flex items-center gap-2 rounded-2xl px-3 py-2.5"
           style={{
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.08)",
+            background: "#0a0a0a",
+            border: "1px solid rgba(255,255,255,0.06)",
           }}
         >
           <Search className="h-4 w-4 shrink-0 text-white/40" />

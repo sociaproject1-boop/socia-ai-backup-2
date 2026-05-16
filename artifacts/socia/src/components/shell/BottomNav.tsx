@@ -32,13 +32,10 @@ zIndex: 50,
       <ul
   className="grid grid-cols-4"
   style={{
-    background: "rgba(18,18,24,0.72)",
-    backdropFilter: "saturate(180%) blur(20px)",
-    WebkitBackdropFilter: "saturate(180%) blur(20px)",
-    border: "1px solid rgba(255,255,255,0.06)",
+    background: "#0a0a0a",
+    border: "1px solid rgba(255,255,255,0.05)",
     borderRadius: "32px",
-    boxShadow:
-      "0 8px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)",
+    boxShadow: "0 8px 30px rgba(0,0,0,0.55)",
     overflow: "hidden",
     padding: "8px 6px",
   }}

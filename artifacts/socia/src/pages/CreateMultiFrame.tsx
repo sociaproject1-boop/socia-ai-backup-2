@@ -465,10 +465,10 @@ function CinematicPaywall() {
       <div className="relative flex flex-col items-center overflow-hidden px-6 pb-8 pt-2 text-center">
         {/* Ambient field */}
         <div className="pointer-events-none absolute inset-0">
-          <div style={{background:"radial-gradient(ellipse 140% 90% at 50% 0%,rgba(124,58,237,0.35),rgba(236,72,153,0.15) 45%,transparent 70%)",position:"absolute",inset:0}}/>
-          {[{x:-80,y:60,s:260,c:"rgba(124,58,237,0.18)"},{x:100,y:100,s:200,c:"rgba(236,72,153,0.14)"},{x:20,y:220,s:150,c:"rgba(59,130,246,0.12)"}].map((o,i)=>(
+          <div style={{background:"transparent",position:"absolute",inset:0}}/>
+          {[{x:-80,y:60,s:260},{x:100,y:100,s:200},{x:20,y:220,s:150}].map((o,i)=>(
             <motion.div key={i} animate={{y:[0,-18,0],scale:[1,1.1,1]}} transition={{duration:5+i*1.5,repeat:Infinity,ease:"easeInOut"}}
-              style={{position:"absolute",left:`calc(50% + ${o.x}px)`,top:o.y,width:o.s,height:o.s,background:o.c,borderRadius:"50%",filter:"blur(50px)"}}/>
+              style={{position:"absolute",left:`calc(50% + ${o.x}px)`,top:o.y,width:o.s,height:o.s,background:"transparent",borderRadius:"50%"}}/>
           ))}
         </div>
 
@@ -656,7 +656,7 @@ const SceneCard = memo(function SceneCard({
           {frame.uploadError && (
             <button onClick={e => { e.stopPropagation(); inputRef.current?.click(); }}
               className="absolute inset-0 flex flex-col items-center justify-center gap-1"
-              style={{background:"rgba(127,29,29,0.82)",backdropFilter:"blur(4px)"}}>
+              style={{background:"rgba(80,0,0,0.95)"}}>
               <AlertCircle className="h-5 w-5 text-red-300"/>
               <span className="text-[9px] font-bold text-red-300">Tap to retry</span>
             </button>
@@ -693,11 +693,11 @@ const SceneCard = memo(function SceneCard({
           {frame.imageUrl && (
             <div className="absolute bottom-1.5 left-1.5 right-1.5 flex items-end justify-between pointer-events-none gap-1">
               <span className="rounded-md px-1.5 py-px text-[8px] font-bold text-white/80"
-                style={{background:"rgba(0,0,0,0.55)",backdropFilter:"blur(6px)"}}>
+                style={{background:"rgba(0,0,0,0.85)"}}>
                 {camera.icon}
               </span>
               <span className="rounded-md px-1.5 py-px text-[8px] font-black text-white"
-                style={{background:"rgba(0,0,0,0.55)",backdropFilter:"blur(6px)"}}>
+                style={{background:"rgba(0,0,0,0.85)"}}>
                 {frame.durationSec}s
               </span>
             </div>
@@ -1894,7 +1894,7 @@ function LivePreviewPlayer({
                 {currentFrame.title && <p className="text-[12px] font-bold text-white">{currentFrame.title}</p>}
               </div>
               <div className="flex items-center gap-1.5 rounded-md px-2 py-1"
-                style={{background:"rgba(0,0,0,0.5)",backdropFilter:"blur(8px)"}}>
+                style={{background:"rgba(0,0,0,0.9)"}}>
                 <span className="text-[12px]">{emotion.emoji}</span>
                 <span className="text-[10px] font-bold text-white/80">{emotion.label}</span>
               </div>
@@ -2294,7 +2294,7 @@ function CinematicRenderScreen({
   return (
     <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
       className="absolute inset-0 z-50 flex flex-col"
-      style={{background:"rgba(3,0,12,0.98)",backdropFilter:"blur(24px)"}}>
+      style={{background:"rgba(0,0,0,0.98)"}}>
 
       {/* ── Ambient glow layers ── */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -2492,7 +2492,7 @@ function ResultScreen({
             </motion.div>
           </div>
           <div className="absolute bottom-3 left-3 right-3">
-            <div className="flex items-center gap-1.5 rounded-xl px-3 py-2" style={{background:"rgba(0,0,0,0.65)",backdropFilter:"blur(12px)"}}>
+            <div className="flex items-center gap-1.5 rounded-xl px-3 py-2" style={{background:"rgba(0,0,0,0.9)"}}>
               <Check className="h-3 w-3 text-green-400"/>
               <span className="text-[11px] font-bold text-white">Film Ready</span>
             </div>
@@ -2628,7 +2628,7 @@ function RenderHistoryPanel({
     <motion.div initial={{x:"100%"}} animate={{x:0}} exit={{x:"100%"}}
       transition={{type:"spring",stiffness:400,damping:38}}
       className="absolute inset-0 z-50 flex flex-col"
-      style={{background:"rgba(4,0,14,0.98)",backdropFilter:"blur(16px)"}}>
+      style={{background:"#000000"}}>
 
       {/* Header */}
       <div className="flex items-center gap-3 border-b px-4 py-3" style={{borderColor:BORDER}}>
@@ -3403,8 +3403,8 @@ export default function CreateMultiFrame() {
   /* ── Paywall ── */
   if (!isPaid) return (
     <div className="flex h-full flex-col" style={{background:BG_DEEP}}>
-      <div className="sticky top-0 z-20 flex items-center gap-3 px-4 backdrop-blur-2xl"
-        style={{paddingTop:`calc(env(safe-area-inset-top,0px) + 12px)`,paddingBottom:12,background:"rgba(5,0,15,0.88)",borderBottom:`1px solid ${BORDER}`}}>
+      <div className="sticky top-0 z-20 flex items-center gap-3 px-4"
+        style={{paddingTop:`calc(env(safe-area-inset-top,0px) + 12px)`,paddingBottom:12,background:"#000000",borderBottom:`1px solid ${BORDER}`}}>
         <button onClick={() => navigate("/create")} className="grid h-9 w-9 place-items-center rounded-full"
           style={{background:GLASS,border:`1px solid ${BORDER}`}}>
           <ArrowLeft className="h-4 w-4 text-white"/>
@@ -3481,8 +3481,8 @@ export default function CreateMultiFrame() {
 
   /* ── GENERATE BAR ── */
   const GenerateBar = (
-    <div className="relative z-10 shrink-0 border-t px-4 pt-3 backdrop-blur-2xl"
-      style={{background:"rgba(5,0,15,0.95)",borderColor:BORDER,paddingBottom:`calc(env(safe-area-inset-bottom,0px) + 14px)`}}>
+    <div className="relative z-10 shrink-0 border-t px-4 pt-3"
+      style={{background:"#000000",borderColor:BORDER,paddingBottom:`calc(env(safe-area-inset-bottom,0px) + 14px)`}}>
       {/* Credit info row */}
       <div className="mb-2.5 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
@@ -3578,8 +3578,8 @@ export default function CreateMultiFrame() {
       </div>
 
       {/* ══ TOP TOOLBAR ══ */}
-      <div className="relative z-20 flex items-center gap-2 px-3 shrink-0 backdrop-blur-2xl"
-        style={{paddingTop:`calc(env(safe-area-inset-top,0px) + 10px)`,paddingBottom:10,background:"rgba(5,0,15,0.92)",borderBottom:`1px solid ${BORDER}`}}>
+      <div className="relative z-20 flex items-center gap-2 px-3 shrink-0"
+        style={{paddingTop:`calc(env(safe-area-inset-top,0px) + 10px)`,paddingBottom:10,background:"#000000",borderBottom:`1px solid ${BORDER}`}}>
         {/* Back */}
         <button onClick={() => navigate("/create")}
           className="grid h-9 w-9 shrink-0 place-items-center rounded-full transition active:scale-95"
@@ -3680,7 +3680,7 @@ export default function CreateMultiFrame() {
           {isDragging && (
             <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
               className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center gap-4"
-              style={{background:"rgba(124,58,237,0.18)",border:"2px dashed rgba(139,92,246,0.7)",borderRadius:16,backdropFilter:"blur(6px)"}}>
+              style={{background:"rgba(124,58,237,0.18)",border:"2px dashed rgba(139,92,246,0.7)",borderRadius:16}}>
               <Upload className="h-14 w-14 text-purple-300"/>
               <p className="font-display text-2xl font-black text-white">Drop photos to add scenes</p>
               <p className="text-sm text-white/50">JPG · PNG · WebP — up to {MAX_FRAMES} scenes</p>
@@ -4011,8 +4011,7 @@ export default function CreateMultiFrame() {
           >
             <div className="flex items-center gap-3 rounded-2xl px-5 py-3.5 shadow-2xl"
               style={{
-                background: uploadToast.type === "error" ? "rgba(100,20,20,0.96)" : "rgba(20,90,40,0.96)",
-                backdropFilter:"blur(16px)",
+                background: uploadToast.type === "error" ? "#140a0a" : "#0a1a0f",
                 border:`1px solid ${uploadToast.type === "error" ? "rgba(239,68,68,0.5)" : "rgba(34,197,94,0.5)"}`,
               }}>
               {uploadToast.type === "error"

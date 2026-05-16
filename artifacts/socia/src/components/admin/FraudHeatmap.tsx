@@ -253,7 +253,7 @@ export default function FraudHeatmap({
               <motion.div
                 key={selected.id}
                 initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                className="absolute bottom-2 left-2 rounded-xl border border-white/[0.08] bg-[#0d1628]/90 px-3 py-2 backdrop-blur-sm"
+                className="absolute bottom-2 left-2 rounded-xl border border-white/[0.08] bg-[#0d1628] px-3 py-2"
               >
                 <p className="text-[11px] font-bold text-white">{selected.name}</p>
                 <p className="text-[9px] text-white/40">Region {selected.region}</p>

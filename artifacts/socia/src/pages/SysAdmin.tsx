@@ -2386,7 +2386,7 @@ function ReceiptsTab({ defaultFilter = "needs_review" }: { defaultFilter?: strin
     </AnimatePresence>
 
     {panelLoading && (
-      <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/80">
         <Loader2 className="h-6 w-6 animate-spin text-white/60" />
       </div>
     )}

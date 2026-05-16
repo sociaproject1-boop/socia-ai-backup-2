@@ -67,7 +67,7 @@ export function FloatingUpgradeButton() {
           right: 14,
           bottom: "calc(env(safe-area-inset-bottom, 0px) + 78px)",
           background: tone.bg,
-          boxShadow: `0 12px 28px -8px ${tone.glow}, 0 0 0 1px rgba(255,255,255,0.1) inset`,
+          boxShadow: "0 0 0 1px rgba(255,255,255,0.08) inset",
         }}
         aria-label={label}
       >

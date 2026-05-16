@@ -135,7 +135,7 @@ export function SendPromptSheet({ open, prompt, onClose }: Props) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[120] flex items-end justify-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-[120] flex items-end justify-center bg-black/80"
       onClick={onClose}
     >
       <motion.div
@@ -144,7 +144,7 @@ export function SendPromptSheet({ open, prompt, onClose }: Props) {
         exit={{ y: "100%" }}
         transition={{ type: "spring", stiffness: 380, damping: 36 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-lg overflow-hidden rounded-t-3xl border-x border-t border-white/10 bg-background/95 backdrop-blur-2xl"
+        className="relative w-full max-w-lg overflow-hidden rounded-t-3xl border-x border-t border-white/[0.05] bg-[#0a0a0a]"
         style={{
           maxHeight: "82dvh",
           paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + 16px)`,
@@ -153,7 +153,7 @@ export function SendPromptSheet({ open, prompt, onClose }: Props) {
         {/* ── Header ──────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between gap-3 border-b border-white/5 px-5 pt-4 pb-3">
           <div className="flex items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-purple-500/30 to-pink-500/30 border border-white/10">
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-[#141414] border border-white/[0.06]">
               <Sparkles className="h-4 w-4 text-pink-300" />
             </span>
             <div>
@@ -163,7 +163,7 @@ export function SendPromptSheet({ open, prompt, onClose }: Props) {
           </div>
           <button
             onClick={onClose}
-            className="grid h-8 w-8 place-items-center rounded-full bg-white/5 border border-white/10"
+            className="grid h-8 w-8 place-items-center rounded-full bg-[#141414] border border-white/[0.06]"
             aria-label="Close"
           >
             <X className="h-4 w-4 text-white/80" />
@@ -172,7 +172,7 @@ export function SendPromptSheet({ open, prompt, onClose }: Props) {
 
         {/* ── Prompt preview ──────────────────────────────────────────── */}
         <div className="px-5 pt-3">
-          <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-purple-600/15 via-pink-500/12 to-blue-500/15 p-3.5">
+          <div className="rounded-2xl border border-white/[0.06] bg-[#0a0a0a] p-3.5">
             <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-pink-300/90">
               Prompt
             </span>
@@ -191,7 +191,7 @@ export function SendPromptSheet({ open, prompt, onClose }: Props) {
               <span className="text-[10px] text-yellow-200/60">Pro / King</span>
             </div>
           ) : (
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+            <div className="rounded-xl border border-white/[0.05] bg-[#0a0a0a] px-3 py-2">
               <div className="mb-1.5 flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-white/70">Daily prompt sends</span>
                 <span className="text-[11px] tabular-nums text-white/60">{count} / {limit}</span>
@@ -213,7 +213,7 @@ export function SendPromptSheet({ open, prompt, onClose }: Props) {
 
         {/* ── Search ──────────────────────────────────────────────────── */}
         <div className="px-5 pt-3">
-          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+          <div className="flex items-center gap-2 rounded-xl border border-white/[0.05] bg-[#0a0a0a] px-3 py-2">
             <Search className="h-4 w-4 text-white/40" />
             <input
               autoFocus

@@ -116,10 +116,10 @@ export function Generator({ mode, title, subtitle }: Props) {
     <div className="flex h-full flex-col">
       {/* Header */}
       <div
-        className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-white/5 bg-background/70 px-4 backdrop-blur-2xl"
+        className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-white/[0.04] bg-[#000000] px-4"
         style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)`, paddingBottom: 12 }}
       >
-        <button onClick={() => navigate("/create")} className="grid h-9 w-9 place-items-center rounded-full bg-white/5 border border-white/10">
+        <button onClick={() => navigate("/create")} className="grid h-9 w-9 place-items-center rounded-full bg-[#0a0a0a] border border-white/[0.06]">
           <ArrowLeft className="h-4 w-4 text-white" />
         </button>
         <div className="min-w-0 flex-1 text-center">
@@ -217,7 +217,7 @@ export function Generator({ mode, title, subtitle }: Props) {
 
       {/* Generate bar */}
       <div
-        className="sticky bottom-0 z-20 border-t border-white/5 bg-background/80 px-5 pt-3 backdrop-blur-2xl"
+        className="sticky bottom-0 z-20 border-t border-white/[0.04] bg-[#000000] px-5 pt-3"
         style={{ paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + 16px)` }}
       >
         <motion.button
@@ -320,7 +320,7 @@ function UploadTile({
       <button
         type="button" disabled={uploading}
         onClick={() => !image && inputRef.current?.click()}
-        className="relative flex aspect-[3/4] w-full items-center justify-center overflow-hidden rounded-2xl border border-dashed border-white/15 bg-white/[0.03] transition hover:border-white/30 disabled:cursor-not-allowed"
+        className="relative flex aspect-[3/4] w-full items-center justify-center overflow-hidden rounded-2xl border border-dashed border-white/[0.1] bg-[#0a0a0a] transition hover:border-white/25 disabled:cursor-not-allowed"
       >
         {image ? (
           <>
@@ -329,7 +329,7 @@ function UploadTile({
               className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white">
               <X className="h-4 w-4" />
             </span>
-            <span className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-[9px] font-semibold text-white/70 backdrop-blur-sm">☁ Uploaded</span>
+            <span className="absolute bottom-2 left-2 rounded-full bg-[#000000] px-2 py-0.5 text-[9px] font-semibold text-white/70">☁ Uploaded</span>
           </>
         ) : uploading ? (
           <div className="flex flex-col items-center gap-2">
@@ -340,7 +340,7 @@ function UploadTile({
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2 text-center">
-            <span className="grid h-10 w-10 place-items-center rounded-full bg-white/5 border border-white/10">
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-[#141414] border border-white/[0.06]">
               <Upload className="h-4 w-4 text-white/70" />
             </span>
             <span className="text-xs font-medium text-white/70">{label}</span>
@@ -449,7 +449,7 @@ function SaveSuccessOverlay() {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
       className="absolute inset-0 z-40 grid place-items-center"
-      style={{ background: "rgba(10,10,20,0.92)" }}
+      style={{ background: "rgba(0,0,0,0.92)" }}
     >
       <motion.div
         initial={{ scale: 0.8, opacity: 0 }}
@@ -523,7 +523,7 @@ function LoadingOverlay({ isVideo }: { isVideo: boolean }) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.35, ease: "easeOut" }}
       className="absolute inset-0 z-30 flex items-center justify-center"
-      style={{ background: "rgba(10,10,20,0.92)" }}
+      style={{ background: "rgba(0,0,0,0.94)" }}
     >
       <div className="flex flex-col items-center gap-6">
         {/* Premium AI loader: dual conic-gradient rings + soft glow + core pulse */}
@@ -588,13 +588,13 @@ function ResultOverlay({
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
       className="absolute inset-0 z-30 flex flex-col"
-      style={{ background: "rgba(10,10,20,0.96)" }}
+      style={{ background: "rgba(0,0,0,0.96)" }}
     >
       <div
         className="flex items-center justify-between px-5"
         style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 16px)`, paddingBottom: 12 }}
       >
-        <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full bg-white/5 border border-white/10">
+        <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full bg-[#141414] border border-white/[0.06]">
           <X className="h-4 w-4 text-white" />
         </button>
         <h3 className="font-display text-sm font-semibold text-white">
@@ -605,7 +605,7 @@ function ResultOverlay({
 
       <div className="flex flex-1 flex-col items-center justify-center px-5">
         <div
-          className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-white/15 shadow-[0_24px_60px_-20px_rgba(168,85,247,0.55)]"
+          className="relative w-full max-w-sm overflow-hidden rounded-3xl border border-white/[0.08]"
           style={{ aspectRatio: ratio }}
         >
           {/* Blur-to-clear reveal — feels like ChatGPT's image reveal.
@@ -627,7 +627,7 @@ function ResultOverlay({
               <motion.span
                 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.2, type: "spring", stiffness: 320, damping: 20 }}
-                className="grid h-14 w-14 place-items-center rounded-full border border-white/25 bg-gradient-to-br from-purple-600/80 via-pink-500/80 to-blue-500/80 backdrop-blur-xl shadow-[0_0_36px_6px_rgba(168,85,247,0.5)]"
+                className="grid h-14 w-14 place-items-center rounded-full border border-white/20 bg-gradient-to-br from-purple-600/80 via-pink-500/80 to-blue-500/80"
               >
                 <Play className="h-6 w-6 fill-white text-white" />
               </motion.span>
@@ -686,8 +686,8 @@ function ResultBtn({ icon: Icon, label, onClick, primary, disabled, spin }: { ic
         "flex h-12 items-center justify-center gap-2 rounded-2xl text-sm font-semibold transition-opacity " +
         (disabled ? "opacity-70 " : "") +
         (primary
-          ? "bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 text-white shadow-[0_8px_24px_-6px_rgba(236,72,153,0.55)]"
-          : "border border-white/10 bg-white/5 text-white/85")
+          ? "bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 text-white"
+          : "border border-white/[0.06] bg-[#141414] text-white/85")
       }
     >
       <Icon className={"h-4 w-4 " + (spin ? "animate-spin" : "")} />
