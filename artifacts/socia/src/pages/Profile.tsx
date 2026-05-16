@@ -5,100 +5,29 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Settings, Heart, Bookmark, Grid3x3, Copy, ArrowUpRight, Camera,
   Check, X, Facebook, Instagram, Music2,
-  Crown, Shield, Server, Activity, Layers, ChevronRight,
+  Shield, Server, Activity, Layers, ChevronRight,
 } from "lucide-react";
 
 import { FeedCard } from "@/components/feed/FeedCard";
 import { supabase, uploadAvatar, upsertProfile, isSupabaseReady } from "@/lib/supabase";
 import { NameBadges, OnlineDot } from "@/components/Badges";
+import { FounderHero, SuperKingBadge } from "@/components/profile/FounderHero";
 
 type Tab = "creations" | "saved" | "liked";
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   SuperKingBadge — animated gold crown badge for owner/admin accounts
-═══════════════════════════════════════════════════════════════════════════ */
-function SuperKingBadge() {
-  const particles = [
-    { ox: -11, oy: -8,  delay: 0,   size: 2.5 },
-    { ox:  13, oy: -10, delay: 0.5, size: 2 },
-    { ox: -9,  oy:  10, delay: 0.9, size: 2 },
-    { ox:  15, oy:   5, delay: 1.4, size: 2.5 },
-  ];
+/* ══════════════════════════════════════════════════════════════════════════
+   Admin action cards config
+══════════════════════════════════════════════════════════════════════════ */
+const ADMIN_ACTIONS = [
+  { icon: Shield,   label: "Admin Panel",       sub: "Manage users, bans & payments",    href: "/admin",              live: false },
+  { icon: Server,   label: "AI Engine Monitor", sub: "Live render engine status",         href: "/create/multi-frame", live: true  },
+  { icon: Activity, label: "Render Queue",       sub: "Active & queued cinematic jobs",   href: "/create/multi-frame", live: true  },
+  { icon: Layers,   label: "System Status",      sub: "API · DB · Storage · CDN",        href: null,                  live: true  },
+] as const;
 
-  return (
-    <div className="relative inline-flex items-center justify-center" style={{ width: 28, height: 28 }}>
-      {/* Outer pulse ring */}
-      <motion.div
-        animate={{ scale: [1, 2, 1], opacity: [0.5, 0, 0.5] }}
-        transition={{ duration: 2.4, repeat: Infinity, ease: "easeOut" }}
-        style={{
-          position: "absolute",
-          inset: -2,
-          borderRadius: "50%",
-          background: "radial-gradient(circle, #fbbf24 0%, transparent 70%)",
-          pointerEvents: "none",
-        }}
-      />
-
-      {/* Main badge */}
-      <motion.div
-        animate={{
-          boxShadow: [
-            "0 0 6px 2px rgba(251,191,36,0.7), 0 0 14px 4px rgba(245,158,11,0.25)",
-            "0 0 14px 4px rgba(251,191,36,0.9), 0 0 30px 8px rgba(245,158,11,0.45)",
-            "0 0 6px 2px rgba(251,191,36,0.7), 0 0 14px 4px rgba(245,158,11,0.25)",
-          ],
-        }}
-        transition={{ duration: 2.1, repeat: Infinity, ease: "easeInOut" }}
-        style={{
-          width: 26, height: 26,
-          borderRadius: "50%",
-          background: "linear-gradient(135deg, #d97706, #fbbf24 50%, #d97706)",
-          display: "grid", placeItems: "center",
-          overflow: "hidden",
-          position: "relative",
-        }}
-      >
-        {/* Shine sweep */}
-        <motion.div
-          animate={{ x: ["-120%", "200%"] }}
-          transition={{ duration: 1.1, repeat: Infinity, repeatDelay: 2.8, ease: "easeInOut" }}
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.58) 50%, transparent 100%)",
-            transform: "skewX(-20deg)",
-            pointerEvents: "none",
-          }}
-        />
-        <Crown style={{ width: 12, height: 12, color: "#78350f", strokeWidth: 2.5, position: "relative", zIndex: 1 }} />
-      </motion.div>
-
-      {/* Floating particles */}
-      {particles.map((p, i) => (
-        <motion.div
-          key={i}
-          animate={{ y: [p.oy, p.oy - 7, p.oy], opacity: [0, 0.9, 0] }}
-          transition={{ duration: 2.2, repeat: Infinity, delay: p.delay, ease: "easeInOut" }}
-          style={{
-            position: "absolute",
-            left: `calc(50% + ${p.ox}px)`,
-            top: `calc(50% + ${p.oy}px)`,
-            width: p.size,
-            height: p.size,
-            borderRadius: "50%",
-            background: "#fbbf24",
-            pointerEvents: "none",
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   Main Profile component
-═══════════════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════
+   Profile page
+══════════════════════════════════════════════════════════════════════════ */
 export default function Profile() {
   const user            = useAppStore((s) => s.user);
   const setUser         = useAppStore((s) => s.setUser);
@@ -110,7 +39,6 @@ export default function Profile() {
   const [, navigate]    = useLocation();
   const [tab, setTab]   = useState<Tab>("creations");
 
-  // Edit state
   const [isEditing,    setIsEditing]    = useState(false);
   const [editName,     setEditName]     = useState(user?.name   ?? "");
   const [editHandle,   setEditHandle]   = useState(user?.handle ?? "");
@@ -126,67 +54,18 @@ export default function Profile() {
   const [saveError,    setSaveError]    = useState<string>("");
   const [liveFollowers, setLiveFollowers] = useState<number | null>(null);
   const [liveFollowing, setLiveFollowing] = useState<number | null>(null);
-  const fileRef      = useRef<HTMLInputElement>(null);
-  const coverFileRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  // ── Admin / owner gating ───────────────────────────────────────────────
   const isAdminProfile = user?.isOwner === true;
 
-  // ── Cover photo (admin only) ──────────────────────────────────────────
-  const [coverUrl,       setCoverUrl]       = useState<string | null>(null);
-  const [coverUploading, setCoverUploading] = useState(false);
-
-  useEffect(() => {
-    if (!user?.id || !isAdminProfile) return;
-    let cancelled = false;
-    supabase
-      .from("users")
-      .select("cover_photo_url")
-      .eq("id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (cancelled) return;
-        if (data?.cover_photo_url) setCoverUrl(data.cover_photo_url as string);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [user?.id, isAdminProfile]);
-
-  const handleCoverPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user?.id) return;
-    setCoverUploading(true);
-    try {
-      const path = `${user.id}_cover.jpg`;
-      const { data, error } = await supabase.storage
-        .from("covers")
-        .upload(path, file, { upsert: true, contentType: file.type });
-      if (error || !data) throw new Error(error?.message ?? "Cover upload failed");
-      const { data: urlData } = supabase.storage.from("covers").getPublicUrl(data.path);
-      const url = `${urlData.publicUrl}?t=${Date.now()}`;
-      setCoverUrl(url);
-      supabase.from("users")
-        .update({ cover_photo_url: url })
-        .eq("id", user.id)
-        .then(({ error: e }) => {
-          if (e) console.warn("[Cover] DB save failed (column may not exist yet):", e.message);
-        });
-    } catch (err) {
-      console.warn("[Cover] upload failed:", err);
-    } finally {
-      setCoverUploading(false);
-      if (coverFileRef.current) coverFileRef.current.value = "";
-    }
-  };
-
-  // ── Follower / following counts ────────────────────────────────────────
+  /* ── Live follower / following counts ──────────────────────────────── */
   useEffect(() => {
     if (!user?.id) return;
     let cancelled = false;
     (async () => {
       const [flrs, flng] = await Promise.all([
         supabase.from("follows").select("*", { count: "exact", head: true }).eq("following_id", user.id),
-        supabase.from("follows").select("*", { count: "exact", head: true }).eq("follower_id", user.id),
+        supabase.from("follows").select("*", { count: "exact", head: true }).eq("follower_id",  user.id),
       ]);
       if (cancelled) return;
       if (!flrs.error) setLiveFollowers(flrs.count ?? 0);
@@ -208,16 +87,13 @@ export default function Profile() {
   const handleAvatarPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploading(true);
-    setUploadError("");
+    setUploading(true); setUploadError("");
     try {
       const url = await uploadAvatar(file, user.id);
       setEditAvatar(url);
       setAvatarBroken(false);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Upload failed";
-      console.warn("[Avatar] upload failed:", msg, err);
-      setUploadError(msg);
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -226,140 +102,62 @@ export default function Profile() {
 
   const saveProfile = async () => {
     const previous = user;
-    const updated = {
+    const updated  = {
       ...user,
       name:   editName.trim()                    || user.name,
       handle: editHandle.trim().replace(/^@/, "") || user.handle,
       bio:    editBio.trim(),
       avatar: editAvatar ?? user.avatar,
-      social: {
-        facebook:  editFb.trim(),
-        instagram: editIg.trim(),
-        tiktok:    editTt.trim(),
-      },
+      social: { facebook: editFb.trim(), instagram: editIg.trim(), tiktok: editTt.trim() },
     };
-
-    setSaveStatus("saving");
-    setSaveError("");
-
-    setUser(updated);
-    setIsEditing(false);
-    setEditAvatar(null);
-
-    if (!isSupabaseReady) {
-      setSaveStatus("saved");
-      setTimeout(() => setSaveStatus("idle"), 2500);
-      return;
-    }
-
+    setSaveStatus("saving"); setSaveError("");
+    setUser(updated); setIsEditing(false); setEditAvatar(null);
+    if (!isSupabaseReady) { setSaveStatus("saved"); setTimeout(() => setSaveStatus("idle"), 2500); return; }
     const TIMEOUT_MS = 8_000;
     try {
       let didTimeout = false;
       const timedOut = new Promise<{ error: string | null }>((resolve) =>
-        setTimeout(() => { didTimeout = true; resolve({ error: null }); }, TIMEOUT_MS)
+        setTimeout(() => { didTimeout = true; resolve({ error: null }); }, TIMEOUT_MS),
       );
-
       const { error } = await Promise.race([
-        upsertProfile(updated.id, {
-          name:       updated.name,
-          username:   updated.handle,
-          avatar_url: updated.avatar,
-          bio:        updated.bio,
-        }),
+        upsertProfile(updated.id, { name: updated.name, username: updated.handle, avatar_url: updated.avatar, bio: updated.bio }),
         timedOut,
       ]);
-
       if (!error && !didTimeout) {
-        supabase
-          .from("users")
-          .update({
-            social_facebook:  updated.social?.facebook  ?? "",
-            social_instagram: updated.social?.instagram ?? "",
-            social_tiktok:    updated.social?.tiktok    ?? "",
-            updated_at:       new Date().toISOString(),
-          })
-          .eq("id", updated.id)
-          .then(({ error: socialErr }) => {
-            if (socialErr) {
-              console.warn("[Profile] social links not saved (run migration 14 to add columns):", socialErr.message);
-            }
-          });
+        supabase.from("users").update({
+          social_facebook:  updated.social?.facebook  ?? "",
+          social_instagram: updated.social?.instagram ?? "",
+          social_tiktok:    updated.social?.tiktok    ?? "",
+          updated_at:       new Date().toISOString(),
+        }).eq("id", updated.id).then(({ error: e }) => {
+          if (e) console.warn("[Profile] social links not saved:", e.message);
+        });
       }
-
-      if (didTimeout) {
-        console.warn("[Profile] DB sync timed out — local cache updated");
-        setSaveStatus("saved");
-      } else if (error) {
-        console.error("[Profile] save DB error:", error);
-        setUser(previous);
-        setSaveError(error);
-        setSaveStatus("error");
-      } else {
-        setSaveStatus("saved");
-      }
-    } catch (err) {
-      console.warn("[Profile] save threw unexpectedly (local cache preserved):", err);
-      setSaveStatus("saved");
-    } finally {
-      setTimeout(() => setSaveStatus("idle"), 5000);
-    }
+      if      (didTimeout) { setSaveStatus("saved"); }
+      else if (error)      { setUser(previous); setSaveError(error); setSaveStatus("error"); }
+      else                 { setSaveStatus("saved"); }
+    } catch { setSaveStatus("saved"); }
+    finally  { setTimeout(() => setSaveStatus("idle"), 5000); }
   };
 
   const cancelEdit = () => {
     setIsEditing(false);
-    setEditName(user.name);
-    setEditHandle(user.handle);
-    setEditBio(user.bio ?? "");
-    setEditFb(user.social?.facebook  ?? "");
-    setEditIg(user.social?.instagram ?? "");
-    setEditTt(user.social?.tiktok    ?? "");
-    setEditAvatar(null);
+    setEditName(user.name); setEditHandle(user.handle); setEditBio(user.bio ?? "");
+    setEditFb(user.social?.facebook ?? ""); setEditIg(user.social?.instagram ?? "");
+    setEditTt(user.social?.tiktok   ?? ""); setEditAvatar(null);
   };
-
-  /* ── Admin quick-actions menu items ─────────────────────────────────── */
-  const adminActions = [
-    {
-      icon: Shield,
-      label: "Admin Panel",
-      sub:   "Manage users, bans & payments",
-      href:  "/admin",
-    },
-    {
-      icon: Server,
-      label: "AI Engine Monitor",
-      sub:   "Live render engine status",
-      href:  "/create/multi-frame",
-    },
-    {
-      icon: Activity,
-      label: "Render Queue",
-      sub:   "Active & queued cinematic jobs",
-      href:  "/create/multi-frame",
-    },
-    {
-      icon: Layers,
-      label: "System Status",
-      sub:   "API · DB · Storage · CDN",
-      href:  null,
-    },
-  ] as const;
 
   return (
     <div className="app-bg pb-28 hide-scrollbar overflow-y-auto h-full scroll-native">
-      {/* ── Save status toast ──────────────────────────────────────────── */}
+      {/* ── Save toast ─────────────────────────────────────────────────── */}
       <AnimatePresence>
         {saveStatus !== "idle" && (
           <motion.div
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
+            initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
             className="fixed left-1/2 top-14 z-50 -translate-x-1/2 px-4 py-2 rounded-full text-xs font-semibold text-white shadow-lg"
             style={{
-              background: saveStatus === "saved"
-                ? "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))"
-                : saveStatus === "error"
-                ? "rgba(239,68,68,0.9)"
-                : "#0a0a0a",
+              background: saveStatus === "saved" ? "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))"
+                : saveStatus === "error" ? "rgba(239,68,68,0.9)" : "#0a0a0a",
             }}
           >
             {saveStatus === "saving" && "Saving…"}
@@ -369,61 +167,10 @@ export default function Profile() {
         )}
       </AnimatePresence>
 
-      {/* ── Admin cover photo banner ──────────────────────────────────── */}
-      {isAdminProfile && (
-        <div className="relative w-full overflow-hidden" style={{ height: 152 }}>
-          {coverUploading ? (
-            <div className="flex h-full w-full items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #0a0a0a, #141414)" }}>
-              <span className="h-6 w-6 animate-spin rounded-full border-2 border-amber-400/30 border-t-amber-400" />
-            </div>
-          ) : coverUrl ? (
-            <img src={coverUrl} alt="Cover photo" className="h-full w-full object-cover" />
-          ) : (
-            <div className="relative h-full w-full overflow-hidden"
-              style={{ background: "linear-gradient(135deg, #0b0500 0%, #1a0c00 35%, #08000f 70%, #000914 100%)" }}>
-              <motion.div
-                animate={{ opacity: [0.25, 0.55, 0.25] }}
-                transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
-                style={{
-                  position: "absolute", inset: 0,
-                  background: "radial-gradient(ellipse at 50% 60%, rgba(245,158,11,0.18) 0%, transparent 68%)",
-                }}
-              />
-              <motion.div
-                animate={{ opacity: [0.15, 0.35, 0.15], x: ["-10%", "10%", "-10%"] }}
-                transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-                style={{
-                  position: "absolute", inset: 0,
-                  background: "radial-gradient(ellipse at 30% 50%, rgba(168,85,247,0.12) 0%, transparent 60%)",
-                }}
-              />
-            </div>
-          )}
+      {/* ── Founder cinematic hero — admin only ────────────────────────── */}
+      {isAdminProfile && <FounderHero />}
 
-          {/* Edit-mode cover upload button */}
-          <AnimatePresence>
-            {isEditing && (
-              <motion.button
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => coverFileRef.current?.click()}
-                className="absolute inset-0 flex items-center justify-center gap-2"
-                style={{ background: "rgba(0,0,0,0.52)" }}
-              >
-                <Camera style={{ width: 18, height: 18, color: "white" }} />
-                <span style={{ color: "white", fontSize: 13.5, fontWeight: 700 }}>Change Cover Photo</span>
-              </motion.button>
-            )}
-          </AnimatePresence>
-
-          {/* Bottom fade to black */}
-          <div className="absolute bottom-0 left-0 right-0 pointer-events-none"
-            style={{ height: 72, background: "linear-gradient(to bottom, transparent, #000000)" }} />
-        </div>
-      )}
-
-      {/* ── Header section ────────────────────────────────────────────── */}
+      {/* ── Profile header ─────────────────────────────────────────────── */}
       <div className={`px-5 pb-6 ${isAdminProfile ? "pt-2" : "pt-5"}`}>
         <div className="flex items-start justify-between">
           {/* Avatar */}
@@ -431,33 +178,24 @@ export default function Profile() {
             <motion.div
               animate={isAdminProfile ? {
                 boxShadow: [
-                  "0 0 0 2px #f59e0b, 0 0 12px 3px rgba(245,158,11,0.35)",
-                  "0 0 0 2px #fbbf24, 0 0 22px 6px rgba(251,191,36,0.55)",
-                  "0 0 0 2px #f59e0b, 0 0 12px 3px rgba(245,158,11,0.35)",
+                  "0 0 0 2px #f59e0b, 0 0 14px 4px rgba(245,158,11,0.38)",
+                  "0 0 0 2.5px #fbbf24, 0 0 28px 8px rgba(251,191,36,0.62)",
+                  "0 0 0 2px #f59e0b, 0 0 14px 4px rgba(245,158,11,0.38)",
                 ],
               } : {}}
-              transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+              transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
               className="h-20 w-20 overflow-hidden rounded-full"
               style={!isAdminProfile ? { boxShadow: "0 0 0 1.5px rgba(255,255,255,0.18)" } : {}}
             >
               {showAvatar ? (
                 <img
-                  src={avatarSrc}
-                  alt={user.name}
+                  src={avatarSrc!} alt={user.name}
                   className={"h-full w-full object-cover " + (uploading ? "opacity-50" : "")}
-                  onError={(e) => {
-                    console.warn("[Avatar] img onError fired — src:", (e.currentTarget as HTMLImageElement).src);
-                    setAvatarBroken(true);
-                    if (isEditing) setUploadError("Image couldn't be displayed — try a different file.");
-                  }}
+                  onError={() => { setAvatarBroken(true); if (isEditing) setUploadError("Image failed — try another file."); }}
                 />
               ) : (
-                <div
-                  className={"h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-2xl font-bold text-white " + (uploading ? "opacity-50" : "")}
-                >
-                  {uploading
-                    ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    : initials}
+                <div className={"h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-2xl font-bold text-white " + (uploading ? "opacity-50" : "")}>
+                  {uploading ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : initials}
                 </div>
               )}
             </motion.div>
@@ -465,24 +203,15 @@ export default function Profile() {
             {isEditing && (
               <>
                 <motion.button
-                  initial={{ scale: 0 }} animate={{ scale: 1 }}
-                  whileTap={{ scale: 0.88 }}
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
+                  initial={{ scale: 0 }} animate={{ scale: 1 }} whileTap={{ scale: 0.88 }}
+                  onClick={() => fileRef.current?.click()} disabled={uploading}
                   className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full text-white"
-                  style={{
-                    background: "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))",
-                    border: "2px solid hsl(var(--background))",
-                  }}
+                  style={{ background: "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))", border: "2px solid hsl(var(--background))" }}
                 >
-                  {uploading
-                    ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    : <Camera style={{ width: 13, height: 13 }} />}
+                  {uploading ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : <Camera style={{ width: 13, height: 13 }} />}
                 </motion.button>
                 {uploadError && (
-                  <p className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-56 text-center text-[11px] leading-tight text-red-400 font-medium" role="alert">
-                    {uploadError}
-                  </p>
+                  <p className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-56 text-center text-[11px] text-red-400 font-medium">{uploadError}</p>
                 )}
               </>
             )}
@@ -492,19 +221,11 @@ export default function Profile() {
           <div className="flex gap-2">
             {isEditing ? (
               <>
-                <motion.button
-                  whileTap={{ scale: 0.88 }}
-                  onClick={cancelEdit}
-                  aria-label="Cancel edit"
-                  data-testid="profile-cancel-btn"
+                <motion.button whileTap={{ scale: 0.88 }} onClick={cancelEdit}
                   className="app-surface grid h-9 w-9 place-items-center rounded-full app-text">
                   <X style={{ width: 16, height: 16 }} />
                 </motion.button>
-                <motion.button
-                  whileTap={{ scale: 0.88 }}
-                  onClick={saveProfile}
-                  aria-label="Save profile"
-                  data-testid="profile-save-btn"
+                <motion.button whileTap={{ scale: 0.88 }} onClick={saveProfile}
                   className="grid h-9 w-9 place-items-center rounded-full text-white"
                   style={{ background: "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))" }}>
                   <Check style={{ width: 16, height: 16 }} />
@@ -523,78 +244,95 @@ export default function Profile() {
         <div className="mt-4">
           {isEditing ? (
             <div className="space-y-2">
-              <input
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                placeholder="Display name"
-                className="app-input w-full rounded-[14px] px-4 py-2.5 text-[17px] font-bold focus:outline-none"
-              />
+              <input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Display name"
+                className="app-input w-full rounded-[14px] px-4 py-2.5 text-[17px] font-bold focus:outline-none" />
               <div className="app-input flex items-center rounded-[14px] overflow-hidden">
                 <span className="pl-4 text-sm app-text-muted">@</span>
-                <input
-                  value={editHandle}
-                  onChange={(e) => setEditHandle(e.target.value.replace(/^@/, ""))}
-                  placeholder="username"
-                  className="flex-1 bg-transparent px-2 py-2.5 text-sm app-text focus:outline-none"
-                />
+                <input value={editHandle} onChange={(e) => setEditHandle(e.target.value.replace(/^@/, ""))}
+                  placeholder="username" className="flex-1 bg-transparent px-2 py-2.5 text-sm app-text focus:outline-none" />
               </div>
             </div>
           ) : (
             <>
+              {/* Name row + badges */}
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="font-display text-[24px] font-bold leading-tight app-text">{user.name}</h2>
                 <NameBadges isOwner={user.isOwner} isVerified={user.isVerified} size="md" />
               </div>
 
-              {/* Founder title — owner only */}
+              {/* Founder title — admin only */}
               {isAdminProfile && (
                 <motion.div
-                  initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.15 }}
+                  initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}
                   className="mt-1 flex items-center gap-2"
                 >
                   <SuperKingBadge />
-                  <span style={{
-                    fontSize: 11.5,
-                    fontWeight: 800,
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                    background: "linear-gradient(90deg, #d97706 0%, #fbbf24 50%, #d97706 100%)",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    backgroundSize: "200% auto",
-                  }}>
+                  <motion.span
+                    animate={{
+                      backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"],
+                    }}
+                    transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                    style={{
+                      fontSize: 11.5, fontWeight: 800, letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                      background: "linear-gradient(90deg, #d97706, #fbbf24, #f59e0b, #fbbf24, #d97706)",
+                      backgroundSize: "200% auto",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                    }}
+                  >
                     Founder · Socia
-                  </span>
+                  </motion.span>
                 </motion.div>
               )}
 
-              <p className="mt-1 flex items-center gap-1.5 text-sm app-text-muted">
-                <OnlineDot online={Boolean(user.isOnline)} size={8} />
-                @{user.handle}
-              </p>
-              {user.bio && (
-                <p className="mt-2.5 text-[13px] leading-relaxed app-text-muted max-w-sm whitespace-pre-line">
-                  {user.bio}
+              {/* Online status — enhanced for admin, standard for others */}
+              {isAdminProfile ? (
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="relative" style={{ width: 10, height: 10 }}>
+                    {user.isOnline && (
+                      <motion.div
+                        animate={{ scale: [1, 2.4, 1], opacity: [0.7, 0, 0.7] }}
+                        transition={{ duration: 1.6, repeat: Infinity }}
+                        style={{
+                          position: "absolute", inset: -2, borderRadius: "50%",
+                          background: "rgba(34,197,94,0.5)",
+                        }}
+                      />
+                    )}
+                    <div style={{
+                      width: 10, height: 10, borderRadius: "50%",
+                      background: user.isOnline ? "#22c55e" : "#6b7280",
+                      position: "relative",
+                    }} />
+                  </div>
+                  <span style={{
+                    fontSize: 11, fontWeight: 800, letterSpacing: "0.09em",
+                    textTransform: "uppercase",
+                    color: user.isOnline ? "#22c55e" : "#6b7280",
+                  }}>
+                    {user.isOnline ? "Live · Online Now" : "Offline"}
+                  </span>
+                </div>
+              ) : (
+                <p className="mt-0.5 flex items-center gap-1.5 text-sm app-text-muted">
+                  <OnlineDot online={Boolean(user.isOnline)} size={8} />
+                  @{user.handle}
                 </p>
               )}
-              <SocialLinkRow
-                facebook={user.social?.facebook}
-                instagram={user.social?.instagram}
-                tiktok={user.social?.tiktok}
-              />
+
+              {user.bio && (
+                <p className="mt-2.5 text-[13px] leading-relaxed app-text-muted max-w-sm whitespace-pre-line">{user.bio}</p>
+              )}
+              <SocialLinkRow facebook={user.social?.facebook} instagram={user.social?.instagram} tiktok={user.social?.tiktok} />
             </>
           )}
 
           {isEditing && (
             <div className="mt-2 space-y-2">
-              <textarea
-                value={editBio}
-                onChange={(e) => setEditBio(e.target.value.slice(0, 280))}
-                placeholder="Bio (max 280 characters)"
-                rows={3}
-                className="app-input w-full rounded-[14px] px-4 py-2.5 text-[13px] app-text focus:outline-none resize-none"
-              />
+              <textarea value={editBio} onChange={(e) => setEditBio(e.target.value.slice(0, 280))}
+                placeholder="Bio (max 280 characters)" rows={3}
+                className="app-input w-full rounded-[14px] px-4 py-2.5 text-[13px] app-text focus:outline-none resize-none" />
               <SocialInput icon={Facebook}  value={editFb} onChange={setEditFb} placeholder="Facebook URL or username" />
               <SocialInput icon={Instagram} value={editIg} onChange={setEditIg} placeholder="Instagram handle" />
               <SocialInput icon={Music2}    value={editTt} onChange={setEditTt} placeholder="TikTok handle" />
@@ -603,8 +341,10 @@ export default function Profile() {
         </div>
 
         {/* Stats row */}
-        <div className="mt-4 flex items-center overflow-hidden rounded-[18px] app-card"
-          style={isAdminProfile ? { border: "1px solid rgba(251,191,36,0.14)" } : {}}>
+        <div
+          className="mt-4 flex items-center overflow-hidden rounded-[18px] app-card"
+          style={isAdminProfile ? { border: "1px solid rgba(251,191,36,0.15)" } : {}}
+        >
           <StatBtn label="Creations" value={myPosts.length} />
           <div className="my-3 w-px self-stretch" style={{ background: "var(--s-border-a)" }} />
           <StatBtn label="Followers" value={liveFollowers ?? user.followers} onClick={() => navigate(`/followers/${user.id}`)} />
@@ -618,13 +358,9 @@ export default function Profile() {
             <motion.button
               whileTap={{ scale: 0.97 }}
               onClick={() => {
-                setEditName(user.name);
-                setEditHandle(user.handle);
-                setEditBio(user.bio ?? "");
-                setEditFb(user.social?.facebook  ?? "");
-                setEditIg(user.social?.instagram ?? "");
-                setEditTt(user.social?.tiktok    ?? "");
-                setIsEditing(true);
+                setEditName(user.name); setEditHandle(user.handle); setEditBio(user.bio ?? "");
+                setEditFb(user.social?.facebook ?? ""); setEditIg(user.social?.instagram ?? "");
+                setEditTt(user.social?.tiktok   ?? ""); setIsEditing(true);
               }}
               className="w-full rounded-[14px] py-2.5 text-[13px] font-semibold tracking-wide app-surface app-text"
             >
@@ -633,77 +369,85 @@ export default function Profile() {
           </div>
         )}
 
-        {/* ── Admin Quick Actions — visible only when NOT editing ─────── */}
+        {/* ── Admin Quick Actions ─────────────────────────────────────── */}
         {isAdminProfile && !isEditing && (
           <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.12, duration: 0.22 }}
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.14, duration: 0.22 }}
             className="mt-5"
           >
             {/* Section header */}
-            <div className="flex items-center gap-3 mb-2.5">
+            <div className="flex items-center gap-3 mb-3">
               <div className="h-px flex-1"
-                style={{ background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.35), transparent)" }} />
-              <div className="flex items-center gap-1.5">
-                <Crown style={{ width: 10, height: 10, color: "#fbbf24" }} />
-                <span style={{
-                  fontSize: 9.5,
-                  fontWeight: 800,
-                  letterSpacing: "0.18em",
-                  textTransform: "uppercase",
-                  color: "#fbbf24",
-                }}>
-                  Admin
-                </span>
-              </div>
+                style={{ background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.38), transparent)" }} />
+              <span style={{ fontSize: 9.5, fontWeight: 900, letterSpacing: "0.2em", color: "#fbbf24", textTransform: "uppercase" }}>
+                Admin Control
+              </span>
               <div className="h-px flex-1"
-                style={{ background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.35), transparent)" }} />
+                style={{ background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.38), transparent)" }} />
             </div>
 
-            {/* Action cards */}
-            <div
-              className="overflow-hidden rounded-[22px]"
-              style={{
-                border: "1px solid rgba(251,191,36,0.14)",
-                background: "rgba(251,191,36,0.03)",
+            {/* Cards container with animated glow border */}
+            <motion.div
+              animate={{
+                boxShadow: [
+                  "0 0 0 1px rgba(251,191,36,0.1), 0 4px 24px -4px rgba(251,191,36,0.1)",
+                  "0 0 0 1px rgba(251,191,36,0.3), 0 8px 32px -4px rgba(251,191,36,0.25)",
+                  "0 0 0 1px rgba(251,191,36,0.1), 0 4px 24px -4px rgba(251,191,36,0.1)",
+                ],
               }}
+              transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+              className="overflow-hidden rounded-[22px]"
+              style={{ border: "1px solid rgba(251,191,36,0.14)", background: "rgba(251,191,36,0.025)" }}
             >
-              {adminActions.map((item, i) => {
+              {ADMIN_ACTIONS.map((item, i) => {
                 const Icon = item.icon;
                 return (
                   <div key={item.label}>
-                    {i > 0 && (
-                      <div style={{ height: 1, background: "rgba(251,191,36,0.08)", margin: "0 16px" }} />
-                    )}
+                    {i > 0 && <div style={{ height: 1, background: "rgba(251,191,36,0.08)", margin: "0 16px" }} />}
                     <motion.button
-                      whileTap={{ scale: 0.985, background: "rgba(251,191,36,0.06)" }}
+                      whileTap={{ scale: 0.985 }}
                       onClick={() => item.href && navigate(item.href)}
                       className="flex w-full items-center gap-3.5 px-4 py-3.5 text-left"
                     >
-                      <div
-                        className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px]"
-                        style={{
-                          background: "linear-gradient(135deg, rgba(245,158,11,0.18), rgba(245,158,11,0.08))",
-                          border: "1px solid rgba(251,191,36,0.2)",
-                        }}
-                      >
-                        <Icon style={{ width: 16, height: 16, color: "#fbbf24" }} />
+                      {/* Icon with optional live dot */}
+                      <div className="relative shrink-0">
+                        <div
+                          className="grid h-10 w-10 place-items-center rounded-[14px]"
+                          style={{
+                            background: "linear-gradient(135deg, rgba(245,158,11,0.18), rgba(245,158,11,0.07))",
+                            border: "1px solid rgba(251,191,36,0.22)",
+                          }}
+                        >
+                          <Icon style={{ width: 16, height: 16, color: "#fbbf24" }} />
+                        </div>
+                        {item.live && (
+                          <>
+                            <motion.div
+                              animate={{ scale: [1, 2, 1], opacity: [0.6, 0, 0.6] }}
+                              transition={{ duration: 1.8, repeat: Infinity }}
+                              className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full"
+                              style={{ background: "rgba(34,197,94,0.4)" }}
+                            />
+                            <div className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full"
+                              style={{ background: "#22c55e", border: "1.5px solid #000" }} />
+                          </>
+                        )}
                       </div>
+
                       <div className="flex-1 min-w-0">
-                        <p style={{ fontSize: 13.5, fontWeight: 650, color: "#f3f4f6", lineHeight: 1.3 }}>
-                          {item.label}
-                        </p>
+                        <p style={{ fontSize: 13.5, fontWeight: 650, color: "#f3f4f6", lineHeight: 1.3 }}>{item.label}</p>
                         <p style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{item.sub}</p>
                       </div>
+
                       {item.href && (
-                        <ChevronRight style={{ width: 14, height: 14, color: "rgba(251,191,36,0.4)", flexShrink: 0 }} />
+                        <ChevronRight style={{ width: 14, height: 14, color: "rgba(251,191,36,0.38)", flexShrink: 0 }} />
                       )}
                     </motion.button>
                   </div>
                 );
               })}
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </div>
@@ -737,9 +481,7 @@ export default function Profile() {
                   <EmptyState icon={Bookmark} title="Nothing saved yet" sub="Bookmark any post to see it here." />
                 )}
                 {savedPosts.length > 0 && (
-                  <div className="columns-2 gap-3 mb-6">
-                    {savedPosts.map((p, i) => <FeedCard key={p.id} post={p} index={i} />)}
-                  </div>
+                  <div className="columns-2 gap-3 mb-6">{savedPosts.map((p, i) => <FeedCard key={p.id} post={p} index={i} />)}</div>
                 )}
                 {savedPrompts.length > 0 && (
                   <>
@@ -747,8 +489,7 @@ export default function Profile() {
                     <ul className="space-y-2">
                       {savedPrompts.map((p, i) => (
                         <motion.li key={p}
-                          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: i * 0.03 }}
+                          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
                           className="app-card flex items-center gap-3 rounded-[16px] p-3"
                         >
                           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white"
@@ -756,8 +497,7 @@ export default function Profile() {
                             <Bookmark style={{ width: 14, height: 14 }} />
                           </span>
                           <p className="flex-1 truncate text-sm app-text">{p}</p>
-                          <motion.button whileTap={{ scale: 0.85 }}
-                            onClick={() => navigator.clipboard?.writeText(p)}
+                          <motion.button whileTap={{ scale: 0.85 }} onClick={() => navigator.clipboard?.writeText(p)}
                             className="app-surface grid h-8 w-8 place-items-center rounded-lg app-text-muted">
                             <Copy style={{ width: 13, height: 13 }} />
                           </motion.button>
@@ -783,95 +523,56 @@ export default function Profile() {
         </AnimatePresence>
       </div>
 
-      {/* ── Hidden file inputs ─────────────────────────────────────────── */}
-      <input
-        ref={fileRef}
-        type="file" accept="image/*"
-        className="hidden"
-        data-testid="avatar-file-input"
-        onChange={handleAvatarPick}
-      />
-      {isAdminProfile && (
-        <input
-          ref={coverFileRef}
-          type="file" accept="image/*"
-          className="hidden"
-          onChange={handleCoverPick}
-        />
-      )}
+      {/* Hidden avatar file input */}
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" data-testid="avatar-file-input" onChange={handleAvatarPick} />
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════════════════════
    Helper components
-═══════════════════════════════════════════════════════════════════════════ */
+══════════════════════════════════════════════════════════════════════════ */
 
 function StatBtn({ label, value, onClick }: { label: string; value: number; onClick?: () => void }) {
   return (
-    <motion.button
-      whileTap={{ scale: 0.93 }}
-      onClick={onClick}
-      className="flex flex-1 flex-col items-center justify-center py-3.5"
-    >
+    <motion.button whileTap={{ scale: 0.93 }} onClick={onClick}
+      className="flex flex-1 flex-col items-center justify-center py-3.5">
       <div className="font-display text-[17px] font-bold leading-none app-text">{compact(value)}</div>
       <div className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] app-text-muted">{label}</div>
     </motion.button>
   );
 }
 
-function SocialInput({
-  icon: Icon, value, onChange, placeholder,
-}: {
+function SocialInput({ icon: Icon, value, onChange, placeholder }: {
   icon: typeof Facebook; value: string; onChange: (v: string) => void; placeholder: string;
 }) {
   return (
     <div className="app-input flex items-center rounded-[14px] overflow-hidden">
-      <span className="grid h-full place-items-center pl-3 app-text-muted">
-        <Icon style={{ width: 14, height: 14 }} />
-      </span>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value.slice(0, 200))}
-        placeholder={placeholder}
-        className="flex-1 bg-transparent px-3 py-2.5 text-sm app-text focus:outline-none"
-      />
+      <span className="grid h-full place-items-center pl-3 app-text-muted"><Icon style={{ width: 14, height: 14 }} /></span>
+      <input value={value} onChange={(e) => onChange(e.target.value.slice(0, 200))} placeholder={placeholder}
+        className="flex-1 bg-transparent px-3 py-2.5 text-sm app-text focus:outline-none" />
     </div>
   );
 }
 
-function SocialLinkRow({ facebook, instagram, tiktok }: {
-  facebook?: string; instagram?: string; tiktok?: string;
-}) {
+function SocialLinkRow({ facebook, instagram, tiktok }: { facebook?: string; instagram?: string; tiktok?: string }) {
   const buildUrl = (kind: "facebook" | "instagram" | "tiktok", v?: string) => {
-    if (!v) return null;
-    const t = v.trim();
-    if (!t) return null;
+    if (!v) return null; const t = v.trim(); if (!t) return null;
     if (/^https?:\/\//i.test(t)) return t;
     const handle = t.replace(/^@/, "");
-    if (kind === "facebook")  return `https://facebook.com/${handle}`;
-    if (kind === "instagram") return `https://instagram.com/${handle}`;
-    return `https://tiktok.com/@${handle}`;
+    return kind === "facebook" ? `https://facebook.com/${handle}` : kind === "instagram" ? `https://instagram.com/${handle}` : `https://tiktok.com/@${handle}`;
   };
-
   const items: { icon: typeof Facebook; url: string; label: string }[] = [];
   const fb = buildUrl("facebook",  facebook);  if (fb) items.push({ icon: Facebook,  url: fb, label: "Facebook"  });
   const ig = buildUrl("instagram", instagram); if (ig) items.push({ icon: Instagram, url: ig, label: "Instagram" });
   const tt = buildUrl("tiktok",    tiktok);    if (tt) items.push({ icon: Music2,    url: tt, label: "TikTok"    });
   if (items.length === 0) return null;
-
   return (
     <div className="mt-3 flex flex-wrap gap-2">
       {items.map(({ icon: Icon, url, label }) => (
-        <a
-          key={label}
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="app-surface inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold app-text"
-        >
-          <Icon style={{ width: 12, height: 12 }} />
-          {label}
+        <a key={label} href={url} target="_blank" rel="noopener noreferrer"
+          className="app-surface inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold app-text">
+          <Icon style={{ width: 12, height: 12 }} />{label}
         </a>
       ))}
     </div>
@@ -900,19 +601,14 @@ function TabBtn({ active, onClick, icon: Icon, children }: {
   active: boolean; onClick: () => void; icon: typeof Heart; children: React.ReactNode;
 }) {
   return (
-    <button
-      onClick={onClick}
+    <button onClick={onClick}
       className="relative flex flex-1 items-center justify-center gap-1.5 px-3 py-3 text-[11px] font-semibold"
-      style={{ color: active ? "hsl(var(--foreground))" : "var(--s-text-muted)" }}
-    >
+      style={{ color: active ? "hsl(var(--foreground))" : "var(--s-text-muted)" }}>
       <Icon style={{ width: 13, height: 13 }} />
       {children}
       {active && (
-        <motion.span
-          layoutId="profileTab"
-          className="absolute inset-x-4 bottom-0 h-[2px] rounded-full"
-          style={{ background: "linear-gradient(90deg, var(--accent-primary), var(--accent-secondary))" }}
-        />
+        <motion.span layoutId="profileTab" className="absolute inset-x-4 bottom-0 h-[2px] rounded-full"
+          style={{ background: "linear-gradient(90deg, var(--accent-primary), var(--accent-secondary))" }} />
       )}
     </button>
   );
