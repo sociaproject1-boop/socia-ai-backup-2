@@ -268,15 +268,19 @@ export default function SociaGpt() {
         </motion.button>
 
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          <div
+          <motion.div
             className="grid h-9 w-9 shrink-0 place-items-center rounded-[14px]"
-            style={{
-              background: "linear-gradient(135deg,#a855f7,#ec4899,#6366f1)",
-              boxShadow: "0 4px 18px rgba(168,85,247,0.45)",
-            }}
+            animate={busy ? { boxShadow: ["0 4px 18px rgba(168,85,247,0.45)", "0 4px 28px rgba(236,72,153,0.65)", "0 4px 18px rgba(168,85,247,0.45)"] } : { boxShadow: "0 4px 18px rgba(168,85,247,0.45)" }}
+            transition={busy ? { duration: 1.6, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 }}
+            style={{ background: "linear-gradient(135deg,#a855f7,#ec4899,#6366f1)" }}
           >
-            <Sparkles className="h-4 w-4 text-white" />
-          </div>
+            <motion.div
+              animate={busy ? { rotate: [0, 15, -10, 0] } : { rotate: 0 }}
+              transition={busy ? { duration: 2.2, repeat: Infinity, ease: "easeInOut" } : {}}
+            >
+              <Sparkles className="h-4 w-4 text-white" />
+            </motion.div>
+          </motion.div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h1 className="font-display text-[15px] font-bold leading-none tracking-tight text-white">
@@ -288,12 +292,19 @@ export default function SociaGpt() {
                 </button>
               )}
             </div>
-            <p
-              className="mt-0.5 text-[10px]"
-              style={{ color: "rgba(255,255,255,0.26)" }}
-            >
-              Your intelligent creative partner
-            </p>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.p
+                key={busy ? "thinking" : "idle"}
+                initial={{ opacity: 0, y: 3 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -3 }}
+                transition={{ duration: 0.18 }}
+                className="mt-0.5 text-[10px]"
+                style={{ color: "rgba(255,255,255,0.26)" }}
+              >
+                {busy ? "Generating…" : "Your intelligent creative partner"}
+              </motion.p>
+            </AnimatePresence>
           </div>
         </div>
 
@@ -320,27 +331,30 @@ export default function SociaGpt() {
       <div
         ref={scrollerRef}
         className="flex-1 overflow-y-auto overscroll-contain"
-        style={{ padding: "20px 16px 8px", WebkitOverflowScrolling: "touch" }}
+        style={{
+          padding: "20px 16px 8px",
+          WebkitOverflowScrolling: "touch",
+          WebkitMaskImage: "linear-gradient(to bottom, black 0%, black 88%, transparent 100%)",
+          maskImage: "linear-gradient(to bottom, black 0%, black 88%, transparent 100%)",
+        }}
+        onClick={() => { if (attachOpen) setAttachOpen(false); }}
       >
         {messages.length === 0 ? (
-          <EmptyState />
+          <EmptyState onHint={(h) => { setInput(h); setTimeout(() => textareaRef.current?.focus(), 0); }} />
         ) : (
-          <motion.div
-            className="space-y-4"
-            initial="hidden"
-            animate="visible"
-            variants={{ visible: { transition: { staggerChildren: 0.035 } } }}
-          >
-            {messages.map((m) => (
-              <Bubble
-                key={m.id}
-                m={m}
-                onRegen={() => regenerate(m)}
-                busy={busy}
-                onUpgrade={openUpgrade}
-              />
-            ))}
-          </motion.div>
+          <div className="space-y-4">
+            <AnimatePresence initial={false}>
+              {messages.map((m) => (
+                <Bubble
+                  key={m.id}
+                  m={m}
+                  onRegen={() => regenerate(m)}
+                  busy={busy}
+                  onUpgrade={openUpgrade}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
         )}
       </div>
 
@@ -477,6 +491,7 @@ export default function SociaGpt() {
             whileTap={{ scale: 0.80 }}
             animate={{ scale: separated ? 0.90 : 1 }}
             transition={SPRING_SNAPPY}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
               setAttachOpen((v) => !v);
               textareaRef.current?.focus();
@@ -514,9 +529,11 @@ export default function SociaGpt() {
 
           {/* Animated gap spacer — grows when focused/open */}
           <motion.div
+            initial={{ width: 6 }}
             animate={{ width: separated ? 10 : 6 }}
             transition={SPRING_SNAPPY}
             className="shrink-0"
+            style={{ height: 1 }}
           />
 
           {/* Input pill — flex-1, no motion animation on layout props */}
@@ -557,13 +574,14 @@ export default function SociaGpt() {
                     : "Message…"
                   }
                   disabled={cooldownSec > 0}
-                  className="w-full resize-none bg-transparent text-[14px] leading-relaxed text-white placeholder-white/20 outline-none disabled:opacity-40"
+                  className="w-full resize-none bg-transparent text-[14px] leading-relaxed text-white placeholder-white/20 outline-none disabled:opacity-40 [&::-webkit-scrollbar]:hidden"
                   style={{
                     caretColor: "#c084fc",
                     padding: "11px 4px 11px 14px",
                     maxHeight: 120,
                     minHeight: 42,
-                    overflow: "hidden",
+                    overflowY: "auto",
+                    scrollbarWidth: "none",
                     WebkitOverflowScrolling: "touch",
                   }}
                 />
@@ -767,7 +785,7 @@ const QuickAction = memo(function QuickAction({
 });
 
 /* ─── Empty state ────────────────────────────────────────────────────── */
-const EmptyState = memo(function EmptyState() {
+const EmptyState = memo(function EmptyState({ onHint }: { onHint: (h: string) => void }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -820,17 +838,21 @@ const EmptyState = memo(function EmptyState() {
         className="mt-7 flex flex-wrap justify-center gap-2"
       >
         {["Write captions", "Fix prompts", "TikTok scripts", "Cinematic shots", "Product ads"].map((hint) => (
-          <span
+          <motion.button
             key={hint}
+            type="button"
+            whileTap={{ scale: 0.92 }}
+            onClick={() => onHint(hint)}
             className="rounded-full px-3 py-1.5 text-[11.5px] font-medium"
             style={{
               background: "rgba(255,255,255,0.04)",
               border: "1px solid rgba(255,255,255,0.07)",
               color: "rgba(255,255,255,0.36)",
+              willChange: "transform",
             }}
           >
             {hint}
-          </span>
+          </motion.button>
         ))}
       </motion.div>
     </motion.div>
@@ -849,7 +871,9 @@ const Bubble = memo(function Bubble({ m, onRegen, busy, onUpgrade }: {
   if (m.role === "user") {
     return (
       <motion.div
-        variants={{ hidden: { opacity: 0, y: 10, scale: 0.97 }, visible: { opacity: 1, y: 0, scale: 1 } }}
+        layout="position"
+        initial={{ opacity: 0, y: 10, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
         className="flex justify-end"
       >
@@ -873,7 +897,9 @@ const Bubble = memo(function Bubble({ m, onRegen, busy, onUpgrade }: {
 
   return (
     <motion.div
-      variants={{ hidden: { opacity: 0, y: 10, scale: 0.97 }, visible: { opacity: 1, y: 0, scale: 1 } }}
+      layout="position"
+      initial={{ opacity: 0, y: 10, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
       className="flex justify-start"
     >
