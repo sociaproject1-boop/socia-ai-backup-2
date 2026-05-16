@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "@/lib/store";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Settings, Heart, Bookmark, Grid3x3, Copy, ArrowUpRight, Camera, Check, X, Facebook, Instagram, Music2 } from "lucide-react";
+import {
+  Settings, Heart, Bookmark, Grid3x3, Copy, ArrowUpRight, Camera,
+  Check, X, Facebook, Instagram, Music2,
+  Crown, Shield, Server, Activity, Layers, ChevronRight,
+} from "lucide-react";
 
 import { FeedCard } from "@/components/feed/FeedCard";
 import { supabase, uploadAvatar, upsertProfile, isSupabaseReady } from "@/lib/supabase";
@@ -10,39 +14,172 @@ import { NameBadges, OnlineDot } from "@/components/Badges";
 
 type Tab = "creations" | "saved" | "liked";
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   SuperKingBadge — animated gold crown badge for owner/admin accounts
+═══════════════════════════════════════════════════════════════════════════ */
+function SuperKingBadge() {
+  const particles = [
+    { ox: -11, oy: -8,  delay: 0,   size: 2.5 },
+    { ox:  13, oy: -10, delay: 0.5, size: 2 },
+    { ox: -9,  oy:  10, delay: 0.9, size: 2 },
+    { ox:  15, oy:   5, delay: 1.4, size: 2.5 },
+  ];
+
+  return (
+    <div className="relative inline-flex items-center justify-center" style={{ width: 28, height: 28 }}>
+      {/* Outer pulse ring */}
+      <motion.div
+        animate={{ scale: [1, 2, 1], opacity: [0.5, 0, 0.5] }}
+        transition={{ duration: 2.4, repeat: Infinity, ease: "easeOut" }}
+        style={{
+          position: "absolute",
+          inset: -2,
+          borderRadius: "50%",
+          background: "radial-gradient(circle, #fbbf24 0%, transparent 70%)",
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* Main badge */}
+      <motion.div
+        animate={{
+          boxShadow: [
+            "0 0 6px 2px rgba(251,191,36,0.7), 0 0 14px 4px rgba(245,158,11,0.25)",
+            "0 0 14px 4px rgba(251,191,36,0.9), 0 0 30px 8px rgba(245,158,11,0.45)",
+            "0 0 6px 2px rgba(251,191,36,0.7), 0 0 14px 4px rgba(245,158,11,0.25)",
+          ],
+        }}
+        transition={{ duration: 2.1, repeat: Infinity, ease: "easeInOut" }}
+        style={{
+          width: 26, height: 26,
+          borderRadius: "50%",
+          background: "linear-gradient(135deg, #d97706, #fbbf24 50%, #d97706)",
+          display: "grid", placeItems: "center",
+          overflow: "hidden",
+          position: "relative",
+        }}
+      >
+        {/* Shine sweep */}
+        <motion.div
+          animate={{ x: ["-120%", "200%"] }}
+          transition={{ duration: 1.1, repeat: Infinity, repeatDelay: 2.8, ease: "easeInOut" }}
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.58) 50%, transparent 100%)",
+            transform: "skewX(-20deg)",
+            pointerEvents: "none",
+          }}
+        />
+        <Crown style={{ width: 12, height: 12, color: "#78350f", strokeWidth: 2.5, position: "relative", zIndex: 1 }} />
+      </motion.div>
+
+      {/* Floating particles */}
+      {particles.map((p, i) => (
+        <motion.div
+          key={i}
+          animate={{ y: [p.oy, p.oy - 7, p.oy], opacity: [0, 0.9, 0] }}
+          transition={{ duration: 2.2, repeat: Infinity, delay: p.delay, ease: "easeInOut" }}
+          style={{
+            position: "absolute",
+            left: `calc(50% + ${p.ox}px)`,
+            top: `calc(50% + ${p.oy}px)`,
+            width: p.size,
+            height: p.size,
+            borderRadius: "50%",
+            background: "#fbbf24",
+            pointerEvents: "none",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Main Profile component
+═══════════════════════════════════════════════════════════════════════════ */
 export default function Profile() {
-  const user          = useAppStore((s) => s.user);
-  const setUser       = useAppStore((s) => s.setUser);
-  const posts         = useAppStore((s) => s.posts);
+  const user            = useAppStore((s) => s.user);
+  const setUser         = useAppStore((s) => s.setUser);
+  const posts           = useAppStore((s) => s.posts);
   const savedPostIds    = useAppStore((s) => s.savedPostIds);
   const savedPrompts    = useAppStore((s) => s.savedPrompts);
   const setActivePrompt = useAppStore((s) => s.setActivePrompt);
   const followedUserIds = useAppStore((s) => s.followedUserIds);
-  const [, navigate]  = useLocation();
-  const [tab, setTab] = useState<Tab>("creations");
+  const [, navigate]    = useLocation();
+  const [tab, setTab]   = useState<Tab>("creations");
 
   // Edit state
-  const [isEditing,   setIsEditing]   = useState(false);
-  const [editName,    setEditName]     = useState(user?.name   ?? "");
-  const [editHandle,  setEditHandle]   = useState(user?.handle ?? "");
-  const [editBio,     setEditBio]      = useState(user?.bio    ?? "");
-  const [editFb,      setEditFb]       = useState(user?.social?.facebook  ?? "");
-  const [editIg,      setEditIg]       = useState(user?.social?.instagram ?? "");
-  const [editTt,      setEditTt]       = useState(user?.social?.tiktok    ?? "");
-  const [editAvatar,  setEditAvatar]   = useState<string | null>(null);
-  const [uploading,   setUploading]    = useState(false);
-  const [uploadError, setUploadError]  = useState<string>("");
+  const [isEditing,    setIsEditing]    = useState(false);
+  const [editName,     setEditName]     = useState(user?.name   ?? "");
+  const [editHandle,   setEditHandle]   = useState(user?.handle ?? "");
+  const [editBio,      setEditBio]      = useState(user?.bio    ?? "");
+  const [editFb,       setEditFb]       = useState(user?.social?.facebook  ?? "");
+  const [editIg,       setEditIg]       = useState(user?.social?.instagram ?? "");
+  const [editTt,       setEditTt]       = useState(user?.social?.tiktok    ?? "");
+  const [editAvatar,   setEditAvatar]   = useState<string | null>(null);
+  const [uploading,    setUploading]    = useState(false);
+  const [uploadError,  setUploadError]  = useState<string>("");
   const [avatarBroken, setAvatarBroken] = useState(false);
-  const [saveStatus,  setSaveStatus]   = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [saveError,   setSaveError]    = useState<string>("");
+  const [saveStatus,   setSaveStatus]   = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveError,    setSaveError]    = useState<string>("");
   const [liveFollowers, setLiveFollowers] = useState<number | null>(null);
   const [liveFollowing, setLiveFollowing] = useState<number | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileRef      = useRef<HTMLInputElement>(null);
+  const coverFileRef = useRef<HTMLInputElement>(null);
 
-  // Fetch live follower/following counts from the `follows` table.
-  // Re-runs when user.id changes OR when followedUserIds changes (follow/unfollow
-  // on any other page causes followedUserIds to update in the store, which triggers
-  // a fresh count from the DB so this profile's "Following" number stays correct).
+  // ── Admin / owner gating ───────────────────────────────────────────────
+  const isAdminProfile = user?.isOwner === true;
+
+  // ── Cover photo (admin only) ──────────────────────────────────────────
+  const [coverUrl,       setCoverUrl]       = useState<string | null>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id || !isAdminProfile) return;
+    let cancelled = false;
+    supabase
+      .from("users")
+      .select("cover_photo_url")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        if (data?.cover_photo_url) setCoverUrl(data.cover_photo_url as string);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user?.id, isAdminProfile]);
+
+  const handleCoverPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+    setCoverUploading(true);
+    try {
+      const path = `${user.id}_cover.jpg`;
+      const { data, error } = await supabase.storage
+        .from("covers")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (error || !data) throw new Error(error?.message ?? "Cover upload failed");
+      const { data: urlData } = supabase.storage.from("covers").getPublicUrl(data.path);
+      const url = `${urlData.publicUrl}?t=${Date.now()}`;
+      setCoverUrl(url);
+      supabase.from("users")
+        .update({ cover_photo_url: url })
+        .eq("id", user.id)
+        .then(({ error: e }) => {
+          if (e) console.warn("[Cover] DB save failed (column may not exist yet):", e.message);
+        });
+    } catch (err) {
+      console.warn("[Cover] upload failed:", err);
+    } finally {
+      setCoverUploading(false);
+      if (coverFileRef.current) coverFileRef.current.value = "";
+    }
+  };
+
+  // ── Follower / following counts ────────────────────────────────────────
   useEffect(() => {
     if (!user?.id) return;
     let cancelled = false;
@@ -76,7 +213,7 @@ export default function Profile() {
     try {
       const url = await uploadAvatar(file, user.id);
       setEditAvatar(url);
-      setAvatarBroken(false);   // new URL — clear any previous broken state
+      setAvatarBroken(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Upload failed";
       console.warn("[Avatar] upload failed:", msg, err);
@@ -88,7 +225,7 @@ export default function Profile() {
   };
 
   const saveProfile = async () => {
-    const previous = user;            // snapshot for rollback
+    const previous = user;
     const updated = {
       ...user,
       name:   editName.trim()                    || user.name,
@@ -103,9 +240,8 @@ export default function Profile() {
     };
 
     setSaveStatus("saving");
-    setSaveError("");            // always clear any previous error
+    setSaveError("");
 
-    // Optimistic UI — reflects change instantly; rolled back only on hard DB error
     setUser(updated);
     setIsEditing(false);
     setEditAvatar(null);
@@ -116,12 +252,6 @@ export default function Profile() {
       return;
     }
 
-    // cacheProfile() inside upsertProfile writes localStorage BEFORE the DB call,
-    // so even if the network fails the data survives a page reload.
-    // We race against an 8-second guard. On timeout, local save already succeeded —
-    // show "Saved" and let the next sign-in retry the DB write.
-    // A try-catch ensures an unhandled throw (fetch abort, CORS, JWT expiry) never
-    // leaves the UI stuck on "Saving…".
     const TIMEOUT_MS = 8_000;
     try {
       let didTimeout = false;
@@ -139,8 +269,6 @@ export default function Profile() {
         timedOut,
       ]);
 
-      /* Social links are optional columns — attempt after core save, fail silently
-         if the schema hasn't been migrated yet (columns may not exist in production). */
       if (!error && !didTimeout) {
         supabase
           .from("users")
@@ -159,11 +287,9 @@ export default function Profile() {
       }
 
       if (didTimeout) {
-        // Local cache updated — show saved, DB will sync on next sign-in
-        console.warn("[Profile] DB sync timed out — local cache updated, will retry on next sign-in");
+        console.warn("[Profile] DB sync timed out — local cache updated");
         setSaveStatus("saved");
       } else if (error) {
-        // Hard DB error (e.g. RLS denied) — roll back optimistic update
         console.error("[Profile] save DB error:", error);
         setUser(previous);
         setSaveError(error);
@@ -172,13 +298,9 @@ export default function Profile() {
         setSaveStatus("saved");
       }
     } catch (err) {
-      // Network failure, fetch abort, or JWT refresh error on mobile.
-      // Local cache already contains the updated data — treat as soft-success.
       console.warn("[Profile] save threw unexpectedly (local cache preserved):", err);
       setSaveStatus("saved");
     } finally {
-      // Guarantee the toast always clears regardless of which branch ran.
-      // 5 s gives automated tests enough time to catch the toast.
       setTimeout(() => setSaveStatus("idle"), 5000);
     }
   };
@@ -194,9 +316,37 @@ export default function Profile() {
     setEditAvatar(null);
   };
 
+  /* ── Admin quick-actions menu items ─────────────────────────────────── */
+  const adminActions = [
+    {
+      icon: Shield,
+      label: "Admin Panel",
+      sub:   "Manage users, bans & payments",
+      href:  "/admin",
+    },
+    {
+      icon: Server,
+      label: "AI Engine Monitor",
+      sub:   "Live render engine status",
+      href:  "/create/multi-frame",
+    },
+    {
+      icon: Activity,
+      label: "Render Queue",
+      sub:   "Active & queued cinematic jobs",
+      href:  "/create/multi-frame",
+    },
+    {
+      icon: Layers,
+      label: "System Status",
+      sub:   "API · DB · Storage · CDN",
+      href:  null,
+    },
+  ] as const;
+
   return (
     <div className="app-bg pb-28 hide-scrollbar overflow-y-auto h-full scroll-native">
-      {/* Save status toast */}
+      {/* ── Save status toast ──────────────────────────────────────────── */}
       <AnimatePresence>
         {saveStatus !== "idle" && (
           <motion.div
@@ -219,13 +369,76 @@ export default function Profile() {
         )}
       </AnimatePresence>
 
-      {/* Header section */}
-      <div className="px-5 pb-6 pt-5">
+      {/* ── Admin cover photo banner ──────────────────────────────────── */}
+      {isAdminProfile && (
+        <div className="relative w-full overflow-hidden" style={{ height: 152 }}>
+          {coverUploading ? (
+            <div className="flex h-full w-full items-center justify-center"
+              style={{ background: "linear-gradient(135deg, #0a0a0a, #141414)" }}>
+              <span className="h-6 w-6 animate-spin rounded-full border-2 border-amber-400/30 border-t-amber-400" />
+            </div>
+          ) : coverUrl ? (
+            <img src={coverUrl} alt="Cover photo" className="h-full w-full object-cover" />
+          ) : (
+            <div className="relative h-full w-full overflow-hidden"
+              style={{ background: "linear-gradient(135deg, #0b0500 0%, #1a0c00 35%, #08000f 70%, #000914 100%)" }}>
+              <motion.div
+                animate={{ opacity: [0.25, 0.55, 0.25] }}
+                transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
+                style={{
+                  position: "absolute", inset: 0,
+                  background: "radial-gradient(ellipse at 50% 60%, rgba(245,158,11,0.18) 0%, transparent 68%)",
+                }}
+              />
+              <motion.div
+                animate={{ opacity: [0.15, 0.35, 0.15], x: ["-10%", "10%", "-10%"] }}
+                transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+                style={{
+                  position: "absolute", inset: 0,
+                  background: "radial-gradient(ellipse at 30% 50%, rgba(168,85,247,0.12) 0%, transparent 60%)",
+                }}
+              />
+            </div>
+          )}
+
+          {/* Edit-mode cover upload button */}
+          <AnimatePresence>
+            {isEditing && (
+              <motion.button
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => coverFileRef.current?.click()}
+                className="absolute inset-0 flex items-center justify-center gap-2"
+                style={{ background: "rgba(0,0,0,0.52)" }}
+              >
+                <Camera style={{ width: 18, height: 18, color: "white" }} />
+                <span style={{ color: "white", fontSize: 13.5, fontWeight: 700 }}>Change Cover Photo</span>
+              </motion.button>
+            )}
+          </AnimatePresence>
+
+          {/* Bottom fade to black */}
+          <div className="absolute bottom-0 left-0 right-0 pointer-events-none"
+            style={{ height: 72, background: "linear-gradient(to bottom, transparent, #000000)" }} />
+        </div>
+      )}
+
+      {/* ── Header section ────────────────────────────────────────────── */}
+      <div className={`px-5 pb-6 ${isAdminProfile ? "pt-2" : "pt-5"}`}>
         <div className="flex items-start justify-between">
           {/* Avatar */}
           <div className="relative">
-            <div
-              className="h-20 w-20 overflow-hidden rounded-full ring-1 ring-white/20"
+            <motion.div
+              animate={isAdminProfile ? {
+                boxShadow: [
+                  "0 0 0 2px #f59e0b, 0 0 12px 3px rgba(245,158,11,0.35)",
+                  "0 0 0 2px #fbbf24, 0 0 22px 6px rgba(251,191,36,0.55)",
+                  "0 0 0 2px #f59e0b, 0 0 12px 3px rgba(245,158,11,0.35)",
+                ],
+              } : {}}
+              transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+              className="h-20 w-20 overflow-hidden rounded-full"
+              style={!isAdminProfile ? { boxShadow: "0 0 0 1.5px rgba(255,255,255,0.18)" } : {}}
             >
               {showAvatar ? (
                 <img
@@ -235,7 +448,6 @@ export default function Profile() {
                   onError={(e) => {
                     console.warn("[Avatar] img onError fired — src:", (e.currentTarget as HTMLImageElement).src);
                     setAvatarBroken(true);
-                    // Only show a hint when already in edit mode so the user can retry
                     if (isEditing) setUploadError("Image couldn't be displayed — try a different file.");
                   }}
                 />
@@ -248,7 +460,8 @@ export default function Profile() {
                     : initials}
                 </div>
               )}
-            </div>
+            </motion.div>
+
             {isEditing && (
               <>
                 <motion.button
@@ -257,20 +470,25 @@ export default function Profile() {
                   onClick={() => fileRef.current?.click()}
                   disabled={uploading}
                   className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full text-white"
-                  style={{ background: "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))", border: "2px solid hsl(var(--background))" }}
+                  style={{
+                    background: "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))",
+                    border: "2px solid hsl(var(--background))",
+                  }}
                 >
                   {uploading
                     ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                     : <Camera style={{ width: 13, height: 13 }} />}
                 </motion.button>
                 {uploadError && (
-                  <p className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-56 text-center text-[11px] leading-tight text-red-400 font-medium" role="alert">{uploadError}</p>
+                  <p className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-56 text-center text-[11px] leading-tight text-red-400 font-medium" role="alert">
+                    {uploadError}
+                  </p>
                 )}
               </>
             )}
           </div>
 
-          {/* Actions */}
+          {/* Top-right actions */}
           <div className="flex gap-2">
             {isEditing ? (
               <>
@@ -301,7 +519,7 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Name / handle */}
+        {/* Name / handle / bio */}
         <div className="mt-4">
           {isEditing ? (
             <div className="space-y-2">
@@ -327,11 +545,39 @@ export default function Profile() {
                 <h2 className="font-display text-[24px] font-bold leading-tight app-text">{user.name}</h2>
                 <NameBadges isOwner={user.isOwner} isVerified={user.isVerified} size="md" />
               </div>
-              <p className="mt-0.5 flex items-center gap-1.5 text-sm app-text-muted">
+
+              {/* Founder title — owner only */}
+              {isAdminProfile && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 }}
+                  className="mt-1 flex items-center gap-2"
+                >
+                  <SuperKingBadge />
+                  <span style={{
+                    fontSize: 11.5,
+                    fontWeight: 800,
+                    letterSpacing: "0.1em",
+                    textTransform: "uppercase",
+                    background: "linear-gradient(90deg, #d97706 0%, #fbbf24 50%, #d97706 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundSize: "200% auto",
+                  }}>
+                    Founder · Socia
+                  </span>
+                </motion.div>
+              )}
+
+              <p className="mt-1 flex items-center gap-1.5 text-sm app-text-muted">
                 <OnlineDot online={Boolean(user.isOnline)} size={8} />
                 @{user.handle}
               </p>
-              {user.bio && <p className="mt-2.5 text-[13px] leading-relaxed app-text-muted max-w-sm whitespace-pre-line">{user.bio}</p>}
+              {user.bio && (
+                <p className="mt-2.5 text-[13px] leading-relaxed app-text-muted max-w-sm whitespace-pre-line">
+                  {user.bio}
+                </p>
+              )}
               <SocialLinkRow
                 facebook={user.social?.facebook}
                 instagram={user.social?.instagram}
@@ -356,8 +602,9 @@ export default function Profile() {
           )}
         </div>
 
-        {/* Stats row — followers/following are now clickable */}
-        <div className="mt-4 flex items-center overflow-hidden rounded-[18px] app-card">
+        {/* Stats row */}
+        <div className="mt-4 flex items-center overflow-hidden rounded-[18px] app-card"
+          style={isAdminProfile ? { border: "1px solid rgba(251,191,36,0.14)" } : {}}>
           <StatBtn label="Creations" value={myPosts.length} />
           <div className="my-3 w-px self-stretch" style={{ background: "var(--s-border-a)" }} />
           <StatBtn label="Followers" value={liveFollowers ?? user.followers} onClick={() => navigate(`/followers/${user.id}`)} />
@@ -365,7 +612,7 @@ export default function Profile() {
           <StatBtn label="Following" value={liveFollowing ?? user.following} onClick={() => navigate(`/following/${user.id}`)} />
         </div>
 
-        {/* Edit profile button */}
+        {/* Edit Profile button */}
         {!isEditing && (
           <div className="mt-3">
             <motion.button
@@ -385,9 +632,83 @@ export default function Profile() {
             </motion.button>
           </div>
         )}
+
+        {/* ── Admin Quick Actions — visible only when NOT editing ─────── */}
+        {isAdminProfile && !isEditing && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12, duration: 0.22 }}
+            className="mt-5"
+          >
+            {/* Section header */}
+            <div className="flex items-center gap-3 mb-2.5">
+              <div className="h-px flex-1"
+                style={{ background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.35), transparent)" }} />
+              <div className="flex items-center gap-1.5">
+                <Crown style={{ width: 10, height: 10, color: "#fbbf24" }} />
+                <span style={{
+                  fontSize: 9.5,
+                  fontWeight: 800,
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                  color: "#fbbf24",
+                }}>
+                  Admin
+                </span>
+              </div>
+              <div className="h-px flex-1"
+                style={{ background: "linear-gradient(90deg, transparent, rgba(251,191,36,0.35), transparent)" }} />
+            </div>
+
+            {/* Action cards */}
+            <div
+              className="overflow-hidden rounded-[22px]"
+              style={{
+                border: "1px solid rgba(251,191,36,0.14)",
+                background: "rgba(251,191,36,0.03)",
+              }}
+            >
+              {adminActions.map((item, i) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.label}>
+                    {i > 0 && (
+                      <div style={{ height: 1, background: "rgba(251,191,36,0.08)", margin: "0 16px" }} />
+                    )}
+                    <motion.button
+                      whileTap={{ scale: 0.985, background: "rgba(251,191,36,0.06)" }}
+                      onClick={() => item.href && navigate(item.href)}
+                      className="flex w-full items-center gap-3.5 px-4 py-3.5 text-left"
+                    >
+                      <div
+                        className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px]"
+                        style={{
+                          background: "linear-gradient(135deg, rgba(245,158,11,0.18), rgba(245,158,11,0.08))",
+                          border: "1px solid rgba(251,191,36,0.2)",
+                        }}
+                      >
+                        <Icon style={{ width: 16, height: 16, color: "#fbbf24" }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p style={{ fontSize: 13.5, fontWeight: 650, color: "#f3f4f6", lineHeight: 1.3 }}>
+                          {item.label}
+                        </p>
+                        <p style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{item.sub}</p>
+                      </div>
+                      {item.href && (
+                        <ChevronRight style={{ width: 14, height: 14, color: "rgba(251,191,36,0.4)", flexShrink: 0 }} />
+                      )}
+                    </motion.button>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
       </div>
 
-      {/* Tabs */}
+      {/* ── Tabs ──────────────────────────────────────────────────────── */}
       <div className="app-header sticky top-0 z-10 flex">
         <TabBtn active={tab === "creations"} onClick={() => setTab("creations")} icon={Grid3x3}>Creations</TabBtn>
         <TabBtn active={tab === "saved"}     onClick={() => setTab("saved")}     icon={Bookmark}>
@@ -396,7 +717,7 @@ export default function Profile() {
         <TabBtn active={tab === "liked"}     onClick={() => setTab("liked")}     icon={Heart}>Liked</TabBtn>
       </div>
 
-      {/* Tab content */}
+      {/* ── Tab content ───────────────────────────────────────────────── */}
       <div className="px-4 pt-4">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
@@ -462,10 +783,29 @@ export default function Profile() {
         </AnimatePresence>
       </div>
 
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" data-testid="avatar-file-input" onChange={handleAvatarPick} />
+      {/* ── Hidden file inputs ─────────────────────────────────────────── */}
+      <input
+        ref={fileRef}
+        type="file" accept="image/*"
+        className="hidden"
+        data-testid="avatar-file-input"
+        onChange={handleAvatarPick}
+      />
+      {isAdminProfile && (
+        <input
+          ref={coverFileRef}
+          type="file" accept="image/*"
+          className="hidden"
+          onChange={handleCoverPick}
+        />
+      )}
     </div>
   );
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Helper components
+═══════════════════════════════════════════════════════════════════════════ */
 
 function StatBtn({ label, value, onClick }: { label: string; value: number; onClick?: () => void }) {
   return (
@@ -479,8 +819,6 @@ function StatBtn({ label, value, onClick }: { label: string; value: number; onCl
     </motion.button>
   );
 }
-
-/* ─── Helpers used by the edit form + read view ─────────────────────────── */
 
 function SocialInput({
   icon: Icon, value, onChange, placeholder,
@@ -505,7 +843,6 @@ function SocialInput({
 function SocialLinkRow({ facebook, instagram, tiktok }: {
   facebook?: string; instagram?: string; tiktok?: string;
 }) {
-  /* Given a free-text input, build the most likely outbound URL. */
   const buildUrl = (kind: "facebook" | "instagram" | "tiktok", v?: string) => {
     if (!v) return null;
     const t = v.trim();

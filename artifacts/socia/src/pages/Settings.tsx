@@ -34,7 +34,8 @@ export default function Settings() {
 
   const [section, setSection] = useState<Section>("main");
   const [confirm, setConfirm] = useState(false);
-  /* Account section state */
+  const [loggingOut, setLoggingOut] = useState(false);
+
   const [pwd, setPwd]               = useState("");
   const [pwdBusy, setPwdBusy]       = useState(false);
   const [pwdMsg, setPwdMsg]         = useState<{ ok: boolean; text: string } | null>(null);
@@ -42,9 +43,6 @@ export default function Settings() {
   const [delBusy, setDelBusy]       = useState(false);
   const [delErr, setDelErr]         = useState<string | null>(null);
 
-  /* Privacy toggles — backed by `user_settings` table (schema §12). Loads
-   * on mount, persists on each toggle, falls back gracefully if the table
-   * isn't present (UI stays interactive but logs a warning).             */
   const [privacy, setPrivacy] = useState({
     private_account: false,
     show_online:     true,
@@ -118,6 +116,14 @@ export default function Settings() {
     }
   };
 
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    setConfirm(false);
+    try { await signOutUser(); } catch {}
+    logout();
+    navigate("/auth");
+  };
+
   const goBack = () => section === "main" ? navigate("/profile") : setSection("main");
 
   const Header = ({ title }: { title: string }) => (
@@ -137,7 +143,10 @@ export default function Settings() {
         {section === "main" && (
           <motion.div key="main" {...slide} className="flex h-full flex-col">
             <Header title="Settings" />
-            <div className="flex-1 overflow-y-auto hide-scrollbar px-4 pb-12 pt-4 space-y-2">
+            <div
+              className="flex-1 overflow-y-auto hide-scrollbar px-4 pt-4 space-y-2"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 108px)" }}
+            >
               {/* ── Contact Owner card ───────────────────────────── */}
               <motion.button
                 initial={{ opacity: 0, y: 6 }}
@@ -152,7 +161,6 @@ export default function Settings() {
                   boxShadow: "0 2px 10px -4px rgba(0,0,0,0.2)",
                 }}
               >
-                {/* Avatar */}
                 <div
                   className="relative shrink-0 overflow-hidden rounded-full"
                   style={{ width: 52, height: 52, border: "2px solid var(--s-border-a)" }}
@@ -164,14 +172,10 @@ export default function Settings() {
                     <User className="text-white" style={{ width: 24, height: 24, strokeWidth: 1.8 }} />
                   </div>
                 </div>
-
-                {/* Text */}
                 <div className="flex-1 min-w-0">
                   <p className="text-[14px] font-semibold app-text leading-tight">Get Support</p>
                   <p className="text-[11.5px] app-text-muted mt-0.5 leading-snug">Need help? Message the developer directly</p>
                 </div>
-
-                {/* Right icon */}
                 <div
                   className="shrink-0 grid h-9 w-9 place-items-center rounded-full"
                   style={{ background: "linear-gradient(135deg, #1877f2 0%, #42a5f5 100%)" }}
@@ -180,7 +184,6 @@ export default function Settings() {
                 </div>
               </motion.button>
 
-              {/* thin divider */}
               <div style={{ height: 1, background: "var(--s-border-b)", margin: "2px 0 6px" }} />
 
               {/* ── Billing & Credits entry ──────────────────────── */}
@@ -250,15 +253,22 @@ export default function Settings() {
                 );
               })}
 
-              {/* Log out */}
+              {/* ── Log out button — always visible above nav ──── */}
               <motion.button
                 whileTap={{ scale: 0.97 }}
                 onClick={() => setConfirm(true)}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-[18px] py-3.5 text-white text-sm font-semibold"
-                style={{ background: "linear-gradient(135deg, #e11d48, #ef4444)", boxShadow: "0 6px 20px -6px rgba(244,63,94,0.4)" }}
+                disabled={loggingOut}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-[18px] py-4 text-white text-sm font-semibold disabled:opacity-60"
+                style={{
+                  background: "linear-gradient(135deg, #e11d48, #ef4444)",
+                  boxShadow: "0 6px 24px -6px rgba(244,63,94,0.45)",
+                  minHeight: 56,
+                }}
               >
-                <LogOut style={{ width: 16, height: 16 }} />
-                Log Out
+                {loggingOut
+                  ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  : <LogOut style={{ width: 16, height: 16 }} />}
+                {loggingOut ? "Logging out…" : "Log Out"}
               </motion.button>
             </div>
           </motion.div>
@@ -268,7 +278,8 @@ export default function Settings() {
         {section === "account" && (
           <motion.div key="account" {...slide} className="flex h-full flex-col">
             <Header title="Account" />
-            <div className="flex-1 overflow-y-auto hide-scrollbar px-4 pb-12 pt-4 space-y-4">
+            <div className="flex-1 overflow-y-auto hide-scrollbar px-4 pt-4 space-y-4"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
               <Field label="Display name" defaultValue={user?.name ?? ""} readOnly />
               <Field label="Username"     defaultValue={`@${user?.handle ?? ""}`} readOnly />
               <Field label="Email"        defaultValue={supabaseUser?.email ?? ""} readOnly />
@@ -317,7 +328,8 @@ export default function Settings() {
         {section === "notifications" && (
           <motion.div key="notifications" {...slide} className="flex h-full flex-col">
             <Header title="Notifications" />
-            <div className="flex-1 overflow-y-auto hide-scrollbar px-4 pb-12 pt-4 space-y-2">
+            <div className="flex-1 overflow-y-auto hide-scrollbar px-4 pt-4 space-y-2"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
               {([
                 { key: "push"      as const, label: "Push Notifications", desc: "Alerts when app is closed" },
                 { key: "email"     as const, label: "Email Updates",      desc: "Weekly digest & product news" },
@@ -344,13 +356,12 @@ export default function Settings() {
         {section === "appearance" && (
           <motion.div key="appearance" {...slide} className="flex h-full flex-col">
             <Header title="Appearance" />
-            <div className="flex-1 overflow-y-auto hide-scrollbar px-4 pb-12 pt-4 space-y-5">
-
-              {/* Text size */}
+            <div className="flex-1 overflow-y-auto hide-scrollbar px-4 pt-4 space-y-5"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
               <div>
                 <SectionLabel>Text Size</SectionLabel>
                 <div className="app-card rounded-[18px] px-4 py-4">
-                  {(["small", "default", "large"] as TextSizeKey[]).map((sz, i) => (
+                  {(["small", "default", "large"] as TextSizeKey[]).map((sz) => (
                     <button
                       key={sz}
                       onClick={() => setTextSize(sz)}
@@ -383,34 +394,15 @@ export default function Settings() {
         {section === "privacy" && (
           <motion.div key="privacy" {...slide} className="flex h-full flex-col">
             <Header title="Privacy" />
-            <div className="flex-1 overflow-y-auto hide-scrollbar px-4 pb-12 pt-4 space-y-2">
+            <div className="flex-1 overflow-y-auto hide-scrollbar px-4 pt-4 space-y-2"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
               {!privacyLoaded && (
                 <p className="px-1 text-[11px] app-text-muted">Loading your settings…</p>
               )}
-              <ToggleRow
-                label="Private Account"
-                desc="Only approved followers see your posts"
-                on={privacy.private_account}
-                onChange={(v) => setPrivacyKey("private_account", v)}
-              />
-              <ToggleRow
-                label="Show Online Status"
-                desc="Let others see when you're active"
-                on={privacy.show_online}
-                onChange={(v) => setPrivacyKey("show_online", v)}
-              />
-              <ToggleRow
-                label="Allow Direct Messages"
-                desc="Anyone you've allowed can message you"
-                on={privacy.allow_dms}
-                onChange={(v) => setPrivacyKey("allow_dms", v)}
-              />
-              <ToggleRow
-                label="Two-Factor Auth"
-                desc="Extra login security (requires re-auth)"
-                on={privacy.two_factor}
-                onChange={(v) => setPrivacyKey("two_factor", v)}
-              />
+              <ToggleRow label="Private Account"      desc="Only approved followers see your posts"  on={privacy.private_account} onChange={(v) => setPrivacyKey("private_account", v)} />
+              <ToggleRow label="Show Online Status"   desc="Let others see when you're active"        on={privacy.show_online}     onChange={(v) => setPrivacyKey("show_online", v)} />
+              <ToggleRow label="Allow Direct Messages" desc="Anyone you've allowed can message you"   on={privacy.allow_dms}       onChange={(v) => setPrivacyKey("allow_dms", v)} />
+              <ToggleRow label="Two-Factor Auth"       desc="Extra login security (requires re-auth)" on={privacy.two_factor}      onChange={(v) => setPrivacyKey("two_factor", v)} />
               <p className="px-1 pt-1 text-[10.5px] app-text-muted">
                 Privacy settings sync to your account and apply across all your devices.
               </p>
@@ -422,7 +414,8 @@ export default function Settings() {
         {section === "about" && (
           <motion.div key="about" {...slide} className="flex h-full flex-col">
             <Header title="About" />
-            <div className="flex-1 overflow-y-auto hide-scrollbar px-4 pb-12 pt-4 space-y-3">
+            <div className="flex-1 overflow-y-auto hide-scrollbar px-4 pt-4 space-y-3"
+              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
               <div className="app-card rounded-[18px] overflow-hidden divide-y" style={{ borderColor: "var(--s-border-a)" }}>
                 {[["Version", "1.0.0 (Build 42)"], ["Platform", "Web · PWA ready"]].map(([k, v]) => (
                   <div key={k} className="flex items-center justify-between px-4 py-3.5">
@@ -446,44 +439,59 @@ export default function Settings() {
         )}
       </AnimatePresence>
 
-      {/* Delete-account confirm sheet */}
+      {/* ── Delete-account confirm — fixed, centered, above nav ──────── */}
       <AnimatePresence>
         {delConfirm && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={() => !delBusy && setDelConfirm(false)}
-            className="absolute inset-0 z-30 flex items-end pb-8 px-4"
-            style={{ background: "rgba(0,0,0,0.6)" }}
+            className="fixed inset-0 z-[100] flex items-center justify-center px-5"
+            style={{ background: "rgba(0,0,0,0.82)" }}
           >
             <motion.div
-              initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 400, damping: 32 }}
+              initial={{ scale: 0.88, opacity: 0, y: 16 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0, y: 8 }}
+              transition={{ type: "spring", stiffness: 420, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full"
+              className="w-full max-w-sm"
             >
-              <div className="app-card rounded-[24px] p-5 w-full">
-                <div className="flex items-center gap-2 text-[#ef4444]">
-                  <AlertTriangle className="h-5 w-5" />
-                  <h3 className="font-display text-lg font-semibold">Delete your account?</h3>
+              <div
+                className="w-full rounded-[28px] p-6"
+                style={{
+                  background: "#0e0e0e",
+                  border: "1px solid rgba(239,68,68,0.18)",
+                  boxShadow: "0 32px 80px -8px rgba(0,0,0,0.95), inset 0 0 0 1px rgba(255,255,255,0.04)",
+                }}
+              >
+                <div className="flex justify-center mb-4">
+                  <div className="grid h-14 w-14 place-items-center rounded-[20px]"
+                    style={{ background: "rgba(239,68,68,0.1)", border: "1.5px solid rgba(239,68,68,0.22)" }}>
+                    <AlertTriangle style={{ width: 22, height: 22, color: "#ef4444" }} />
+                  </div>
                 </div>
-                <p className="mt-2 text-sm app-text-muted">
+                <h3 className="text-center font-display text-[18px] font-bold app-text mb-1">Delete your account?</h3>
+                <p className="text-center text-[13px] app-text-muted mb-2">
                   This permanently removes your profile, posts, messages and follows.
-                  This action <strong>cannot be undone</strong>.
+                </p>
+                <p className="text-center text-[12px] font-semibold mb-5" style={{ color: "#ef4444" }}>
+                  This action cannot be undone.
                 </p>
                 {delErr && (
-                  <p className="mt-2 text-xs" style={{ color: "#ef4444" }}>{delErr}</p>
+                  <p className="mb-4 text-center text-xs" style={{ color: "#ef4444" }}>{delErr}</p>
                 )}
-                <div className="mt-5 grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => setDelConfirm(false)} disabled={delBusy}
-                    className="app-surface rounded-xl py-2.5 text-sm font-semibold app-text disabled:opacity-50"
+                    className="rounded-[16px] py-3.5 text-sm font-semibold app-text disabled:opacity-50"
+                    style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.09)" }}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleDeleteAccount} disabled={delBusy}
-                    className="rounded-xl py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                    style={{ background: "linear-gradient(135deg, #e11d48, #ef4444)" }}
+                    className="rounded-[16px] py-3.5 text-sm font-semibold text-white disabled:opacity-50"
+                    style={{ background: "linear-gradient(135deg, #e11d48, #ef4444)", boxShadow: "0 4px 16px -4px rgba(225,29,72,0.45)" }}
                   >
                     {delBusy ? "Deleting…" : "Delete forever"}
                   </button>
@@ -494,42 +502,79 @@ export default function Settings() {
         )}
       </AnimatePresence>
 
-      {/* Log-out confirm sheet */}
+      {/* ── Log-out confirm — fixed, centered, always above nav ──────── */}
       <AnimatePresence>
         {confirm && (
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
             onClick={() => setConfirm(false)}
-            className="absolute inset-0 z-30 flex items-end pb-8 px-4"
-            style={{ background: "rgba(0,0,0,0.6)" }}
+            className="fixed inset-0 z-[100] flex items-center justify-center px-5"
+            style={{ background: "rgba(0,0,0,0.82)" }}
           >
             <motion.div
-              initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 400, damping: 32 }}
+              initial={{ scale: 0.85, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.92, opacity: 0, y: 10 }}
+              transition={{ type: "spring", stiffness: 440, damping: 30 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full"
+              className="w-full max-w-sm"
             >
-              <div className="app-card rounded-[24px] p-5 w-full">
-                <h3 className="font-display text-lg font-semibold app-text">Log out of Socia?</h3>
-                <p className="mt-1 text-sm app-text-muted">You'll need to sign back in to see your feed.</p>
-                <div className="mt-5 grid grid-cols-2 gap-3">
+              <div
+                className="w-full rounded-[28px] p-6"
+                style={{
+                  background: "#0d0d0d",
+                  border: "1px solid rgba(255,255,255,0.09)",
+                  boxShadow: "0 32px 80px -8px rgba(0,0,0,0.95), inset 0 0 0 1px rgba(255,255,255,0.04)",
+                }}
+              >
+                {/* Icon */}
+                <div className="flex justify-center mb-5">
+                  <motion.div
+                    animate={{ scale: [1, 1.05, 1] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    className="grid h-[60px] w-[60px] place-items-center rounded-[22px]"
+                    style={{
+                      background: "linear-gradient(135deg, rgba(225,29,72,0.15), rgba(239,68,68,0.08))",
+                      border: "1.5px solid rgba(225,29,72,0.28)",
+                      boxShadow: "0 0 24px -4px rgba(225,29,72,0.3)",
+                    }}
+                  >
+                    <LogOut style={{ width: 24, height: 24, color: "#f43f5e" }} />
+                  </motion.div>
+                </div>
+
+                <h3 className="text-center font-display text-[20px] font-bold app-text mb-2">
+                  Log out?
+                </h3>
+                <p className="text-center text-[13.5px] leading-relaxed app-text-muted mb-6">
+                  Are you sure you want to log out of Socia?
+                </p>
+
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => setConfirm(false)}
-                    className="app-surface rounded-xl py-2.5 text-sm font-semibold app-text"
+                    className="rounded-[16px] py-4 text-[14px] font-semibold app-text"
+                    style={{
+                      background: "rgba(255,255,255,0.07)",
+                      border: "1px solid rgba(255,255,255,0.09)",
+                    }}
                   >
                     Cancel
                   </button>
-                  <button
-                    onClick={async () => {
-                      setConfirm(false);
-                      try { await signOutUser(); } catch {}
-                      logout();
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
+                    onClick={handleLogout}
+                    className="rounded-[16px] py-4 text-[14px] font-semibold text-white"
+                    style={{
+                      background: "linear-gradient(135deg, #e11d48, #ef4444)",
+                      boxShadow: "0 6px 20px -4px rgba(225,29,72,0.55)",
                     }}
-                    className="rounded-xl py-2.5 text-sm font-semibold text-white"
-                    style={{ background: "linear-gradient(135deg, #e11d48, #ef4444)" }}
                   >
-                    Log out
-                  </button>
+                    Log Out
+                  </motion.button>
                 </div>
               </div>
             </motion.div>
@@ -603,84 +648,45 @@ function Field({ label, defaultValue, type = "text", readOnly }: {
   label: string; defaultValue: string; type?: string; readOnly?: boolean;
 }) {
   return (
-    <div>
-      <p className="mb-1.5 px-1 text-[10.5px] font-semibold uppercase tracking-[0.1em] app-text-muted">{label}</p>
+    <div className="space-y-1">
+      <p className="px-1 text-[10.5px] font-semibold uppercase tracking-[0.1em] app-text-muted">{label}</p>
       <input
         type={type}
         defaultValue={defaultValue}
         readOnly={readOnly}
-        className="app-input w-full rounded-[14px] px-4 py-3 text-sm font-medium focus:outline-none"
-        style={{ opacity: readOnly ? 0.5 : 1 }}
+        className="w-full app-card rounded-[14px] px-4 py-3 text-sm app-text outline-none"
+        style={readOnly ? { opacity: 0.7, cursor: "default" } : {}}
       />
     </div>
   );
 }
 
-function AccentButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
-  return (
-    <motion.button
-      whileTap={{ scale: 0.97 }}
-      onClick={onClick}
-      className="w-full rounded-[14px] py-3 text-sm font-semibold text-white"
-      style={{ background: "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))" }}
-    >
-      {children}
-    </motion.button>
-  );
-}
-
 function Divider({ label }: { label: string }) {
-  return label
-    ? <p className="px-1 pt-2 text-[10.5px] font-semibold uppercase tracking-[0.1em] app-text-muted">{label}</p>
-    : <div />;
-}
-
-function MenuCard({ items, destructiveLast }: { items: string[]; destructiveLast?: boolean }) {
   return (
-    <div className="app-card rounded-[18px] overflow-hidden">
-      {items.map((label, i) => (
-        <div key={label}>
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            className="flex w-full items-center justify-between px-4 py-3.5 text-sm"
-            style={{ color: destructiveLast && i === items.length - 1 ? "#ef4444" : "hsl(var(--foreground))" }}
-          >
-            {label}
-            <ChevronRight style={{ width: 15, height: 15, opacity: 0.35 }} />
-          </motion.button>
-          {i < items.length - 1 && (
-            <div style={{ height: 1, background: "var(--s-border-b)" }} />
-          )}
-        </div>
-      ))}
+    <div className="flex items-center gap-3">
+      <div className="h-px flex-1" style={{ background: "var(--s-border-b)" }} />
+      <p className="text-[10.5px] font-semibold uppercase tracking-[0.1em] app-text-muted shrink-0">{label}</p>
+      <div className="h-px flex-1" style={{ background: "var(--s-border-b)" }} />
     </div>
   );
 }
 
-/* Same look as MenuCard but each row navigates to an internal route. */
-function LinkCard({
-  items,
-  onNavigate,
-}: {
+function LinkCard({ items, onNavigate }: {
   items: { label: string; href: string }[];
-  onNavigate: (path: string) => void;
+  onNavigate: (href: string) => void;
 }) {
   return (
     <div className="app-card rounded-[18px] overflow-hidden">
-      {items.map((it, i) => (
-        <div key={it.label}>
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            onClick={() => onNavigate(it.href)}
-            className="flex w-full items-center justify-between px-4 py-3.5 text-sm app-text"
-          >
-            {it.label}
-            <ChevronRight style={{ width: 15, height: 15, opacity: 0.35 }} />
-          </motion.button>
-          {i < items.length - 1 && (
-            <div style={{ height: 1, background: "var(--s-border-b)" }} />
-          )}
-        </div>
+      {items.map((item, i) => (
+        <button
+          key={item.label}
+          onClick={() => onNavigate(item.href)}
+          className="flex w-full items-center justify-between px-4 py-3.5 text-sm app-text"
+          style={i < items.length - 1 ? { borderBottom: "1px solid var(--s-border-b)" } : {}}
+        >
+          {item.label}
+          <ChevronRight style={{ width: 14, height: 14 }} className="app-text-muted" />
+        </button>
       ))}
     </div>
   );
