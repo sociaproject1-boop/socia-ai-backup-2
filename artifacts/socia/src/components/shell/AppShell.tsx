@@ -11,8 +11,8 @@ import { useBillingStore } from "@/lib/billing";
 interface Props { children: ReactNode }
 
 const HIDE_CHROME    = [/^\/auth/, /^\/sys-admin/, /^\/admin/];
-const HIDE_TOPBAR    = [/^\/messages\/[^/]+$/, /^\/post\//, /^\/create\/[^/]+$/, /^\/profile\/settings/, /^\/profile\/.+/, /^\/billing/, /^\/topup/, /^\/subscription/, /^\/admin/];
-const HIDE_BOTTOMNAV = [/^\/messages\/[^/]+$/, /^\/post\//, /^\/create\/[^/]+$/];
+const HIDE_TOPBAR    = [/^\/messages\/[^/]+$/, /^\/post\//, /^\/create\/[^/]+$/, /^\/profile\/settings/, /^\/profile\/.+/, /^\/billing/, /^\/topup/, /^\/subscription/, /^\/admin/, /^\/socia-gpt/, /^\/studio/];
+const HIDE_BOTTOMNAV = [/^\/messages\/[^/]+$/, /^\/post\//, /^\/create\/[^/]+$/, /^\/socia-gpt/, /^\/studio/];
 
 function tabRank(loc: string) {
   if (loc.startsWith("/profile"))  return 3;
