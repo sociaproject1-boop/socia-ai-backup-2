@@ -2521,12 +2521,16 @@ function ResultScreen({
 interface ApiJob {
   id: string; status: string; render_engine: string; output_url?: string;
   thumbnail_url?: string; duration_sec?: number; failure_reason?: string;
-  created_at: string; input_payload?: { images?: string[]; aspect?: string };
+  created_at: string; input_payload?: { images?: string[]; aspect?: string; quality?: string };
 }
 function apiJobToEntry(job: ApiJob): RenderHistoryEntry {
-  const payload = (job.input_payload ?? {}) as { images?: string[]; aspect?: string };
+  const payload = (job.input_payload ?? {}) as { images?: string[]; aspect?: string; quality?: string };
   const frameCount   = (payload.images ?? []).length || 2;
   const segmentCount = Math.max(0, frameCount - 1);
+  const validQualities: ExportQuality[] = ["720p", "1080p", "2k", "4k"];
+  const quality = validQualities.includes(payload.quality as ExportQuality)
+    ? (payload.quality as ExportQuality)
+    : "1080p";
   return {
     id:           job.id,
     timestamp:    new Date(job.created_at).getTime(),
@@ -2534,7 +2538,7 @@ function apiJobToEntry(job: ApiJob): RenderHistoryEntry {
     aspect:       (payload.aspect ?? "9:16") as AspectRatio,
     frameCount,
     segmentCount,
-    quality:      "standard" as ExportQuality,
+    quality,
     format:       "mp4" as ExportFormat,
     videoUrl:     job.output_url ?? "",
     thumbnailUrl: job.thumbnail_url ?? "",
@@ -2939,8 +2943,8 @@ export default function CreateMultiFrame() {
   const { refresh } = useBillingStore();
   useEffect(() => { refresh(); }, [refresh]);
 
-  /* Plan gate — requires Pro ₱3,000 (p30) */
-  const isPaid   = summary ? (summary.plan_code === "p30") : null;
+  /* Plan gate — requires Pro ₱3,000 (p30), or owner bypass */
+  const isPaid   = summary ? (summary.plan_code === "p30" || summary.is_owner) : null;
   const planCode = summary?.plan_code ?? "free";
 
   /* Project state */
@@ -3301,9 +3305,19 @@ export default function CreateMultiFrame() {
     if (renderTimerRef.current) { clearInterval(renderTimerRef.current); renderTimerRef.current = null; }
     // Cancel the real backend job if one exists
     if (currentJobId) {
-      fetch(`/api/render/job/${currentJobId}/cancel`, { method: "POST",
-        headers: { "Content-Type": "application/json" },
-      }).catch(() => {});
+      (async () => {
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const token = sessionData.session?.access_token ?? null;
+          await fetch(`/api/render/job/${currentJobId}/cancel`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+          });
+        } catch { /* ignore — job will expire naturally */ }
+      })();
       setCurrentJobId(null);
     }
     setGenerating(false); setBackgroundRender(false); setRenderProgress(0); setRenderPhase(0);
