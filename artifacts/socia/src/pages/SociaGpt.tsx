@@ -241,16 +241,14 @@ export default function SociaGpt() {
   return (
     <div
       className="relative flex h-full flex-col overflow-hidden"
-      style={{ background: "#08041a" }}
+      style={{ background: "#000000" }}
     >
       {/* ── Header ── */}
       <div
         className="flex items-center gap-3 px-4 py-3 shrink-0"
         style={{
-          borderBottom: "1px solid rgba(255,255,255,0.05)",
-          background: "rgba(10,5,20,0.95)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
+          borderBottom: "1px solid rgba(255,255,255,0.04)",
+          background: "#000000",
         }}
       >
         <motion.button
@@ -258,8 +256,8 @@ export default function SociaGpt() {
           onClick={() => navigate("/create")}
           className="grid h-9 w-9 place-items-center rounded-full shrink-0"
           style={{
-            background: "rgba(255,255,255,0.05)",
-            border: "1px solid rgba(255,255,255,0.07)",
+            background: "#0a0a0a",
+            border: "1px solid rgba(255,255,255,0.06)",
             color: "rgba(255,255,255,0.5)",
           }}
           aria-label="Back"
@@ -270,8 +268,8 @@ export default function SociaGpt() {
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <motion.div
             className="grid h-9 w-9 shrink-0 place-items-center rounded-[14px]"
-            animate={busy ? { boxShadow: ["0 4px 16px rgba(139,92,246,0.4)", "0 4px 24px rgba(139,92,246,0.6)", "0 4px 16px rgba(139,92,246,0.4)"] } : { boxShadow: "0 4px 16px rgba(139,92,246,0.38)" }}
-            transition={busy ? { duration: 2.0, repeat: Infinity, ease: "easeInOut" } : { duration: 0.4 }}
+            animate={busy ? { outline: ["2px solid rgba(139,92,246,0.35)", "2px solid rgba(139,92,246,0.6)", "2px solid rgba(139,92,246,0.35)"] } : { outline: "2px solid transparent" }}
+            transition={busy ? { duration: 2.0, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 }}
             style={{ background: "linear-gradient(145deg, #a78bfa, #8b5cf6, #6366f1)" }}
           >
             <motion.div
@@ -316,9 +314,9 @@ export default function SociaGpt() {
             }}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full"
             style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.06)",
-              color: "rgba(255,255,255,0.38)",
+              background: "#0a0a0a",
+              border: "1px solid rgba(255,255,255,0.05)",
+              color: "rgba(255,255,255,0.35)",
             }}
             aria-label="Clear chat"
           >
@@ -379,14 +377,14 @@ export default function SociaGpt() {
 
       {/* ── Composer ── */}
       <div
-        className="shrink-0 px-3 pt-2 pb-[max(env(safe-area-inset-bottom),12px)]"
-        style={{
-          borderTop: "1px solid rgba(255,255,255,0.05)",
-          background: "rgba(8,4,18,0.98)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
-        }}
-      >
+  className="shrink-0 px-3 pt-2 pb-[max(env(safe-area-inset-bottom),12px)]"
+  style={{
+    background: "transparent",
+    borderTop: "none",
+    backdropFilter: "none",
+    WebkitBackdropFilter: "none",
+  }}
+>
         {/* Pending attachments */}
         <AnimatePresence>
           {pending.length > 0 && (
@@ -440,11 +438,9 @@ export default function SociaGpt() {
               className="mb-3 overflow-hidden"
               style={{
                 borderRadius: 20,
-                background: "rgba(11, 8, 20, 0.97)",
-                border: "1px solid rgba(255,255,255,0.07)",
-                boxShadow: "0 16px 48px rgba(0,0,0,0.65), 0 0 0 0.5px rgba(255,255,255,0.035) inset",
-                backdropFilter: "blur(48px)",
-                WebkitBackdropFilter: "blur(48px)",
+                background: "#0a0a0a",
+                border: "1px solid rgba(255,255,255,0.04)",
+                boxShadow: "0 8px 24px rgba(0,0,0,0.8)",
                 width: "fit-content",
                 minWidth: 210,
               }}
@@ -514,14 +510,12 @@ export default function SociaGpt() {
               marginBottom: 1,
               borderRadius: "50%",
               background: attachOpen
-                ? "linear-gradient(135deg,rgba(168,85,247,0.35),rgba(236,72,153,0.25))"
-                : "rgba(255,255,255,0.07)",
+                ? "rgba(168,85,247,0.12)"
+                : "#0a0a0a",
               border: attachOpen
-                ? "1.5px solid rgba(168,85,247,0.5)"
-                : "1.5px solid rgba(255,255,255,0.1)",
-              boxShadow: attachOpen
-                ? "0 0 18px rgba(168,85,247,0.35)"
-                : "none",
+                ? "1.5px solid rgba(168,85,247,0.38)"
+                : "1.5px solid rgba(255,255,255,0.07)",
+              boxShadow: "none",
               color: attachOpen
                 ? "rgba(216,180,254,1)"
                 : "rgba(255,255,255,0.55)",
@@ -551,11 +545,9 @@ export default function SociaGpt() {
             className="relative min-w-0 flex-1"
             style={{
               borderRadius: 24,
-              background: "rgba(255,255,255,0.055)",
-              border: `1.5px solid ${focused ? "rgba(168,85,247,0.5)" : attachOpen ? "rgba(168,85,247,0.28)" : "rgba(255,255,255,0.09)"}`,
-              boxShadow: focused
-                ? "0 0 0 3px rgba(168,85,247,0.12), 0 6px 28px rgba(168,85,247,0.14)"
-                : "none",
+              background: "#0a0a0a",
+              border: `1.5px solid ${focused ? "rgba(168,85,247,0.45)" : attachOpen ? "rgba(168,85,247,0.18)" : "rgba(255,255,255,0.06)"}`,
+              boxShadow: focused ? "0 0 0 2px rgba(168,85,247,0.08)" : "none",
               transition: "border-color 0.15s, box-shadow 0.2s",
               overflow: "visible",
             }}
@@ -606,7 +598,7 @@ export default function SociaGpt() {
               </div>
 
               {/* Mic → Send morph (right side of pill) */}
-              <div className="flex shrink-0 items-end self-end p-1.5">
+              <div className="absolute right-2 bottom-2 flex shrink-0 items-center justify-center">
                 <AnimatePresence mode="popLayout" initial={false}>
                   {busy ? (
                     <motion.button
@@ -763,13 +755,6 @@ const EmptyState = memo(function EmptyState() {
     >
       {/* Orb */}
       <div className="relative mb-9">
-        <div
-          className="pointer-events-none absolute rounded-full blur-[80px]"
-          style={{
-            inset: "-40px",
-            background: "radial-gradient(circle, rgba(139,92,246,0.28) 0%, transparent 65%)",
-          }}
-        />
         <motion.div
           initial={{ scale: 0.75, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -777,7 +762,7 @@ const EmptyState = memo(function EmptyState() {
           className="relative grid h-[78px] w-[78px] place-items-center rounded-[26px]"
           style={{
             background: "linear-gradient(145deg, #a78bfa 0%, #8b5cf6 45%, #6366f1 100%)",
-            boxShadow: "0 28px 64px -12px rgba(139,92,246,0.5), 0 0 0 1px rgba(255,255,255,0.1) inset",
+            boxShadow: "0 0 0 1px rgba(255,255,255,0.08) inset",
           }}
         >
           <Sparkles className="h-8 w-8 text-white" strokeWidth={1.5} />
@@ -828,7 +813,7 @@ const Bubble = memo(function Bubble({ m, onRegen, busy, onUpgrade }: {
           className="max-w-[82%] rounded-[22px] rounded-br-[6px] px-4 py-3.5 text-[14px] leading-relaxed text-white"
           style={{
             background: "linear-gradient(145deg, rgba(168,85,247,0.92), rgba(236,72,153,0.82))",
-            boxShadow: "0 4px 24px rgba(168,85,247,0.22)",
+            boxShadow: "none",
           }}
         >
           {m.attachments && m.attachments.length > 0 && (
@@ -854,8 +839,8 @@ const Bubble = memo(function Bubble({ m, onRegen, busy, onUpgrade }: {
         <div
           className="rounded-[22px] rounded-bl-[6px] px-4 py-4"
           style={{
-            background: "rgba(255,255,255,0.045)",
-            border: "1px solid rgba(255,255,255,0.07)",
+            background: "#0d0d0d",
+            border: "1px solid rgba(255,255,255,0.04)",
           }}
         >
           {m.content ? (

@@ -17,16 +17,32 @@ export function BottomNav() {
   return (
     <nav
       style={{
-        paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + 8px)`,
-        paddingTop: "14px",
-        paddingLeft: "12px",
-        paddingRight: "12px",
-        background: "linear-gradient(to bottom, rgba(8,4,22,0) 0%, rgba(8,4,22,0.97) 38%)",
-        backdropFilter: "blur(40px)",
-        WebkitBackdropFilter: "blur(40px)",
+        position: "fixed",
+bottom: 0,
+left: 0,
+right: 0,
+paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)",
+paddingTop: "10px",
+paddingLeft: "16px",
+paddingRight: "16px",
+background: "transparent",
+zIndex: 50,
       }}
     >
-      <ul className="grid grid-cols-4">
+      <ul
+  className="grid grid-cols-4"
+  style={{
+    background: "rgba(18,18,24,0.72)",
+    backdropFilter: "saturate(180%) blur(20px)",
+    WebkitBackdropFilter: "saturate(180%) blur(20px)",
+    border: "1px solid rgba(255,255,255,0.06)",
+    borderRadius: "32px",
+    boxShadow:
+      "0 8px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)",
+    overflow: "hidden",
+    padding: "8px 6px",
+  }}
+>
         {TABS.map((tab) => {
           const active  = tab.match(location);
           const isInbox = tab.path === "/messages";
@@ -38,7 +54,7 @@ export function BottomNav() {
                 whileTap={{ scale: 0.86 }}
                 transition={{ type: "spring", stiffness: 600, damping: 26 }}
                 onClick={() => navigate(tab.path)}
-                className="relative flex w-full flex-col items-center gap-1 px-2 pb-2 pt-2.5 select-none"
+                className="relative flex w-full flex-col items-center justify-center gap-1 py-2 select-none"
               >
                 {/* Active glow pill background */}
                 <AnimatedActiveBg active={active} />
