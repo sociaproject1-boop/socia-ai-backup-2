@@ -17,23 +17,16 @@ export function BottomNav() {
   return (
     <nav
       style={{
-        paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + 6px)`,
-        paddingTop: "6px",
+        paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + 8px)`,
+        paddingTop: "14px",
         paddingLeft: "12px",
         paddingRight: "12px",
-        background: "rgba(8,4,16,0.92)",
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
-        borderTop: "1px solid rgba(255,255,255,0.06)",
+        background: "linear-gradient(to bottom, rgba(8,4,22,0) 0%, rgba(8,4,22,0.97) 38%)",
+        backdropFilter: "blur(40px)",
+        WebkitBackdropFilter: "blur(40px)",
       }}
     >
-      <ul
-        className="grid grid-cols-4 rounded-2xl overflow-hidden"
-        style={{
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.06)",
-        }}
-      >
+      <ul className="grid grid-cols-4">
         {TABS.map((tab) => {
           const active  = tab.match(location);
           const isInbox = tab.path === "/messages";

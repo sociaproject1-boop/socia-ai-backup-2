@@ -135,9 +135,14 @@ export function AppShell({ children }: Props) {
               />
             )}
           </AnimatePresence>
-        </main>
 
-        {!hideBottomNav && <BottomNav />}
+          {/* ── Bottom nav floats over content — fixes the hard-cut dark slab — */}
+          {!hideBottomNav && (
+            <div className="absolute inset-x-0 bottom-0 z-30">
+              <BottomNav />
+            </div>
+          )}
+        </main>
       </div>
 
     </div>
