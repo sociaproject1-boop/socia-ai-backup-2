@@ -152,7 +152,7 @@ export default function CreateImageVideo() {
       </div>
 
       {/* ── Scrollable content ── */}
-      <div className="flex-1 overflow-y-auto pb-32" style={{ padding: "20px 16px 0" }}>
+      <div className="flex-1 overflow-y-auto" style={{ padding: "20px 16px 128px" }}>
 
         {/* ── Frame cards ── */}
         <div className="mb-5">
