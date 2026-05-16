@@ -1,28 +1,28 @@
 /**
- * SociaGPT AI Billing page — completely separate from creator subscriptions.
+ * SociaGPT AI Billing page — 4-tier premium subscription system.
  *
  * Shows:
- *   - Current AI plan badge + model
- *   - AI usage progress bar (daily/monthly)
- *   - Plan comparison cards (Free / Premium ₱299 / Ultra ₱999)
- *   - Subscribe / upgrade / cancel buttons
- *
- * Does NOT link to or touch creator billing (/billing, /billing/upgrade, etc.).
+ *   - Current AI plan + branded model + usage bar
+ *   - 4-tier plan comparison (Free / Premium / Elite / Super Elite)
+ *   - Upgrade → opens AIUpgradeModal with full payment reference flow
+ *   - Cancel subscription
+ *   - AI refund history (collapsible)
  */
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, Sparkles, Zap, Crown, Check, Loader2, AlertCircle,
-  RefreshCw, ChevronRight, RotateCcw, History, ChevronDown, HelpCircle,
+  ArrowLeft, Sparkles, Zap, Flame, Crown, Check, Loader2, AlertCircle,
+  RefreshCw, ChevronRight, ChevronDown, HelpCircle, History,
 } from "lucide-react";
 import { RefundStatusBadge } from "@/components/billing/RefundStatusBadge";
 import {
-  useAIPlanStore, AI_PLAN_OPTIONS, subscribeAIPlan, cancelAIPlan,
+  useAIPlanStore, AI_PLAN_OPTIONS, cancelAIPlan,
   type AIPlanCode,
 } from "@/lib/aiPlanClient";
 import { AIPlanBadge } from "@/components/socia-gpt/AIPlanBadge";
 import { AIUsageBar } from "@/components/socia-gpt/AIUsageBar";
+import { AIUpgradeModal } from "@/components/socia-gpt/AIUpgradeModal";
 import { RefundModal } from "@/components/billing/RefundModal";
 import { supabase } from "@/lib/supabase";
 
@@ -52,23 +52,40 @@ async function fetchAIRefunds(): Promise<AIRefundRow[]> {
 }
 
 const PLAN_ICONS: Record<AIPlanCode, React.ElementType> = {
-  free:    Sparkles,
-  premium: Zap,
-  ultra:   Crown,
+  free:          Sparkles,
+  premium:       Zap,
+  elite:         Flame,
+  "super-elite": Crown,
 };
 
-const PLAN_COLORS: Record<AIPlanCode, string> = {
-  free:    "#6b7280",
-  premium: "#a855f7",
-  ultra:   "#8b5cf6",
+const PLAN_GRADIENTS: Record<AIPlanCode, string> = {
+  free:          "rgba(255,255,255,0.03)",
+  premium:       "linear-gradient(135deg,rgba(168,85,247,0.13),rgba(15,10,28,0.85))",
+  elite:         "linear-gradient(135deg,rgba(249,115,22,0.13),rgba(15,10,28,0.85))",
+  "super-elite": "linear-gradient(135deg,rgba(234,179,8,0.13),rgba(15,10,28,0.85))",
+};
+
+const PLAN_ACCENT: Record<AIPlanCode, string> = {
+  free:          "rgba(255,255,255,0.3)",
+  premium:       "#a855f7",
+  elite:         "#f97316",
+  "super-elite": "#eab308",
+};
+
+const PLAN_BUTTON_BG: Record<AIPlanCode, string> = {
+  free:          "rgba(255,255,255,0.07)",
+  premium:       "linear-gradient(135deg,#a855f7,#ec4899)",
+  elite:         "linear-gradient(135deg,#f97316,#ef4444)",
+  "super-elite": "linear-gradient(135deg,#eab308,#a855f7)",
 };
 
 export default function SociaGptBilling() {
   const [, navigate] = useLocation();
   const { plan, usage, loading, refresh } = useAIPlanStore();
-  const [subscribing, setSubscribing]   = useState<AIPlanCode | null>(null);
-  const [cancelling,  setCancelling]    = useState(false);
-  const [feedback,    setFeedback]      = useState<{ ok: boolean; msg: string } | null>(null);
+  const [upgradeOpen,  setUpgradeOpen]  = useState(false);
+  const [upgradeTarget, setUpgradeTarget] = useState<AIPlanCode>("premium");
+  const [cancelling,   setCancelling]   = useState(false);
+  const [feedback,     setFeedback]     = useState<{ ok: boolean; msg: string } | null>(null);
   const [refundOpen,   setRefundOpen]   = useState(false);
   const [aiRefunds,    setAIRefunds]    = useState<AIRefundRow[]>([]);
   const [historyOpen,  setHistoryOpen]  = useState(false);
@@ -79,22 +96,14 @@ export default function SociaGptBilling() {
     fetchAIRefunds().then(setAIRefunds).catch(() => {});
   }, [refresh]);
 
-  async function handleSubscribe(code: "premium" | "ultra") {
-    setFeedback(null);
-    setSubscribing(code);
-    const result = await subscribeAIPlan(code);
-    setSubscribing(null);
-    if (result.ok) {
-      setFeedback({ ok: true, msg: `${code === "ultra" ? "Ultra Pro" : "Premium AI"} activated!` });
-      useAIPlanStore.setState({ lastFetched: null });
-      await refresh();
-    } else {
-      setFeedback({ ok: false, msg: result.error ?? "Subscription failed." });
-    }
+  function openUpgrade(code: AIPlanCode) {
+    if (code === "free") return;
+    setUpgradeTarget(code);
+    setUpgradeOpen(true);
   }
 
   async function handleCancel() {
-    if (!confirm("Cancel your AI subscription? You'll revert to Free AI immediately.")) return;
+    if (!confirm("Cancel your AI subscription? You'll revert to Free AI.")) return;
     setFeedback(null);
     setCancelling(true);
     const result = await cancelAIPlan();
@@ -110,6 +119,7 @@ export default function SociaGptBilling() {
 
   const currentCode = plan?.code ?? "free";
   const PlanIcon    = PLAN_ICONS[currentCode];
+  const accent      = PLAN_ACCENT[currentCode];
 
   return (
     <div className="flex min-h-[100dvh] flex-col">
@@ -117,7 +127,7 @@ export default function SociaGptBilling() {
       <div className="flex items-center gap-3 border-b border-white/5 px-4 py-3">
         <button
           onClick={() => navigate("/socia-gpt")}
-          className="grid h-9 w-9 place-items-center rounded-full bg-white/5 text-white/80 hover:bg-white/10"
+          className="grid h-9 w-9 place-items-center rounded-full bg-white/5 text-white/80 hover:bg-white/10 transition"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
@@ -125,18 +135,19 @@ export default function SociaGptBilling() {
           <h1 className="font-display text-[16px] font-bold text-white">
             AI <span className="text-gradient">Subscription</span>
           </h1>
-          <p className="text-[10.5px] text-white/45">Manage your SociaGPT AI plan</p>
+          <p className="text-[10.5px] text-white/40">Manage your SociaGPT AI plan</p>
         </div>
         <button
           onClick={() => { useAIPlanStore.setState({ lastFetched: null }); void refresh(); }}
-          className="grid h-9 w-9 place-items-center rounded-full bg-white/5 text-white/60 hover:bg-white/10"
+          className="grid h-9 w-9 place-items-center rounded-full bg-white/5 text-white/60 hover:bg-white/10 transition"
           aria-label="Refresh"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-8">
+      <div className="flex-1 overflow-y-auto pb-10">
+
         {/* Current plan card */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -146,26 +157,20 @@ export default function SociaGptBilling() {
         >
           <div
             className="rounded-3xl border border-white/8 p-5"
-            style={{
-              background: currentCode === "ultra"
-                ? "linear-gradient(135deg,rgba(124,58,237,0.15),rgba(99,102,241,0.08))"
-                : currentCode === "premium"
-                ? "linear-gradient(135deg,rgba(168,85,247,0.15),rgba(236,72,153,0.08))"
-                : "rgba(255,255,255,0.03)",
-            }}
+            style={{ background: PLAN_GRADIENTS[currentCode] }}
           >
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
                 <div
                   className="grid h-12 w-12 place-items-center rounded-2xl"
-                  style={{ background: `${PLAN_COLORS[currentCode]}25`, border: `1px solid ${PLAN_COLORS[currentCode]}40` }}
+                  style={{ background: `${accent}22`, border: `1px solid ${accent}40` }}
                 >
-                  <PlanIcon className="h-5 w-5" style={{ color: PLAN_COLORS[currentCode] }} />
+                  <PlanIcon className="h-5 w-5" style={{ color: accent }} />
                 </div>
                 <div>
                   <AIPlanBadge code={currentCode} size="md" />
-                  <div className="mt-1 text-[11.5px] text-white/50">
-                    Model: {plan?.model ?? "GPT-4o Mini"}
+                  <div className="mt-1 text-[11px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    {plan?.brandedModel ?? "Standard AI"}
                   </div>
                 </div>
               </div>
@@ -174,7 +179,7 @@ export default function SociaGptBilling() {
 
             {usage && (
               <div className="mt-4">
-                <AIUsageBar code={currentCode} usage={usage} />
+                <AIUsageBar code={currentCode} usage={usage} onUpgrade={() => openUpgrade("premium")} />
               </div>
             )}
 
@@ -183,7 +188,7 @@ export default function SociaGptBilling() {
                 <button
                   onClick={handleCancel}
                   disabled={cancelling}
-                  className="w-full rounded-xl border border-white/8 py-2 text-[11.5px] text-white/40 hover:text-white/60 hover:border-white/12 transition disabled:opacity-40"
+                  className="w-full rounded-xl border border-white/8 py-2 text-[11.5px] text-white/35 hover:text-white/55 hover:border-white/14 transition disabled:opacity-40"
                 >
                   {cancelling ? <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin" /> : "Cancel subscription"}
                 </button>
@@ -208,27 +213,23 @@ export default function SociaGptBilling() {
           </motion.div>
         )}
 
-        {/* Note: completely separate from creator billing */}
-        <div className="mx-4 mt-4 rounded-2xl border border-amber-500/15 bg-amber-500/5 px-4 py-2.5 text-[11px] text-amber-300/70">
-          <strong className="text-amber-300">Note:</strong> AI subscriptions are separate from your
-          Creator subscription. You can have both, either, or neither independently.{" "}
-          <button
-            onClick={() => navigate("/billing")}
-            className="underline decoration-dashed hover:text-amber-300 transition"
-          >
-            View Creator Billing →
+        {/* Separate from creator billing */}
+        <div className="mx-4 mt-4 rounded-2xl border border-amber-500/12 bg-amber-500/[0.04] px-4 py-2.5 text-[11px] text-amber-300/60">
+          <strong className="text-amber-300/80">Note:</strong> AI subscriptions are separate from your Creator subscription.{" "}
+          <button onClick={() => navigate("/billing")} className="underline decoration-dashed hover:text-amber-300 transition">
+            Creator billing →
           </button>
         </div>
 
         {/* Plan cards */}
         <div className="px-4 mt-6">
-          <h2 className="font-display text-[13px] font-bold text-white/70 mb-3">AI Plans</h2>
+          <h2 className="font-display text-[13px] font-bold text-white/60 mb-3 uppercase tracking-wider">AI Plans</h2>
           <div className="space-y-3">
             {AI_PLAN_OPTIONS.map((planOpt, i) => {
               const isCurrent = currentCode === planOpt.code;
               const isPaid    = planOpt.code !== "free";
               const Icon      = PLAN_ICONS[planOpt.code];
-              const color     = PLAN_COLORS[planOpt.code];
+              const color     = PLAN_ACCENT[planOpt.code];
 
               return (
                 <motion.div
@@ -236,45 +237,51 @@ export default function SociaGptBilling() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.06 }}
-                  className={`rounded-3xl border p-5 ${
-                    isCurrent ? "border-white/15" : "border-white/6"
-                  }`}
+                  className="rounded-3xl border p-5"
                   style={{
-                    background:
-                      planOpt.code === "ultra"
-                        ? "linear-gradient(135deg,rgba(124,58,237,0.12),rgba(15,10,28,0.8))"
-                        : planOpt.code === "premium"
-                        ? "linear-gradient(135deg,rgba(168,85,247,0.12),rgba(15,10,28,0.8))"
-                        : "rgba(255,255,255,0.02)",
+                    background: PLAN_GRADIENTS[planOpt.code],
+                    borderColor: isCurrent ? `${color}40` : "rgba(255,255,255,0.07)",
+                    boxShadow: isCurrent ? `0 0 24px -8px ${color}` : "none",
                   }}
                 >
-                  <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
                       <div
                         className="grid h-10 w-10 place-items-center rounded-xl"
-                        style={{ background: `${color}22`, border: `1px solid ${color}35` }}
+                        style={{ background: `${color}18`, border: `1px solid ${color}30` }}
                       >
                         <Icon className="h-4.5 w-4.5" style={{ color }} />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-display text-[14px] font-bold text-white">{planOpt.label}</span>
+                          {planOpt.highlight && !isCurrent && (
+                            <span className="rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                              style={{ background: `${color}20`, color, border: `1px solid ${color}35` }}>
+                              {planOpt.highlight}
+                            </span>
+                          )}
                           {isCurrent && (
-                            <span className="rounded-full bg-emerald-500/15 border border-emerald-500/25 px-1.5 py-0.5 text-[9.5px] font-semibold text-emerald-400">
-                              Current
+                            <span className="rounded-full bg-emerald-500/12 border border-emerald-500/22 px-1.5 py-0.5 text-[9.5px] font-semibold text-emerald-400">
+                              Active
                             </span>
                           )}
                         </div>
-                        <div className="text-[11px] text-white/45">{planOpt.model}</div>
+                        <div className="text-[11px] mt-0.5" style={{ color: `${color}90` }}>
+                          {planOpt.brandedModel}
+                        </div>
                       </div>
                     </div>
                     <div className="text-right">
                       {planOpt.price_php === 0 ? (
-                        <span className="text-[16px] font-bold text-white">Free</span>
+                        <span className="font-display text-[16px] font-bold text-white/60">Free</span>
                       ) : (
                         <>
-                          <span className="text-[18px] font-bold text-white">₱{planOpt.price_php}</span>
-                          <span className="text-[10.5px] text-white/40">/mo</span>
+                          <span className="font-display text-[18px] font-bold text-white">
+                            ₱{planOpt.price_php.toLocaleString()}
+                          </span>
+                          <span className="text-[10px] text-white/35">/mo</span>
+                          <div className="text-[9px] text-white/22">${planOpt.price_usd}</div>
                         </>
                       )}
                     </div>
@@ -282,7 +289,7 @@ export default function SociaGptBilling() {
 
                   <ul className="space-y-1.5 mb-4">
                     {planOpt.features.map((f) => (
-                      <li key={f} className="flex items-start gap-2 text-[11.5px] text-white/65">
+                      <li key={f} className="flex items-start gap-2 text-[11.5px]" style={{ color: "rgba(255,255,255,0.6)" }}>
                         <Check className="mt-0.5 h-3 w-3 shrink-0" style={{ color }} />
                         {f}
                       </li>
@@ -291,32 +298,21 @@ export default function SociaGptBilling() {
 
                   {isPaid && !isCurrent && (
                     <button
-                      onClick={() => handleSubscribe(planOpt.code as "premium" | "ultra")}
-                      disabled={subscribing !== null}
-                      className="w-full rounded-2xl py-3 text-[13px] font-semibold text-white disabled:opacity-50 transition flex items-center justify-center gap-2"
+                      onClick={() => openUpgrade(planOpt.code)}
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl font-display text-[13px] font-bold text-white transition-all"
                       style={{
-                        background: planOpt.code === "ultra"
-                          ? "linear-gradient(135deg,#7c3aed,#6366f1)"
-                          : "linear-gradient(135deg,#a855f7,#ec4899)",
-                        boxShadow: planOpt.code === "ultra"
-                          ? "0 8px 20px -6px rgba(124,58,237,0.45)"
-                          : "0 8px 20px -6px rgba(168,85,247,0.45)",
+                        background: PLAN_BUTTON_BG[planOpt.code],
+                        boxShadow: `0 8px 20px -6px ${color}55`,
                       }}
                     >
-                      {subscribing === planOpt.code ? (
-                        <><Loader2 className="h-4 w-4 animate-spin" /> Processing…</>
-                      ) : (
-                        <>
-                          Upgrade to {planOpt.label}
-                          <ChevronRight className="h-4 w-4" />
-                        </>
-                      )}
+                      Upgrade to {planOpt.label}
+                      <ChevronRight className="h-3.5 w-3.5" />
                     </button>
                   )}
 
                   {isPaid && isCurrent && (
-                    <div className="w-full rounded-2xl border border-white/8 py-2.5 text-center text-[12px] text-white/40">
-                      Active Plan
+                    <div className="flex h-10 w-full items-center justify-center rounded-2xl border border-white/8 text-[11.5px] text-white/35">
+                      Current Plan
                     </div>
                   )}
                 </motion.div>
@@ -325,29 +321,35 @@ export default function SociaGptBilling() {
           </div>
         </div>
 
-        {/* Payment methods notice */}
-        <div className="mx-4 mt-5 rounded-2xl border border-white/6 bg-white/[0.02] px-4 py-3.5">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-white/30 mb-2">
-            Payment Methods (Coming Soon)
+        {/* Payment methods */}
+        <div className="mx-4 mt-5 rounded-2xl border border-white/6 bg-white/[0.02] px-4 py-4">
+          <div className="text-[10.5px] font-semibold uppercase tracking-widest text-white/25 mb-3">
+            How to Subscribe
           </div>
-          <div className="flex flex-wrap gap-2 text-[11.5px] text-white/50">
-            {["GCash", "Maya", "PayMongo", "Stripe"].map((m) => (
-              <span key={m} className="rounded-lg border border-white/8 bg-white/[0.03] px-2.5 py-1">
-                {m}
-              </span>
+          <ol className="space-y-2">
+            {[
+              "Select a plan above and tap Upgrade",
+              "Send the exact amount via GCash or Maya",
+              "Enter your payment reference number",
+              "Our team verifies and activates your plan within 24h",
+            ].map((step, i) => (
+              <li key={i} className="flex items-start gap-3 text-[11.5px]" style={{ color: "rgba(255,255,255,0.45)" }}>
+                <span className="mt-px grid h-4.5 w-4.5 shrink-0 place-items-center rounded-full text-[9.5px] font-bold"
+                  style={{ background: "rgba(168,85,247,0.18)", color: "#c084fc" }}>
+                  {i + 1}
+                </span>
+                {step}
+              </li>
             ))}
-          </div>
-          <p className="mt-2 text-[10.5px] text-white/35">
-            Currently using mock subscriptions for development. Production payment integration coming soon.
-          </p>
+          </ol>
         </div>
 
-        {/* AI Billing support history — collapsible, hidden by default */}
+        {/* AI Refund history */}
         {aiRefunds.length > 0 && (
           <div className="mx-4 mt-5 rounded-2xl border border-white/[0.07] bg-white/[0.02] overflow-hidden">
             <button
               onClick={() => setHistoryOpen((v) => !v)}
-              className="flex w-full items-center gap-2 px-4 pt-3 pb-3 hover:bg-white/[0.02] transition"
+              className="flex w-full items-center gap-2 px-4 py-3 hover:bg-white/[0.02] transition"
             >
               <History className="h-3.5 w-3.5 text-white/35" />
               <div className="text-[11px] font-bold uppercase tracking-wider text-white/35 flex-1 text-left">
@@ -394,7 +396,7 @@ export default function SociaGptBilling() {
           </div>
         )}
 
-        {/* Subtle billing support link */}
+        {/* Billing support link */}
         <div className="mx-4 mt-5 mb-2 text-center">
           {currentCode !== "free" && (
             <button
@@ -407,6 +409,14 @@ export default function SociaGptBilling() {
           )}
         </div>
       </div>
+
+      {/* Upgrade modal */}
+      <AIUpgradeModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        currentPlan={currentCode}
+        highlightPlan={upgradeTarget}
+      />
 
       <RefundModal
         open={refundOpen}

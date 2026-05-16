@@ -48,9 +48,12 @@ export const INTERNAL_COST_MAP_PHP: Record<string, number> = {
 
 /* ── AI plan code → chat cost key ───────────────────────────────────── */
 export const AI_PLAN_COST_KEY: Record<string, string> = {
-  free:    "gpt_msg_mini",
-  premium: "gpt_msg_4o",
-  ultra:   "gpt_msg_o1",
+  free:          "gpt_msg_mini",
+  premium:       "gpt_msg_4o",
+  elite:         "gpt_msg_4o",
+  "super-elite": "gpt_msg_o1",
+  // legacy alias
+  ultra:         "gpt_msg_o1",
 };
 
 /* ── Heavy-use thresholds (per billing period) ───────────────────────── */
