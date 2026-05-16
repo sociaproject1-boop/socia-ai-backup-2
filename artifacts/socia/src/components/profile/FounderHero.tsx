@@ -16,8 +16,8 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Camera, Volume2, VolumeX } from "lucide-react";
+import { motion } from "framer-motion";
+import { Camera } from "lucide-react";
 
 /* ══════════════════════════════════════════════════════════════════════════
    Video sources — dark luxury / night city aesthetic
@@ -30,7 +30,9 @@ const VIDEO_SRCS = [
 ];
 
 /* ══════════════════════════════════════════════════════════════════════════
-   Web Audio: cinematic ambient drone
+   Web Audio: cinematic ambient drone — auto-starts, handles browser policy.
+   If AudioContext is suspended (iOS / strict policy), it resumes on the
+   first user interaction (click or touch) automatically.
 ══════════════════════════════════════════════════════════════════════════ */
 function makeAmbient(): () => void {
   try {
@@ -54,33 +56,23 @@ function makeAmbient(): () => void {
       const g = ac.createGain(); g.gain.value = vol;
       o.connect(g).connect(lpf); o.start(); oscs.push(o);
     });
+
+    /* Handle browsers that start AudioContext in 'suspended' state.
+     * Resume on first click or touch — silent, no UI required. */
+    const resume = () => { ac.resume().catch(() => {}); };
+    if (ac.state === "suspended") {
+      document.addEventListener("click",      resume, { capture: true, once: true });
+      document.addEventListener("touchstart", resume, { capture: true, once: true });
+    }
+
     return () => {
+      document.removeEventListener("click",      resume, true);
+      document.removeEventListener("touchstart", resume, true);
       master.gain.setValueAtTime(master.gain.value, ac.currentTime);
       master.gain.linearRampToValueAtTime(0, ac.currentTime + 1.5);
       setTimeout(() => { oscs.forEach(o => { try { o.stop(); } catch { /**/ } }); ac.close(); }, 2000);
     };
   } catch { return () => {}; }
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   Animated waveform bars (IMAGE 2 audio indicator style)
-══════════════════════════════════════════════════════════════════════════ */
-function Waveform({ active }: { active: boolean }) {
-  const bars = [3, 7, 12, 9, 5, 11, 14, 8, 4, 9];
-  return (
-    <div style={{ display: "flex", gap: 2, alignItems: "flex-end", height: 14 }}>
-      {bars.map((h, i) => (
-        <motion.div
-          key={i}
-          animate={active
-            ? { scaleY: [0.25, 1, 0.35, 0.9, 0.2, 1, 0.45] }
-            : { scaleY: 0.2 }}
-          transition={{ duration: 1.05, repeat: Infinity, delay: i * 0.07, ease: "easeInOut" }}
-          style={{ width: 2.5, height: h, background: "#fbbf24", borderRadius: 1.5, transformOrigin: "bottom" }}
-        />
-      ))}
-    </div>
-  );
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -134,18 +126,14 @@ export function FounderHero({
   const canvasRef      = useRef<HTMLCanvasElement>(null);
   const videoRef       = useRef<HTMLVideoElement>(null);
   const audioCleanup   = useRef<() => void>(() => {});
-  const [audioOn,      setAudioOn]      = useState(false);
-  const [audioHinted,  setAudioHinted]  = useState(false);
   const [videoOk,      setVideoOk]      = useState(true);
 
-  /* Show audio button after 1.8 s */
+  /* Auto-start ambient audio on mount. makeAmbient() handles suspended
+   * AudioContext by attaching a one-time interaction listener internally. */
   useEffect(() => {
-    const t = setTimeout(() => setAudioHinted(true), 1800);
-    return () => clearTimeout(t);
+    audioCleanup.current = makeAmbient();
+    return () => { audioCleanup.current(); };
   }, []);
-
-  /* Cleanup on unmount */
-  useEffect(() => () => { audioCleanup.current(); }, []);
 
   /* ── Canvas cinematic animation ──────────────────────────────────── */
   useEffect(() => {
@@ -306,13 +294,6 @@ export function FounderHero({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoOk]);
 
-  /* ── Audio toggle ─────────────────────────────────────────────────── */
-  const toggleAudio = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!audioOn) { audioCleanup.current = makeAmbient(); setAudioOn(true); }
-    else          { audioCleanup.current(); audioCleanup.current = () => {}; setAudioOn(false); }
-    setAudioHinted(true);
-  };
 
   return (
     <div className="relative w-full overflow-hidden select-none" style={{ height: 310 }}>
@@ -419,36 +400,6 @@ export function FounderHero({
         </div>
       </div>
 
-      {/* ── Layer 5: Audio button (IMAGE 2 bottom-left) ─────────────── */}
-      <AnimatePresence>
-        {audioHinted && (
-          <motion.button
-            key="audio"
-            initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={toggleAudio}
-            className="absolute bottom-4 left-3 flex items-center gap-2 rounded-full"
-            style={{
-              padding: "5px 10px 5px 8px",
-              background: audioOn ? "rgba(0,0,0,0.72)" : "rgba(0,0,0,0.55)",
-              border: `1px solid ${audioOn ? "rgba(251,191,36,0.5)" : "rgba(255,255,255,0.15)"}`,
-            }}
-          >
-            {audioOn
-              ? <Volume2 style={{ width: 11, height: 11, color: "#fbbf24", flexShrink: 0 }} />
-              : <VolumeX  style={{ width: 11, height: 11, color: "rgba(255,255,255,0.5)", flexShrink: 0 }} />
-            }
-            <span style={{
-              fontSize: 9.5, fontWeight: 900, letterSpacing: "0.08em",
-              color: audioOn ? "#fbbf24" : "rgba(255,255,255,0.5)",
-              textTransform: "uppercase", flexShrink: 0,
-            }}>
-              {audioOn ? "ON" : "OFF"}
-            </span>
-            <Waveform active={audioOn} />
-          </motion.button>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
@@ -491,26 +442,74 @@ export function KingBadge() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   SuperKingBadge — verified checkmark (gold, next to name)
+   VerifiedFounderBadge — animated gold checkmark.
+   Layers (back to front):
+     1. Outer rotating dashed ring  (6 s CW full rotation)
+     2. Inner counter-rotating ring (9 s CCW)
+     3. Double pulse glow explosion (2.2 s)
+     4. Badge circle with shine sweep
 ══════════════════════════════════════════════════════════════════════════ */
 export function VerifiedFounderBadge() {
   return (
-    <motion.div
-      animate={{ scale: [1, 1.08, 1] }}
-      transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-      style={{
-        width: 22, height: 22,
-        borderRadius: "50%",
-        background: "linear-gradient(135deg, #d97706, #fbbf24)",
-        display: "grid", placeItems: "center",
-        boxShadow: "0 0 10px rgba(251,191,36,0.6)",
-        flexShrink: 0,
-      }}
-    >
-      <svg viewBox="0 0 12 12" style={{ width: 12, height: 12 }}>
-        <path d="M2 6.5 L5 9.5 L10 3" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      </svg>
-    </motion.div>
+    <div style={{ position: "relative", width: 28, height: 28, flexShrink: 0 }}>
+      {/* Outer dashed rotating ring */}
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
+        style={{
+          position: "absolute", inset: -4, borderRadius: "50%",
+          border: "1.5px dashed rgba(251,191,36,0.75)",
+          pointerEvents: "none",
+        }}
+      />
+      {/* Inner solid counter-rotating ring */}
+      <motion.div
+        animate={{ rotate: -360 }}
+        transition={{ duration: 9, repeat: Infinity, ease: "linear" }}
+        style={{
+          position: "absolute", inset: -1.5, borderRadius: "50%",
+          border: "1px solid rgba(253,230,138,0.45)",
+          pointerEvents: "none",
+        }}
+      />
+      {/* Glow pulse explosion */}
+      <motion.div
+        animate={{ scale: [1, 1.7, 1], opacity: [0.55, 0, 0.55] }}
+        transition={{ duration: 2.2, repeat: Infinity, ease: "easeOut" }}
+        style={{
+          position: "absolute", inset: -5, borderRadius: "50%",
+          background: "rgba(251,191,36,0.38)",
+          pointerEvents: "none",
+        }}
+      />
+      {/* Badge circle */}
+      <motion.div
+        animate={{ scale: [1, 1.06, 1] }}
+        transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+        style={{
+          position: "relative", width: 28, height: 28, borderRadius: "50%",
+          background: "linear-gradient(135deg, #d97706, #fbbf24 55%, #f59e0b)",
+          boxShadow: "0 0 16px rgba(251,191,36,0.75), 0 0 32px rgba(245,158,11,0.35)",
+          display: "grid", placeItems: "center", overflow: "hidden",
+        }}
+      >
+        {/* Checkmark */}
+        <svg viewBox="0 0 12 12" style={{ width: 12, height: 12, position: "relative", zIndex: 1 }}>
+          <path d="M2 6.5 L5 9.5 L10 3" stroke="#000" strokeWidth="2.2"
+            strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </svg>
+        {/* Shine sweep */}
+        <motion.div
+          animate={{ x: ["-160%", "160%"] }}
+          transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 1.8, ease: "easeInOut" }}
+          style={{
+            position: "absolute", top: "-10%", bottom: "-10%", width: "45%",
+            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent)",
+            transform: "skewX(-18deg)", zIndex: 2,
+          }}
+        />
+      </motion.div>
+    </div>
   );
 }
 

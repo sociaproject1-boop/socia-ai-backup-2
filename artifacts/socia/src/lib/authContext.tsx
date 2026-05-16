@@ -187,6 +187,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     document.addEventListener("visibilitychange", handleHidden);
     window.addEventListener("beforeunload", handleBeforeUnload);
 
+    /* Heartbeat: keep the online flag fresh every 30 s so it doesn't drift
+     * to false due to missed visibility events (mobile background, etc.) */
+    const heartbeatId = setInterval(() => flipIfSignedIn(true), 30_000);
+
     // Safety net — ensure loading is never permanently stuck
     const safetyTimer = setTimeout(() => {
       setLoading((prev) => {
@@ -201,6 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe();
       clearTimeout(safetyTimer);
+      clearInterval(heartbeatId);
       document.removeEventListener("visibilitychange", handleHidden);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
@@ -258,11 +263,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     syncing.current = true;
 
     try {
-      /* Side-effects: claim the owner badge if this account's email matches
-       * the hard-coded owner email in the DB function, and mark the user
-       * as online. Both are fire-and-forget — failures don't block UI. */
-      claimOwnerBadge().catch(() => {});
-      setOnlineStatus(true).catch(() => {});
+      /* Side-effects: claim the owner badge and mark the user as online.
+       * Awaited in parallel so the DB row already has is_online=true by
+       * the time fetchProfile reads it — eliminates the race condition that
+       * caused the founder to show OFFLINE immediately after sign-in. */
+      await Promise.all([
+        claimOwnerBadge().catch(() => {}),
+        setOnlineStatus(true).catch(() => {}),
+      ]);
 
       const dbProfile = await fetchProfile(sbUser.id);
 
