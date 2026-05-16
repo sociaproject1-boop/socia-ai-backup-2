@@ -3,7 +3,8 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Send, Trash2, Loader2, Sparkles, Copy, Check, RotateCcw,
-  X, AlertCircle, Paperclip, Image as ImageIcon, Mic, Film, Upload, Zap, Crown,
+  X, Paperclip, Image as ImageIcon, Mic, Film, Upload, Crown,
+  AlertCircle, Clock, RefreshCw,
 } from "lucide-react";
 import {
   useSociaGptStore, streamChat,
@@ -15,12 +16,6 @@ import { PendingChip, BubbleAttachments, type PendingAttachment } from "@/compon
 import { AIPlanBadge } from "@/components/socia-gpt/AIPlanBadge";
 import { AIUpgradeModal } from "@/components/socia-gpt/AIUpgradeModal";
 import { useAIPlanStore } from "@/lib/aiPlanClient";
-
-const MODEL_LABELS: Record<string, string> = {
-  "gpt-4o-mini": "GPT-4o Mini",
-  "gpt-4o":      "GPT-4o",
-  "o1-mini":     "o1-mini",
-};
 
 export default function SociaGpt() {
   const [, navigate]  = useLocation();
@@ -39,6 +34,7 @@ export default function SociaGpt() {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [cooldownSec, setCooldownSec] = useState(0);
+  const [inputFocused, setInputFocused] = useState(false);
 
   const abortRef      = useRef<AbortController | null>(null);
   const scrollerRef   = useRef<HTMLDivElement>(null);
@@ -46,6 +42,7 @@ export default function SociaGpt() {
   const audioInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const cooldownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const textareaRef   = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     useAIPlanStore.setState({ lastFetched: null });
@@ -75,7 +72,6 @@ export default function SociaGpt() {
   const maxWords  = plan?.maxWords ?? 300;
   const wordCount = input.trim() ? input.trim().split(/\s+/).length : 0;
   const overLimit = planCode === "free" && wordCount > maxWords;
-  const modelLabel = MODEL_LABELS[plan?.model ?? "gpt-4o-mini"] ?? plan?.model ?? "GPT-4o Mini";
 
   const addFiles = useCallback(async (files: File[]) => {
     setGlobalError(null);
@@ -84,7 +80,7 @@ export default function SociaGpt() {
       const kind = detectAttachmentKind(f);
       if (!kind) { setGlobalError(`Unsupported file: ${f.name}`); continue; }
       if (planCode === "free" && (kind === "audio" || kind === "video")) {
-        setGlobalError("Audio & video attachments require Premium AI. Tap the badge to upgrade.");
+        setUpgradeOpen(true);
         continue;
       }
       const id = `p_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -104,7 +100,7 @@ export default function SociaGpt() {
   }, [planCode]);
 
   function pickFiles(accept: string) {
-    const ref = accept.startsWith("image") ? imageInputRef : accept.startsWith("audio") ? audioInputRef : videoInputRef;
+    const ref = accept === "image" ? imageInputRef : accept === "audio" ? audioInputRef : videoInputRef;
     ref.current?.click();
     setAttachOpen(false);
   }
@@ -146,7 +142,7 @@ export default function SociaGpt() {
     const ready = pending.filter((p) => p.uploaded && !p.error).map((p) => p.uploaded!);
     if (!trimmed && ready.length === 0) return;
     if (busy || cooldownSec > 0) return;
-    if (overLimit) { setGlobalError(`Message too long. Free AI allows max ${maxWords} words.`); return; }
+    if (overLimit) { setGlobalError(`Message too long — max ${maxWords} words on your current plan.`); return; }
 
     setInput(""); setBusy(true); setGlobalError(null);
     pending.forEach((p) => URL.revokeObjectURL(p.previewUrl));
@@ -169,7 +165,7 @@ export default function SociaGpt() {
         assistantId: placeholder.id,
         signal: ctl.signal,
         onDone: (meta) => {
-          const cd = plan?.cooldownSec ?? 20;
+          const cd = plan?.cooldownSec ?? 15;
           if (cd > 0) startCooldown(cd);
           if (meta?.used !== undefined) {
             const cur = useAIPlanStore.getState().usage;
@@ -210,7 +206,7 @@ export default function SociaGpt() {
         className="flex items-center gap-3 px-4 py-3"
         style={{
           borderBottom: "1px solid rgba(255,255,255,0.05)",
-          background: "rgba(10,5,20,0.9)",
+          background: "rgba(10,5,20,0.92)",
           backdropFilter: "blur(24px)",
           WebkitBackdropFilter: "blur(24px)",
         }}
@@ -218,14 +214,14 @@ export default function SociaGpt() {
         <motion.button
           whileTap={{ scale: 0.88 }}
           onClick={() => navigate("/create")}
-          className="grid h-9 w-9 place-items-center rounded-full text-white/50 hover:text-white transition-colors shrink-0"
+          className="grid h-9 w-9 place-items-center rounded-full text-white/50 transition-colors shrink-0"
           style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.07)" }}
           aria-label="Back"
         >
           <ArrowLeft className="h-4 w-4" />
         </motion.button>
 
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <div
             className="grid h-9 w-9 shrink-0 place-items-center rounded-[14px]"
             style={{
@@ -246,8 +242,8 @@ export default function SociaGpt() {
                 </button>
               )}
             </div>
-            <p className="mt-0.5 text-[10px] tracking-wide" style={{ color: "rgba(255,255,255,0.3)" }}>
-              {modelLabel} · multimodal
+            <p className="mt-0.5 text-[10px]" style={{ color: "rgba(255,255,255,0.28)" }}>
+              Your intelligent creative partner
             </p>
           </div>
         </div>
@@ -256,7 +252,7 @@ export default function SociaGpt() {
           <motion.button
             whileTap={{ scale: 0.88 }}
             onClick={() => { if (confirm("Clear this conversation?")) { stop(); clear(); } }}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-white/40 hover:text-white/70 transition-colors"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-white/40 transition-colors"
             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
             aria-label="Clear chat"
           >
@@ -272,7 +268,7 @@ export default function SociaGpt() {
         style={{ padding: "20px 16px 12px" }}
       >
         {messages.length === 0 ? (
-          <EmptyState planCode={planCode} onUpgrade={() => setUpgradeOpen(true)} />
+          <EmptyState />
         ) : (
           <motion.div
             className="space-y-5"
@@ -281,13 +277,14 @@ export default function SociaGpt() {
             variants={{ visible: { transition: { staggerChildren: 0.04 } } }}
           >
             {messages.map((m) => (
-              <Bubble key={m.id} m={m} onRegen={() => regenerate(m)} busy={busy} />
+              <Bubble key={m.id} m={m} onRegen={() => regenerate(m)} busy={busy}
+                onUpgrade={() => setUpgradeOpen(true)} />
             ))}
           </motion.div>
         )}
       </div>
 
-      {/* ── Cooldown strip ── */}
+      {/* ── Cooldown progress bar ── */}
       <AnimatePresence>
         {cooldownSec > 0 && (
           <motion.div
@@ -295,7 +292,7 @@ export default function SociaGpt() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="overflow-hidden"
-            style={{ background: "rgba(168,85,247,0.06)" }}
+            style={{ background: "rgba(168,85,247,0.05)" }}
           >
             <motion.div
               className="h-[2px]"
@@ -313,11 +310,12 @@ export default function SociaGpt() {
         className="px-3 pb-[max(env(safe-area-inset-bottom),14px)] pt-3"
         style={{
           borderTop: "1px solid rgba(255,255,255,0.05)",
-          background: "rgba(8,4,18,0.95)",
+          background: "rgba(8,4,18,0.97)",
           backdropFilter: "blur(24px)",
           WebkitBackdropFilter: "blur(24px)",
         }}
       >
+        {/* Pending attachments */}
         {pending.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
@@ -329,137 +327,164 @@ export default function SociaGpt() {
           </motion.div>
         )}
 
+        {/* Global error */}
         <AnimatePresence>
           {globalError && (
             <motion.div
               initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }}
-              className="mb-2.5 flex items-start gap-2 rounded-2xl border px-3 py-2.5 text-[12px] text-red-300"
-              style={{ borderColor: "rgba(239,68,68,0.2)", background: "rgba(239,68,68,0.07)" }}
+              className="mb-2.5 flex items-start gap-2 rounded-2xl border px-3 py-2.5 text-[12px]"
+              style={{ borderColor: "rgba(239,68,68,0.18)", background: "rgba(239,68,68,0.06)", color: "rgba(252,165,165,0.9)" }}
             >
-              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-70" />
               <span className="flex-1">{globalError}</span>
-              <button onClick={() => setGlobalError(null)} className="text-red-300/50 hover:text-red-200">
+              <button onClick={() => setGlobalError(null)} style={{ color: "rgba(252,165,165,0.5)" }}>
                 <X className="h-3 w-3" />
               </button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="flex items-end gap-2.5">
-          {/* Attach button */}
-          <div className="relative shrink-0 self-end pb-0.5">
+        {/* Attachment menu — floats above composer */}
+        <AnimatePresence>
+          {attachOpen && (
+            <>
+              <motion.div className="fixed inset-0 z-40"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                onClick={() => setAttachOpen(false)} />
+
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.94 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.94 }}
+                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                className="relative z-50 mb-2.5 overflow-hidden rounded-2xl"
+                style={{
+                  background: "rgba(12,7,24,0.98)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  boxShadow: "0 20px 60px rgba(0,0,0,0.8), 0 0 0 1px rgba(168,85,247,0.1)",
+                  backdropFilter: "blur(32px)",
+                }}
+              >
+                <div className="flex items-stretch">
+                  <AttachMenuItem
+                    icon={<ImageIcon className="h-5 w-5" />}
+                    label="Photos"
+                    locked={false}
+                    color="#a855f7"
+                    onClick={() => pickFiles("image")}
+                  />
+                  <div style={{ width: "1px", background: "rgba(255,255,255,0.06)", margin: "12px 0" }} />
+                  <AttachMenuItem
+                    icon={<Film className="h-5 w-5" />}
+                    label="Videos"
+                    locked={planCode === "free"}
+                    color="#ec4899"
+                    onClick={() => planCode === "free" ? setUpgradeOpen(true) : pickFiles("video")}
+                  />
+                  <div style={{ width: "1px", background: "rgba(255,255,255,0.06)", margin: "12px 0" }} />
+                  <AttachMenuItem
+                    icon={<Mic className="h-5 w-5" />}
+                    label="Voice"
+                    locked={planCode === "free"}
+                    color="#6366f1"
+                    onClick={() => planCode === "free" ? setUpgradeOpen(true) : pickFiles("audio")}
+                  />
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* Unified input pill */}
+        <form onSubmit={(e) => { e.preventDefault(); send(input); }}>
+          <motion.div
+            animate={{
+              boxShadow: inputFocused
+                ? "0 0 0 1.5px rgba(168,85,247,0.35), 0 6px 30px rgba(168,85,247,0.15)"
+                : "none",
+            }}
+            transition={{ duration: 0.2 }}
+            className="flex items-end overflow-hidden rounded-[24px]"
+            style={{
+              background: "rgba(255,255,255,0.055)",
+              border: `1.5px solid ${inputFocused ? "rgba(168,85,247,0.45)" : attachOpen ? "rgba(168,85,247,0.3)" : "rgba(255,255,255,0.09)"}`,
+              transition: "border-color 0.2s",
+            }}
+          >
+            {/* Attach button — inside pill */}
             <motion.button
               type="button"
               whileTap={{ scale: 0.88 }}
-              onClick={() => setAttachOpen((v) => !v)}
+              onClick={() => { setAttachOpen((v) => !v); textareaRef.current?.focus(); }}
               aria-label="Attach"
-              className="grid h-11 w-11 place-items-center rounded-full transition-all"
+              className="flex h-11 w-11 shrink-0 items-center justify-center self-end transition-colors"
               style={{
-                background: attachOpen ? "linear-gradient(135deg,rgba(168,85,247,0.25),rgba(236,72,153,0.2))" : "rgba(255,255,255,0.06)",
-                border: "1px solid " + (attachOpen ? "rgba(168,85,247,0.4)" : "rgba(255,255,255,0.09)"),
-                color: attachOpen ? "rgb(216,180,254)" : "rgba(255,255,255,0.5)",
-                boxShadow: attachOpen ? "0 0 20px rgba(168,85,247,0.25)" : "none",
+                color: attachOpen ? "rgba(216,180,254,0.9)" : "rgba(255,255,255,0.38)",
               }}
             >
-              <Paperclip className="h-4 w-4" />
+              <motion.div animate={{ rotate: attachOpen ? 45 : 0 }} transition={{ duration: 0.2 }}>
+                <Paperclip className="h-[18px] w-[18px]" />
+              </motion.div>
             </motion.button>
 
-            <AnimatePresence>
-              {attachOpen && (
-                <>
-                  <motion.div className="fixed inset-0 z-40" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                    onClick={() => setAttachOpen(false)} />
-                  <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.93 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.93 }}
-                    transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-                    className="absolute bottom-[56px] left-0 z-50 w-52 overflow-hidden rounded-2xl"
-                    style={{
-                      background: "rgba(14,8,28,0.98)",
-                      border: "1px solid rgba(255,255,255,0.09)",
-                      boxShadow: "0 24px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(168,85,247,0.12)",
-                      backdropFilter: "blur(24px)",
-                    }}
-                  >
-                    <AttachOption icon={<ImageIcon className="h-4 w-4" />} label="Image" hint="JPG · PNG · WEBP" onClick={() => pickFiles("image/")} />
-                    <AttachOption icon={<Film className="h-4 w-4" />} label="Video"
-                      hint={planCode === "free" ? "Premium required" : "MP4 · MOV · WEBM"}
-                      locked={planCode === "free"}
-                      onClick={() => planCode === "free" ? setUpgradeOpen(true) : pickFiles("video/")}
-                    />
-                    <AttachOption icon={<Mic className="h-4 w-4" />} label="Audio"
-                      hint={planCode === "free" ? "Premium required" : "MP3 · WAV · M4A"}
-                      locked={planCode === "free"}
-                      onClick={() => planCode === "free" ? setUpgradeOpen(true) : pickFiles("audio/")}
-                    />
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
+            {/* Divider */}
+            <div className="self-stretch my-3" style={{ width: "1px", background: "rgba(255,255,255,0.07)" }} />
 
-          {/* Textarea */}
-          <div className="relative flex-1 self-end">
-            <div
-              className="relative rounded-[22px] overflow-hidden transition-all duration-200"
-              style={{
-                background: "rgba(255,255,255,0.055)",
-                border: "1px solid " + (input.length > 0 ? "rgba(168,85,247,0.4)" : "rgba(255,255,255,0.09)"),
-                boxShadow: input.length > 0 ? "0 0 0 1px rgba(168,85,247,0.2), 0 4px 20px rgba(168,85,247,0.1)" : "none",
-              }}
-            >
+            {/* Textarea */}
+            <div className="relative flex-1 self-end">
               <textarea
+                ref={textareaRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value.slice(0, planCode === "free" ? 2000 : 32000))}
+                onChange={(e) => setInput(e.target.value.slice(0, planCode === "free" ? 2000 : 64000))}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
+                onFocus={() => { setInputFocused(true); }}
+                onBlur={() => setInputFocused(false)}
                 rows={1}
                 placeholder={
-                  cooldownSec > 0 ? `Wait ${cooldownSec}s…` :
+                  cooldownSec > 0 ? `Ready in ${cooldownSec}s…` :
                   pending.length ? "Ask about your file…" : "Message Socia GPT…"
                 }
                 disabled={cooldownSec > 0}
-                className="max-h-32 min-h-[44px] w-full resize-none bg-transparent px-4 py-3 text-[14px] leading-relaxed text-white placeholder-white/25 outline-none disabled:opacity-40"
+                className="max-h-32 min-h-[44px] w-full resize-none bg-transparent px-3 py-3 text-[14px] leading-relaxed text-white placeholder-white/20 outline-none disabled:opacity-40"
                 style={{ caretColor: "#c084fc" }}
               />
               {planCode === "free" && input.length > 0 && (
                 <div
-                  className="absolute right-3 bottom-2 text-[9px] font-mono"
-                  style={{ color: overLimit ? "rgb(248,113,113)" : "rgba(255,255,255,0.18)" }}
+                  className="absolute right-2 bottom-2 text-[9px] font-mono"
+                  style={{ color: overLimit ? "rgb(248,113,113)" : "rgba(255,255,255,0.15)" }}
                 >
                   {wordCount}/{maxWords}
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Send / Stop */}
-          <div className="shrink-0 self-end pb-0.5">
-            {busy ? (
-              <motion.button type="button" whileTap={{ scale: 0.88 }} onClick={stop}
-                className="grid h-11 w-11 place-items-center rounded-full text-white/60"
-                style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)" }}
-                aria-label="Stop"
-              >
-                <X className="h-4 w-4" />
-              </motion.button>
-            ) : (
-              <motion.button type="submit" whileTap={{ scale: 0.88 }} disabled={!canSend}
-                className="grid h-11 w-11 place-items-center rounded-full text-white transition-all"
-                style={{
-                  background: canSend ? "linear-gradient(135deg,#a855f7,#ec4899)" : "rgba(255,255,255,0.06)",
-                  border: canSend ? "none" : "1px solid rgba(255,255,255,0.07)",
-                  boxShadow: canSend ? "0 4px 20px rgba(168,85,247,0.55)" : "none",
-                  opacity: canSend ? 1 : 0.35,
-                }}
-                aria-label="Send"
-              >
-                {pending.some((p) => p.uploading)
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <Send className="h-4 w-4" style={{ transform: "translateX(1px)" }} />}
-              </motion.button>
-            )}
-          </div>
+            {/* Send / Stop */}
+            <div className="flex items-end self-end p-1.5">
+              {busy ? (
+                <motion.button type="button" whileTap={{ scale: 0.88 }} onClick={stop}
+                  className="grid h-9 w-9 place-items-center rounded-full text-white/60"
+                  style={{ background: "rgba(255,255,255,0.07)" }}
+                  aria-label="Stop"
+                >
+                  <X className="h-4 w-4" />
+                </motion.button>
+              ) : (
+                <motion.button type="submit" whileTap={{ scale: 0.88 }} disabled={!canSend}
+                  className="grid h-9 w-9 place-items-center rounded-full text-white transition-all"
+                  style={{
+                    background: canSend ? "linear-gradient(135deg,#a855f7,#ec4899)" : "rgba(255,255,255,0.06)",
+                    boxShadow: canSend ? "0 4px 16px rgba(168,85,247,0.55)" : "none",
+                    opacity: canSend ? 1 : 0.3,
+                  }}
+                  aria-label="Send"
+                >
+                  {pending.some((p) => p.uploading)
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <Send className="h-4 w-4" style={{ transform: "translateX(1px)" }} />}
+                </motion.button>
+              )}
+            </div>
+          </motion.div>
         </form>
 
         <input ref={imageInputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/gif" multiple className="hidden"
@@ -476,17 +501,17 @@ export default function SociaGpt() {
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="pointer-events-none absolute inset-0 z-30 grid place-items-center"
-            style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }}
+            style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(4px)" }}
           >
             <motion.div
               initial={{ scale: 0.92 }} animate={{ scale: 1 }} exit={{ scale: 0.92 }}
               className="rounded-3xl border-2 border-dashed px-8 py-10 text-center"
-              style={{ borderColor: "rgba(192,38,211,0.45)", background: "rgba(168,85,247,0.07)", boxShadow: "0 0 80px rgba(236,72,153,0.15) inset" }}
+              style={{ borderColor: "rgba(168,85,247,0.45)", background: "rgba(168,85,247,0.06)" }}
             >
               <Upload className="mx-auto mb-3 h-8 w-8 text-fuchsia-300" />
               <div className="font-display text-[17px] font-bold text-white">Drop to attach</div>
               <div className="mt-1 text-[12px]" style={{ color: "rgba(255,255,255,0.4)" }}>
-                Image{planCode !== "free" ? " · Video · Audio" : ""} · max 25 MB
+                {planCode !== "free" ? "Image · Video · Audio" : "Image"} · max 25 MB
               </div>
             </motion.div>
           </motion.div>
@@ -498,30 +523,49 @@ export default function SociaGpt() {
   );
 }
 
-/* ── Sub-components ── */
+/* ── Sub-components ─────────────────────────────────────────────────── */
 
-function AttachOption({ icon, label, hint, onClick, locked }: {
-  icon: React.ReactNode; label: string; hint: string; onClick: () => void; locked?: boolean;
+function AttachMenuItem({
+  icon, label, locked, color, onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  locked: boolean;
+  color: string;
+  onClick: () => void;
 }) {
   return (
-    <motion.button type="button" whileTap={{ scale: 0.97 }} onClick={onClick}
-      className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.04] transition-colors"
+    <motion.button
+      type="button"
+      whileTap={{ scale: 0.93 }}
+      onClick={onClick}
+      className="relative flex flex-1 flex-col items-center gap-1.5 px-4 py-4 transition-colors hover:bg-white/[0.03]"
     >
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl"
-        style={{ background: locked ? "rgba(217,119,6,0.1)" : "rgba(168,85,247,0.12)", color: locked ? "rgba(251,191,36,0.7)" : "rgba(216,180,254,0.9)" }}
+      <span
+        className="relative grid h-10 w-10 place-items-center rounded-[14px]"
+        style={{ background: `${color}18`, color: locked ? "rgba(255,255,255,0.25)" : color }}
       >
         {icon}
+        {locked && (
+          <span
+            className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full"
+            style={{ background: "rgba(234,179,8,0.9)", boxShadow: "0 2px 8px rgba(234,179,8,0.4)" }}
+          >
+            <Crown className="h-2.5 w-2.5 text-black" strokeWidth={2.5} />
+          </span>
+        )}
       </span>
-      <span className="flex-1 min-w-0">
-        <div className="text-[13px] font-semibold leading-none" style={{ color: "rgba(255,255,255,0.9)" }}>{label}</div>
-        <div className="mt-1 text-[10.5px] leading-none" style={{ color: locked ? "rgba(251,191,36,0.5)" : "rgba(255,255,255,0.35)" }}>{hint}</div>
+      <span
+        className="text-[11px] font-semibold"
+        style={{ color: locked ? "rgba(255,255,255,0.28)" : "rgba(255,255,255,0.75)" }}
+      >
+        {label}
       </span>
-      {locked && <Zap className="h-3.5 w-3.5 shrink-0 text-amber-400/60" />}
     </motion.button>
   );
 }
 
-function EmptyState({ planCode, onUpgrade }: { planCode: string; onUpgrade: () => void }) {
+function EmptyState() {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -530,8 +574,8 @@ function EmptyState({ planCode, onUpgrade }: { planCode: string; onUpgrade: () =
       className="flex flex-col items-center justify-center pt-14 pb-6 text-center"
     >
       <div className="relative mb-7">
-        <div className="absolute inset-0 rounded-full blur-3xl opacity-50"
-          style={{ background: "radial-gradient(circle, rgba(168,85,247,0.5) 0%, rgba(236,72,153,0.25) 55%, transparent 80%)", transform: "scale(2)" }} />
+        <div className="absolute inset-0 rounded-full blur-3xl opacity-40"
+          style={{ background: "radial-gradient(circle, rgba(168,85,247,0.55) 0%, rgba(236,72,153,0.2) 55%, transparent 80%)", transform: "scale(2.2)" }} />
         <motion.div
           initial={{ scale: 0.75, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -550,28 +594,35 @@ function EmptyState({ planCode, onUpgrade }: { planCode: string; onUpgrade: () =
         <h2 className="font-display text-[22px] font-bold tracking-tight text-white">
           Hi, I'm <span className="text-gradient">Socia GPT</span>
         </h2>
-        <p className="mx-auto mt-2 max-w-[260px] text-[13px] leading-relaxed" style={{ color: "rgba(255,255,255,0.4)" }}>
-          Ask me anything, attach a photo, voice note, or video. I'll help you create better content.
+        <p className="mx-auto mt-2.5 max-w-[260px] text-[13px] leading-relaxed" style={{ color: "rgba(255,255,255,0.38)" }}>
+          Ask me anything — attach a photo, voice note, or video and I'll help you create incredible content.
         </p>
       </motion.div>
 
-      {planCode === "free" && (
-        <motion.button
-          whileTap={{ scale: 0.97 }} onClick={onUpgrade}
-          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-          className="mt-6 flex items-center gap-2 rounded-2xl px-5 py-3 text-[12.5px] font-semibold transition-all hover:brightness-110"
-          style={{ background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.22)", boxShadow: "0 4px 20px rgba(168,85,247,0.12)", color: "rgba(216,180,254,0.9)" }}
-        >
-          <Zap className="h-3.5 w-3.5" />
-          Upgrade to Premium AI — ₱299/mo
-          <Crown className="h-3.5 w-3.5 text-violet-400" />
-        </motion.button>
-      )}
+      {/* Subtle capability hints */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}
+        className="mt-7 flex flex-wrap justify-center gap-2"
+      >
+        {["Write captions", "Fix prompts", "TikTok scripts", "Cinematic shots", "Product ads"].map((hint) => (
+          <span key={hint}
+            className="rounded-full px-3 py-1.5 text-[11.5px] font-medium"
+            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }}
+          >
+            {hint}
+          </span>
+        ))}
+      </motion.div>
     </motion.div>
   );
 }
 
-function Bubble({ m, onRegen, busy }: { m: ChatMessage; onRegen: () => void; busy: boolean }) {
+function Bubble({ m, onRegen, busy, onUpgrade }: {
+  m: ChatMessage;
+  onRegen: () => void;
+  busy: boolean;
+  onUpgrade: () => void;
+}) {
   const isUser = m.role === "user";
   const [copied, setCopied] = useState(false);
 
@@ -592,6 +643,8 @@ function Bubble({ m, onRegen, busy }: { m: ChatMessage; onRegen: () => void; bus
       </motion.div>
     );
   }
+
+  const errorCode = m.errorCode ?? "";
 
   return (
     <motion.div
@@ -624,25 +677,24 @@ function Bubble({ m, onRegen, busy }: { m: ChatMessage; onRegen: () => void; bus
             <span className="ml-1 inline-block h-[14px] w-[3px] animate-pulse rounded-sm align-middle"
               style={{ background: "rgba(192,38,211,0.75)" }} />
           )}
-          {m.error && (
-            <div className="mt-3 flex items-start gap-2 rounded-xl px-3 py-2.5 text-[12px] text-red-300"
-              style={{ background: "rgba(239,68,68,0.07)" }}>
-              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>{m.error}</span>
-            </div>
+
+          {/* Premium error states */}
+          {m.error && !m.pending && (
+            <ErrorBubble error={m.error} code={errorCode} onUpgrade={onUpgrade} onRetry={onRegen} busy={busy} />
           )}
         </div>
-        {!m.pending && m.content && (
-          <div className="mt-2 flex gap-3 px-1 text-[11px]" style={{ color: "rgba(255,255,255,0.25)" }}>
+
+        {!m.pending && m.content && !m.error && (
+          <div className="mt-2 flex gap-3 px-1 text-[11px]" style={{ color: "rgba(255,255,255,0.22)" }}>
             <motion.button whileTap={{ scale: 0.9 }}
               onClick={() => { navigator.clipboard.writeText(m.content); setCopied(true); setTimeout(() => setCopied(false), 1200); }}
-              className="inline-flex items-center gap-1.5 hover:text-white/60 transition-colors"
+              className="inline-flex items-center gap-1.5 hover:text-white/55 transition-colors"
             >
               {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
               {copied ? "Copied" : "Copy"}
             </motion.button>
             <motion.button whileTap={{ scale: 0.9 }} onClick={onRegen} disabled={busy}
-              className="inline-flex items-center gap-1.5 hover:text-white/60 transition-colors disabled:opacity-25"
+              className="inline-flex items-center gap-1.5 hover:text-white/55 transition-colors disabled:opacity-20"
             >
               <RotateCcw className="h-3 w-3" />
               Regenerate
@@ -651,5 +703,83 @@ function Bubble({ m, onRegen, busy }: { m: ChatMessage; onRegen: () => void; bus
         )}
       </div>
     </motion.div>
+  );
+}
+
+function ErrorBubble({
+  error, code, onUpgrade, onRetry, busy,
+}: {
+  error: string;
+  code: string;
+  onUpgrade: () => void;
+  onRetry: () => void;
+  busy: boolean;
+}) {
+  if (code === "USAGE_LIMIT_EXCEEDED") {
+    return (
+      <div className="mt-3 rounded-2xl p-4 text-center"
+        style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.18)" }}>
+        <Clock className="mx-auto mb-2 h-5 w-5 text-purple-400 opacity-70" />
+        <p className="text-[13px] font-semibold text-white/80">Daily limit reached</p>
+        <p className="mt-1 text-[11.5px] leading-relaxed" style={{ color: "rgba(255,255,255,0.4)" }}>
+          Your access refreshes tomorrow at midnight.
+        </p>
+        <button onClick={onUpgrade}
+          className="mt-3 rounded-xl px-4 py-2 text-[11.5px] font-semibold transition-all"
+          style={{ background: "linear-gradient(135deg,rgba(168,85,247,0.25),rgba(236,72,153,0.18))", border: "1px solid rgba(168,85,247,0.3)", color: "rgba(216,180,254,0.95)" }}
+        >
+          Upgrade for more
+        </button>
+      </div>
+    );
+  }
+
+  if (code === "SERVER_BUSY") {
+    return (
+      <div className="mt-3 flex items-start gap-2.5 rounded-xl px-3.5 py-3"
+        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}>
+        <RefreshCw className="mt-0.5 h-4 w-4 shrink-0 text-white/30" />
+        <div className="flex-1 min-w-0">
+          <p className="text-[12.5px]" style={{ color: "rgba(255,255,255,0.6)" }}>
+            AI servers are temporarily busy. Please try again in a moment.
+          </p>
+          <button onClick={onRetry} disabled={busy}
+            className="mt-2 text-[11px] font-medium transition-colors hover:text-white/70 disabled:opacity-30"
+            style={{ color: "rgba(255,255,255,0.4)" }}
+          >
+            Try again →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (code === "ATTACHMENT_PLAN_LIMIT") {
+    return (
+      <div className="mt-3 flex items-start gap-2.5 rounded-xl px-3.5 py-3"
+        style={{ background: "rgba(234,179,8,0.06)", border: "1px solid rgba(234,179,8,0.15)" }}>
+        <Crown className="mt-0.5 h-4 w-4 shrink-0 text-amber-400/70" />
+        <div className="flex-1 min-w-0">
+          <p className="text-[12.5px]" style={{ color: "rgba(255,255,255,0.6)" }}>
+            Audio and video require a Premium plan or above.
+          </p>
+          <button onClick={onUpgrade}
+            className="mt-2 text-[11px] font-semibold transition-colors"
+            style={{ color: "rgba(253,224,71,0.75)" }}
+          >
+            View plans →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Generic error
+  return (
+    <div className="mt-3 flex items-start gap-2 rounded-xl px-3 py-2.5 text-[12px]"
+      style={{ background: "rgba(239,68,68,0.06)", color: "rgba(252,165,165,0.85)" }}>
+      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-70" />
+      <span>{error}</span>
+    </div>
   );
 }

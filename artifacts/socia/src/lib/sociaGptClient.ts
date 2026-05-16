@@ -25,7 +25,6 @@ export const MODES: { id: SociaGptMode; label: string; emoji: string }[] = [
   { id: "video-director", label: "Video Director", emoji: "🎥" },
 ];
 
-/** A file the user attached to a chat message (image / audio / video). */
 export interface ChatAttachment {
   kind: "image" | "audio" | "video";
   url:  string;
@@ -42,6 +41,7 @@ export interface ChatMessage {
   attachments?: ChatAttachment[];
   pending?:    boolean;
   error?:      string;
+  errorCode?:  string;
   createdAt:   string;
 }
 
@@ -52,7 +52,7 @@ interface ChatState {
   addUser:                (text: string, attachments?: ChatAttachment[]) => ChatMessage;
   addAssistantPlaceholder: () => ChatMessage;
   appendToAssistant:      (id: string, text: string) => void;
-  finishAssistant:        (id: string, error?: string) => void;
+  finishAssistant:        (id: string, error?: string, errorCode?: string) => void;
   removeMessage:          (id: string) => void;
   clear:                  () => void;
 }
@@ -91,10 +91,10 @@ export const useSociaGptStore = create<ChatState>()(
             m.id === id ? { ...m, content: m.content + text } : m,
           ),
         })),
-      finishAssistant: (id, error) =>
+      finishAssistant: (id, error, errorCode) =>
         set((s) => ({
           messages: s.messages.map((m) =>
-            m.id === id ? { ...m, pending: false, error } : m,
+            m.id === id ? { ...m, pending: false, error, errorCode } : m,
           ),
         })),
       removeMessage: (id) =>
@@ -120,13 +120,84 @@ export interface StreamChatDoneMeta {
 }
 
 /**
- * Stream a chat reply. The caller has already added the user message and an
- * assistant placeholder via the store; we just feed tokens into the placeholder.
- *
- * New optional callbacks:
- *   onDone(meta)           — called when streaming finishes successfully
- *   onRateLimit(retrySec)  — called when a cooldown/rate-limit error is received
+ * Sanitize raw API/server error messages so users never see
+ * technical details, OpenAI error text, quota messages, etc.
  */
+function sanitizeError(rawMsg: string, code?: string): { msg: string; code: string } {
+  const lower = rawMsg.toLowerCase();
+
+  // Premium-worded backend messages — keep as-is
+  if (code === "USAGE_LIMIT_EXCEEDED") {
+    return { msg: rawMsg, code };
+  }
+  if (code === "COOLDOWN") {
+    return { msg: rawMsg, code };
+  }
+  if (code === "MESSAGE_TOO_LONG") {
+    return { msg: rawMsg, code };
+  }
+  if (code === "ATTACHMENT_PLAN_LIMIT") {
+    return { msg: rawMsg, code };
+  }
+  if (code === "ABUSE_DETECTED") {
+    return {
+      msg: "Socia GPT is taking a short break for your account. Please wait a few minutes.",
+      code,
+    };
+  }
+
+  // Raw provider / infra errors — never show to users
+  if (
+    lower.includes("quota") ||
+    lower.includes("exceeded your current") ||
+    lower.includes("insufficient_quota") ||
+    lower.includes("you exceeded") ||
+    lower.includes("openai") ||
+    lower.includes("api key") ||
+    lower.includes("billing") ||
+    lower.includes("rate_limit_exceeded") ||
+    lower.includes("model_not_found") ||
+    lower.includes("invalid request")
+  ) {
+    return {
+      msg: "AI servers are temporarily busy. Please try again in a moment.",
+      code: "SERVER_BUSY",
+    };
+  }
+
+  // Network / connectivity errors
+  if (
+    lower.includes("network") ||
+    lower.includes("failed to fetch") ||
+    lower.includes("connection") ||
+    lower.includes("timeout") ||
+    lower.includes("aborted")
+  ) {
+    return {
+      msg: "Connection interrupted. Please check your network and try again.",
+      code: "NETWORK_ERROR",
+    };
+  }
+
+  // Generic fallback — never show raw HTTP codes or stack traces
+  if (lower.includes("http 5") || lower.includes("http 4") || lower.includes("chat_failed")) {
+    return {
+      msg: "Something went wrong on our end. Please try again shortly.",
+      code: "SERVER_ERROR",
+    };
+  }
+
+  // If the message is short and looks user-safe, show it
+  if (rawMsg.length < 200 && !lower.includes("error:") && !lower.includes("exception")) {
+    return { msg: rawMsg, code: code ?? "UNKNOWN" };
+  }
+
+  return {
+    msg: "Something went wrong. Please try again.",
+    code: "UNKNOWN",
+  };
+}
+
 export async function streamChat(opts: {
   history:       { role: "user" | "assistant"; content: string; attachments?: ChatAttachment[] }[];
   mode:          SociaGptMode;
@@ -141,7 +212,7 @@ export async function streamChat(opts: {
   const session = await supabase.auth.getSession();
   const token   = session.data.session?.access_token;
   if (!token) {
-    store.finishAssistant(assistantId, "You're signed out. Please sign in again.");
+    store.finishAssistant(assistantId, "Please sign in again to continue.", "AUTH_ERROR");
     return;
   }
 
@@ -158,30 +229,36 @@ export async function streamChat(opts: {
       body: JSON.stringify({ messages: history, mode }),
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Network error";
-    store.finishAssistant(assistantId, msg);
+    if (signal?.aborted) { store.finishAssistant(assistantId); return; }
+    const raw = err instanceof Error ? err.message : "Network error";
+    const { msg, code } = sanitizeError(raw);
+    store.finishAssistant(assistantId, msg, code);
     return;
   }
 
-  // JSON error path
+  // JSON error path (non-2xx HTTP)
   if (!res.ok) {
-    let errMsg = `Request failed (HTTP ${res.status}).`;
+    let rawMsg = `Request failed (${res.status}).`;
+    let rawCode = "";
     let retryAfterSec = 0;
     try {
       const j = await res.json() as { error?: string; retryAfterSec?: number; code?: string };
-      if (j && typeof j.error === "string") errMsg = j.error;
-      if (j && typeof j.retryAfterSec === "number") retryAfterSec = j.retryAfterSec;
+      if (j?.error)         rawMsg        = j.error;
+      if (j?.code)          rawCode       = j.code;
+      if (j?.retryAfterSec) retryAfterSec = j.retryAfterSec;
 
-      // Trigger cooldown callback for 429 errors
-      if ((res.status === 429 || j.code === "COOLDOWN" || j.code === "RATE_LIMITED") && onRateLimit) {
-        onRateLimit(retryAfterSec || 20);
+      if ((res.status === 429 || rawCode === "COOLDOWN" || rawCode === "ABUSE_DETECTED") && onRateLimit) {
+        onRateLimit(retryAfterSec || 15);
       }
     } catch { /* ignore */ }
-    store.finishAssistant(assistantId, errMsg);
+
+    const { msg, code } = sanitizeError(rawMsg, rawCode);
+    store.finishAssistant(assistantId, msg, code);
     return;
   }
+
   if (!res.body) {
-    store.finishAssistant(assistantId, "No response body received.");
+    store.finishAssistant(assistantId, "No response received. Please try again.", "NO_BODY");
     return;
   }
 
@@ -189,7 +266,8 @@ export async function streamChat(opts: {
   const reader  = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer    = "";
-  let sseError: string | null = null;
+  let sseError: string | null  = null;
+  let sseCode:  string | null  = null;
   let doneMeta: StreamChatDoneMeta | null = null;
 
   try {
@@ -202,10 +280,10 @@ export async function streamChat(opts: {
         const block = buffer.slice(0, idx);
         buffer = buffer.slice(idx + 2);
         if (!block.trim() || block.startsWith(":")) continue;
-        let event   = "message";
+        let event    = "message";
         let dataLine = "";
         for (const line of block.split("\n")) {
-          if (line.startsWith("event:"))      event    = line.slice(6).trim();
+          if (line.startsWith("event:"))     event    = line.slice(6).trim();
           else if (line.startsWith("data:")) dataLine += line.slice(5).trim();
         }
         if (!dataLine) continue;
@@ -216,29 +294,32 @@ export async function streamChat(opts: {
           const t = (payload as { text?: unknown })?.text;
           if (typeof t === "string") store.appendToAssistant(assistantId, t);
         } else if (event === "error") {
-          const e = (payload as { error?: unknown })?.error;
-          sseError = typeof e === "string" ? e : "Stream error";
+          const p  = payload as { error?: unknown; code?: unknown };
+          sseError = typeof p.error === "string" ? p.error : "Stream error";
+          sseCode  = typeof p.code  === "string" ? p.code  : "";
         } else if (event === "done") {
-          const d = payload as Partial<StreamChatDoneMeta>;
+          const d  = payload as Partial<StreamChatDoneMeta>;
           doneMeta = {
             chars:  typeof d.chars  === "number" ? d.chars  : 0,
             plan:   typeof d.plan   === "string" ? d.plan   : "free",
             used:   typeof d.used   === "number" ? d.used   : 0,
-            limit:  typeof d.limit  === "number" ? d.limit  : 15,
+            limit:  typeof d.limit  === "number" ? d.limit  : 30,
             period: typeof d.period === "string" ? d.period : "daily",
           };
         }
       }
     }
   } catch (err) {
-    if (signal?.aborted) {
-      store.finishAssistant(assistantId);
-      return;
-    }
+    if (signal?.aborted) { store.finishAssistant(assistantId); return; }
     sseError = err instanceof Error ? err.message : "Stream interrupted";
   }
 
-  store.finishAssistant(assistantId, sseError ?? undefined);
+  if (sseError) {
+    const { msg, code } = sanitizeError(sseError, sseCode ?? undefined);
+    store.finishAssistant(assistantId, msg, code);
+  } else {
+    store.finishAssistant(assistantId);
+  }
 
   if (!sseError && doneMeta && onDone) {
     onDone(doneMeta);
