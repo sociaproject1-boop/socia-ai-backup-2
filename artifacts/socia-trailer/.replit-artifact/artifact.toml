@@ -1,0 +1,31 @@
+kind = "video"
+previewPath = "/socia-trailer/"
+title = "Socia AI — Cinematic Trailer"
+version = "1.0.0"
+id = "artifacts/socia-trailer"
+router = "path"
+
+[[integratedSkills]]
+name = "video-js"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/socia-trailer/" ]
+localPort = 18348
+
+[services.development]
+run = "pnpm --filter @workspace/socia-trailer run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/socia-trailer", "run", "build" ]
+publicDir = "artifacts/socia-trailer/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18348"
+BASE_PATH = "/socia-trailer/"

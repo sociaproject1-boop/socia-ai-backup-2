@@ -1,0 +1,63 @@
+modules = ["nodejs-24"]
+
+[deployment]
+router = "application"
+deploymentTarget = "autoscale"
+
+[deployment.postBuild]
+args = ["pnpm", "store", "prune"]
+env = { "CI" = "true" }
+
+[workflows]
+runButton = "Project"
+
+[agent]
+stack = "PNPM_WORKSPACE"
+expertMode = true
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
+
+[[ports]]
+localPort = 5173
+externalPort = 5173
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 80
+
+[[ports]]
+localPort = 18348
+externalPort = 3001
+
+[[ports]]
+localPort = 21175
+externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+VITE_SUPABASE_URL = "https://tqtmssdjfptmbvjtxien.supabase.co"
+VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxdG1zc2RqZnB0bWJ2anR4aWVuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyMTg4NTgsImV4cCI6MjA5Mjc5NDg1OH0.7B6Jmmsk4mn2Oc34CN3U5QBGEYyXeSsLuVCsKw-a2_Q"
+SUPABASE_URL = "https://tqtmssdjfptmbvjtxien.supabase.co"
+OCR_SPACE_API_KEY = "K87737813288957"
+SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxdG1zc2RqZnB0bWJ2anR4aWVuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzIxODg1OCwiZXhwIjoyMDkyNzk0ODU4fQ.T1Ve6zsSoXO08jNsxCsMm7q6JCrPYxzhwCLtf_j2ybs"
+CLOUDFLARE_TURN_TOKEN_ID = "c4f29972947f4750e995ee6fcff1b674"
+CLOUDFLARE_TURN_API_TOKEN = "af2732332d131f8be11a7e6ff84367740df6dcd8700632926a76fe3999e2a09e"
+VITE_FIREBASE_AUTH_DOMAIN = "socia-75261.firebaseapp.com"
+VITE_FIREBASE_STORAGE_BUCKET = "socia-75261.appspot.com"
+VITE_FIREBASE_PROJECT_ID = "socia-75261"
+VITE_FIREBASE_MEASUREMENT_ID = "G-RNG1T0KWRH"
+VITE_FIREBASE_APP_ID = "1:954908863665:web:f9174b05e4d06521bfc690"
+VITE_FIREBASE_API_KEY = "AIzaSyDuhCLvZZTqGCaC2N-mpYaFihPimsiE9jc"
+AI_INTEGRATIONS_OPENAI_API_KEY = "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"
+AI_INTEGRATIONS_OPENAI_BASE_URL = "https://api.openai.com/v1"
+FAL_KEY = "e881356f-c5c1-4eeb-b49a-b992f8173c98:dae05511dbb7f6ef8e3d2730f4ea60f4"
+
+[nix]
+channel = "stable-25_05"

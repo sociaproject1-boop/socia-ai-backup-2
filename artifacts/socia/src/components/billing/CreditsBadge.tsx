@@ -1,0 +1,38 @@
+import { useEffect } from "react";
+import { useLocation } from "wouter";
+import { Sparkles, Crown } from "lucide-react";
+import { useBillingStore } from "@/lib/billing";
+
+/** Compact pill showing credit balance — tap to open billing. */
+export function CreditsBadge({ compact = false }: { compact?: boolean }) {
+  const [, navigate] = useLocation();
+  const summary = useBillingStore((s) => s.summary);
+  const refresh = useBillingStore((s) => s.refresh);
+
+  useEffect(() => {
+    if (!summary) refresh();
+  }, [summary, refresh]);
+
+  const owner   = summary?.is_owner;
+  const credits = summary?.credits ?? 0;
+  const label   = owner ? "∞" : credits.toLocaleString();
+
+  return (
+    <button
+      onClick={() => navigate("/billing")}
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold text-white"
+      style={{
+        background: owner
+          ? "linear-gradient(135deg,#f59e0b,#fbbf24)"
+          : credits < 50
+            ? "linear-gradient(135deg,#ef4444,#f97316)"
+            : "linear-gradient(135deg,#a855f7,#ec4899)",
+        boxShadow: "0 6px 14px -6px rgba(168,85,247,0.55)",
+      }}
+      title="Credits & billing"
+    >
+      {owner ? <Crown className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
+      {label}{!compact && !owner && " credits"}
+    </button>
+  );
+}

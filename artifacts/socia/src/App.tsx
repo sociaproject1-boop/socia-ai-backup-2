@@ -1,0 +1,210 @@
+import { lazy, Suspense, useEffect } from "react";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { AppShell } from "@/components/shell/AppShell";
+import { useAppStore } from "@/lib/store";
+import { AuthProvider, useAuth } from "@/lib/authContext";
+import { PreferencesProvider } from "@/lib/PreferencesContext";
+import UpdateGate from "@/components/UpdateGate";
+
+// ── Critical path (eager) ────────────────────────────────────────────────────
+// Auth is the unauthenticated landing page — must be available without delay.
+// Home is the authenticated landing page — loaded while auth resolves.
+import Auth from "@/pages/Auth";
+import Home from "@/pages/Home";
+
+// ── All other pages: lazy-loaded ─────────────────────────────────────────────
+// The browser only downloads a page's chunk on first navigation to it.
+// In production this cuts the initial JS parse by ~60-70%.
+const CreateHub          = lazy(() => import("@/pages/CreateHub"));
+const CreatePromptImage  = lazy(() => import("@/pages/CreatePromptImage"));
+const CreatePromptVideo  = lazy(() => import("@/pages/CreatePromptVideo"));
+const CreateImageVideo   = lazy(() => import("@/pages/CreateImageVideo"));
+const CreateMultiFrame   = lazy(() => import("@/pages/CreateMultiFrame"));
+const Studio             = lazy(() => import("@/pages/Studio"));
+const StudioPreset       = lazy(() => import("@/pages/StudioPreset"));
+const MyCreations        = lazy(() => import("@/pages/MyCreations"));
+const SociaGpt           = lazy(() => import("@/pages/SociaGpt"));
+const SociaGptBilling    = lazy(() => import("@/pages/SociaGptBilling"));
+const RefundThread       = lazy(() => import("@/pages/RefundThread"));
+const Messages           = lazy(() => import("@/pages/Messages"));
+const ChatThread         = lazy(() => import("@/pages/ChatThread"));
+const Profile            = lazy(() => import("@/pages/Profile"));
+const UserProfile        = lazy(() => import("@/pages/UserProfile"));
+const Settings           = lazy(() => import("@/pages/Settings"));
+const ResetPassword      = lazy(() => import("@/pages/ResetPassword"));
+const PostDetail         = lazy(() => import("@/pages/PostDetail"));
+const LegalPage          = lazy(() => import("@/pages/LegalPage"));
+const FollowList         = lazy(() => import("@/pages/Followers"));
+const Subscribe          = lazy(() => import("@/pages/Subscribe"));
+const Billing            = lazy(() => import("@/pages/Billing"));
+const BillingUpgrade     = lazy(() => import("@/pages/BillingUpgrade"));
+const BillingTopup       = lazy(() => import("@/pages/BillingTopup"));
+const BillingCheckout    = lazy(() => import("@/pages/BillingCheckout"));
+const AuthCallback       = lazy(() => import("@/pages/AuthCallback"));
+const SysAdminLogin      = lazy(() => import("@/pages/SysAdminLogin"));
+const SysAdmin           = lazy(() => import("@/pages/SysAdmin"));
+const AdminLogin         = lazy(() => import("@/pages/AdminLogin"));
+const AdminDashboard     = lazy(() => import("@/pages/AdminDashboard"));
+const UserByUsername     = lazy(() => import("@/pages/UserByUsername"));
+const NotFound           = lazy(() => import("@/pages/not-found"));
+const CreatorMonetization = lazy(() => import("@/pages/CreatorMonetization"));
+const AffiliateProgram   = lazy(() => import("@/pages/AffiliateProgram"));
+const SellerCenter       = lazy(() => import("@/pages/SellerCenter"));
+const CreatorStars       = lazy(() => import("@/pages/CreatorStars"));
+
+// Stable wrapper components defined outside Router to avoid remounts on re-render.
+// They reference lazy components which are resolved by the nearest Suspense boundary.
+const TermsPage       = () => <LegalPage kind="terms" />;
+const PrivacyPage     = () => <LegalPage kind="privacy" />;
+const LicensesPage    = () => <LegalPage kind="licenses" />;
+const DeveloperPage   = () => <LegalPage kind="developer" />;
+const FollowersPage   = () => <FollowList mode="followers" />;
+const FollowingPage   = () => <FollowList mode="following" />;
+// Stable wrapper so wouter's injected `params` prop doesn't conflict with
+// SysAdmin's typed props.
+const SysAdminPage    = () => <SysAdmin />;
+
+// Shown inside AppShell (nav stays visible) while a lazy chunk is downloading.
+// Uses the same shimmer utility class used elsewhere in the app.
+function PageSkeleton() {
+  return (
+    <div className="h-full overflow-y-auto app-bg px-4 pt-5 space-y-3">
+      <div className="h-6 w-2/3 rounded-2xl shimmer" />
+      <div className="h-44 w-full rounded-3xl shimmer" />
+      <div className="h-4 w-full rounded-xl shimmer" />
+      <div className="h-4 w-5/6 rounded-xl shimmer" />
+      <div className="h-36 w-full rounded-3xl shimmer" />
+      <div className="h-36 w-full rounded-3xl shimmer" />
+    </div>
+  );
+}
+
+const queryClient = new QueryClient();
+
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+  const { loading } = useAuth();
+  const [location, navigate] = useLocation();
+
+  useEffect(() => {
+    if (loading) return;
+    /* Public routes: signed-in users can also reach /reset-password (they  *
+     * land here from the recovery email with a valid session).             */
+    const isPublic = location === "/auth"
+      || location === "/auth/callback"   // OAuth return — must be public before session exists
+      || location === "/forgot-password"
+      || location === "/reset-password"
+      || location.startsWith("/legal/")
+      || location.startsWith("/sys-admin")
+      || location.startsWith("/admin")
+      || location.startsWith("/creator/");
+    if (!isAuthenticated && !isPublic) navigate("/auth");
+    if (isAuthenticated && location === "/auth") navigate("/");
+  }, [isAuthenticated, loading, location, navigate]);
+
+  if (loading) {
+    return (
+      <div className="app-bg flex h-[100dvh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div
+            className="grid h-12 w-12 place-items-center rounded-2xl"
+            style={{ background: "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))" }}
+          >
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+          </div>
+          <p className="text-sm" style={{ color: "var(--s-text-muted)" }}>Loading Socia…</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
+function Router() {
+  return (
+    <Switch>
+      <Route path="/auth"                  component={Auth} />
+      <Route path="/auth/callback"         component={AuthCallback} />
+      <Route path="/forgot-password"       component={ResetPassword} />
+      <Route path="/reset-password"        component={ResetPassword} />
+      <Route path="/"                      component={Home} />
+      <Route path="/create"               component={CreateHub} />
+      <Route path="/create/prompt-image"  component={CreatePromptImage} />
+      <Route path="/create/prompt-video"  component={CreatePromptVideo} />
+      <Route path="/create/image-video"   component={CreateImageVideo} />
+      <Route path="/create/multi-frame"   component={CreateMultiFrame} />
+      <Route path="/studio"               component={Studio} />
+      <Route path="/studio/creations"     component={MyCreations} />
+      <Route path="/studio/:presetId"     component={StudioPreset} />
+      <Route path="/socia-gpt"             component={SociaGpt} />
+      <Route path="/socia-gpt/billing"    component={SociaGptBilling} />
+      <Route path="/messages"             component={Messages} />
+      <Route path="/messages/:id"         component={ChatThread} />
+      <Route path="/profile"              component={Profile} />
+      <Route path="/profile/settings"     component={Settings} />
+      <Route path="/profile/:id"          component={UserProfile} />
+      <Route path="/post/:id"             component={PostDetail} />
+      <Route path="/followers/:id"        component={FollowersPage} />
+      <Route path="/following/:id"        component={FollowingPage} />
+      <Route path="/user/:username"       component={UserByUsername} />
+      <Route path="/subscribe"            component={Subscribe} />
+      <Route path="/billing"              component={Billing} />
+      <Route path="/billing/refund/:id"   component={RefundThread} />
+      <Route path="/billing/upgrade"      component={BillingUpgrade} />
+      <Route path="/billing/topup"        component={BillingTopup} />
+      <Route path="/billing/checkout/:id" component={BillingCheckout} />
+      <Route path="/topup"                component={BillingTopup} />
+      <Route path="/subscription"         component={BillingUpgrade} />
+      <Route path="/creator/monetization"  component={CreatorMonetization} />
+      <Route path="/creator/affiliate"    component={AffiliateProgram} />
+      <Route path="/creator/seller"       component={SellerCenter} />
+      <Route path="/creator/stars"        component={CreatorStars} />
+      <Route path="/sys-admin/login"      component={SysAdminLogin} />
+      <Route path="/sys-admin"            component={SysAdminPage} />
+      <Route path="/sys-admin/:rest*"     component={SysAdminPage} />
+      <Route path="/admin/login"          component={AdminLogin} />
+      <Route path="/admin/dashboard"      component={AdminDashboard} />
+      <Route path="/admin/:rest*"         component={AdminDashboard} />
+      <Route path="/legal/terms"          component={TermsPage} />
+      <Route path="/legal/privacy"        component={PrivacyPage} />
+      <Route path="/legal/licenses"       component={LicensesPage} />
+      <Route path="/legal/developer"      component={DeveloperPage} />
+      <Route                              component={NotFound} />
+    </Switch>
+  );
+}
+
+function App() {
+  return (
+    /* UpdateGate is the OUTERMOST wrapper so the force-update screen renders
+     * before any provider, route, or auth check — even if the rest of the
+     * app would crash, the gate still blocks outdated installs. */
+    <UpdateGate>
+      <PreferencesProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <AuthProvider>
+              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                <AuthGuard>
+                  <AppShell>
+                    {/* Suspense catches lazy-page loading. Fallback renders
+                        inside AppShell so the top bar and bottom nav stay
+                        visible while the chunk downloads. */}
+                    <Suspense fallback={<PageSkeleton />}>
+                      <Router />
+                    </Suspense>
+                  </AppShell>
+                </AuthGuard>
+              </WouterRouter>
+            </AuthProvider>
+          </TooltipProvider>
+        </QueryClientProvider>
+      </PreferencesProvider>
+    </UpdateGate>
+  );
+}
+
+export default App;

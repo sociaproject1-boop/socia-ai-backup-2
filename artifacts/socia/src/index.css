@@ -1,0 +1,334 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --font-sans: var(--app-font-sans);
+  --font-display: var(--app-font-display);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+}
+
+/* ─── Accent CSS properties (set by JS via applyPrefs) ─────────────────── */
+:root {
+  --accent-primary:   #a855f7;
+  --accent-secondary: #ec4899;
+  --accent-glow:      rgba(168, 85, 247, 0.30);
+}
+
+/* ─── DARK theme (default) ────────────────────────────────────────────── */
+html, html.dark {
+  --background:         240 17% 6%;
+  --surface:            240 20% 7%;
+  --foreground:         0 0% 98%;
+  --border:             240 15% 13%;
+  --input:              240 15% 13%;
+  --ring:               280 100% 64%;
+
+  --card:               240 18% 8%;
+  --card-foreground:    0 0% 98%;
+  --card-border:        240 15% 13%;
+
+  --popover:            240 20% 7%;
+  --popover-foreground: 0 0% 98%;
+  --popover-border:     240 15% 13%;
+
+  --primary:            280 100% 64%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary:          240 18% 12%;
+  --secondary-foreground: 0 0% 98%;
+
+  --muted:              240 15% 11%;
+  --muted-foreground:   240 8% 60%;
+
+  --accent:             320 100% 58%;
+  --accent-foreground:  0 0% 100%;
+
+  --destructive:        0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Structural surfaces (raw, non-hsl for inline style use) */
+  --s-bg:          13, 13, 20;    /* rgb components */
+  --s-card:        17, 17, 26;
+  --s-surface:     22, 22, 32;
+  --s-border-a:    rgba(255,255,255,0.07);
+  --s-border-b:    rgba(255,255,255,0.06);
+  --s-text:        255, 255, 255;
+  --s-text-muted:  rgba(255,255,255,0.45);
+  --s-overlay:     rgba(0,0,0,0.55);
+
+  color-scheme: dark;
+}
+
+/* ─── LIGHT theme ─────────────────────────────────────────────────────── */
+html.light {
+  --background:         0 0% 97%;
+  --surface:            0 0% 100%;
+  --foreground:         240 12% 8%;
+  --border:             240 10% 87%;
+  --input:              240 10% 87%;
+  --ring:               280 60% 55%;
+
+  --card:               0 0% 100%;
+  --card-foreground:    240 12% 8%;
+  --card-border:        240 10% 87%;
+
+  --popover:            0 0% 100%;
+  --popover-foreground: 240 12% 8%;
+  --popover-border:     240 10% 87%;
+
+  --primary:            280 70% 55%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary:          240 10% 93%;
+  --secondary-foreground: 240 12% 8%;
+
+  --muted:              240 10% 93%;
+  --muted-foreground:   240 8% 46%;
+
+  --accent:             320 80% 50%;
+  --accent-foreground:  0 0% 100%;
+
+  --destructive:        0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Structural surfaces */
+  --s-bg:          250, 250, 252;
+  --s-card:        255, 255, 255;
+  --s-surface:     244, 244, 248;
+  --s-border-a:    rgba(0,0,0,0.08);
+  --s-border-b:    rgba(0,0,0,0.06);
+  --s-text:        10, 10, 20;
+  --s-text-muted:  rgba(10,10,20,0.45);
+  --s-overlay:     rgba(255,255,255,0.55);
+
+  color-scheme: light;
+}
+
+:root {
+  --app-font-sans:    'Inter', system-ui, sans-serif;
+  --app-font-display: 'Space Grotesk', system-ui, sans-serif;
+  --radius: 1rem;
+}
+
+/* ─── Base reset ──────────────────────────────────────────────────────── */
+@layer base {
+  *, *::before, *::after {
+    @apply border-border;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  html, body, #root {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    background: hsl(var(--background));
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    @apply font-sans text-foreground;
+    overscroll-behavior: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-overflow-scrolling: touch;
+    font-feature-settings: "ss01", "cv11";
+    letter-spacing: -0.005em;
+  }
+
+  h1, h2, h3, h4 { letter-spacing: -0.022em; }
+  .font-display   { letter-spacing: -0.026em; }
+
+  input, textarea, [contenteditable="true"] {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  button, a { cursor: pointer; }
+  img { -webkit-user-drag: none; }
+  *:focus-visible { outline: none; }
+  *::-webkit-scrollbar { display: none; width: 0; height: 0; }
+  * { scrollbar-width: none; -ms-overflow-style: none; }
+}
+
+/* ─── Utility classes ─────────────────────────────────────────────────── */
+@layer utilities {
+
+  /* Structural theming helpers — auto-adapt to dark/light */
+  .app-bg {
+    background: rgb(var(--s-bg));
+    color: hsl(var(--foreground));
+  }
+  .app-card {
+    background: rgb(var(--s-card));
+    border: 1px solid var(--s-border-a);
+  }
+  .app-surface {
+    background: rgb(var(--s-surface));
+    border: 1px solid var(--s-border-b);
+  }
+  .app-header {
+    background: rgb(var(--s-bg));
+    border-bottom: 1px solid var(--s-border-b);
+  }
+  .app-nav {
+    background: rgb(var(--s-bg));
+    border-top: 1px solid var(--s-border-b);
+  }
+  .app-input {
+    background: rgb(var(--s-surface));
+    border: 1px solid var(--s-border-a);
+    color: hsl(var(--foreground));
+  }
+  .app-text        { color: hsl(var(--foreground)); }
+  .app-text-muted  { color: var(--s-text-muted); }
+
+  /* Card with subtle shadow */
+  .card-premium {
+    background: rgb(var(--s-card));
+    border: 1px solid var(--s-border-a);
+    box-shadow: 0 2px 12px -4px rgba(0,0,0,0.18), 0 1px 0 0 rgba(255,255,255,0.04) inset;
+  }
+
+  /* Accent gradient — uses JS-set CSS vars so colour changes apply everywhere */
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  }
+  .bg-accent-gradient {
+    background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  }
+
+  /* Scrollable containers */
+  .scroll-native {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    will-change: scroll-position;
+  }
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+  .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .gpu {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    will-change: transform, opacity;
+  }
+
+  /* Shimmer skeleton */
+  .shimmer {
+    background: linear-gradient(110deg, rgba(128,128,128,0.06) 8%, rgba(128,128,128,0.14) 18%, rgba(128,128,128,0.06) 33%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+  @keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Heart burst */
+  @keyframes heartBurst {
+    0%   { opacity: 0; transform: translate(-50%,-50%) scale(0.4); }
+    25%  { opacity: 1; transform: translate(-50%,-50%) scale(1.2); }
+    60%  { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%,-50%) scale(1.3); }
+  }
+  .heart-burst { animation: heartBurst 0.8s cubic-bezier(0.22,1,0.36,1) forwards; }
+
+  /* Floating animation */
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-5px); }
+  }
+  .float { animation: float 3.2s ease-in-out infinite; }
+
+  /* ── Premium AI loader keyframes (used by PremiumAILoader in Generator) ── */
+  @keyframes socia-loader-spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes socia-loader-spin-reverse {
+    to { transform: rotate(-360deg); }
+  }
+  @keyframes socia-loader-pulse {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50%      { opacity: 1;    transform: scale(1.08); }
+  }
+
+  /* ── Premium King badge — gold gradient, soft pulsing glow, sweeping shine ── */
+  @keyframes kingGlow {
+    0%, 100% {
+      box-shadow:
+        0 0 10px  rgba(251,191,36,0.55),
+        0 0 24px  rgba(251,191,36,0.20),
+        inset 0 0 6px rgba(255,255,255,0.30);
+    }
+    50% {
+      box-shadow:
+        0 0 18px  rgba(255,165,0,0.75),
+        0 0 36px  rgba(251,191,36,0.35),
+        inset 0 0 10px rgba(255,255,255,0.45);
+    }
+  }
+  @keyframes kingShine {
+    0%   { transform: translateX(-150%) skewX(-20deg); opacity: 0; }
+    20%  { opacity: 0.85; }
+    60%  { opacity: 0.85; }
+    100% { transform: translateX(250%) skewX(-20deg); opacity: 0; }
+  }
+  .king-badge {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, #FFD700 0%, #FFB300 45%, #FF8C00 100%);
+    animation: kingGlow 2.4s ease-in-out infinite;
+  }
+  .king-badge::before {
+    /* Sweeping highlight that travels across the badge every few seconds */
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.7) 50%, transparent 100%);
+    pointer-events: none;
+    animation: kingShine 3.2s ease-in-out infinite;
+  }
+  /* Reduced-motion users see the badge without the moving shine + glow pulse. */
+  @media (prefers-reduced-motion: reduce) {
+    .king-badge          { animation: none; }
+    .king-badge::before  { animation: none; opacity: 0; }
+  }
+
+  /* Safe area helpers */
+  .safe-pt { padding-top: env(safe-area-inset-top, 0px); }
+  .safe-pb { padding-bottom: env(safe-area-inset-bottom, 0px); }
+}

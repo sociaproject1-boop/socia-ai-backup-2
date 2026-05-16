@@ -1,0 +1,1234 @@
+/**
+ * ChatThread.tsx — production-ready chat thread
+ *
+ * Features:
+ *  • Voice recording via MediaRecorder API (tap mic → record, tap again → send)
+ *  • Inline audio player for voice messages
+ *  • Image lightbox (fullscreen on tap)
+ *  • Skeleton loaders while messages load
+ *  • React.memo on MessageBubble (no unnecessary re-renders)
+ *  • Lazy image loading
+ *  • useCallback on all event handlers
+ *  • Send error toast
+ */
+import { useEffect, useRef, useState, useCallback, memo } from "react";
+import { useLocation, useRoute } from "wouter";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ArrowLeft, Plus, Send, Image as ImageIcon, Check, CheckCheck,
+  X, Download, Mic, Play, Pause, Square, AlertCircle,
+  Copy, Sparkles, Wand2,
+} from "lucide-react";
+import { useAppStore } from "@/lib/store";
+import { useAuth } from "@/lib/authContext";
+import {
+  useMessages,
+  useReactions,
+  useTypingStatus,
+  usePresenceHeartbeat,
+  fetchUserById,
+  sendMessage,
+  editMessage,
+  markThreadSeen,
+  toggleReaction,
+  uploadChatImage,
+  uploadAudioMessage,
+  fetchNickname,
+  upsertNickname,
+  isUserOnline,
+  getLastSeenText,
+  type SupabaseMessage,
+  type MessageReaction,
+  type ConversationUser,
+} from "@/lib/useSupabaseChat";
+import { NameBadges } from "@/components/Badges";
+
+/* ════════════════════════════════════════════════════════════════════════ */
+/*  Skeleton loader                                                          */
+/* ════════════════════════════════════════════════════════════════════════ */
+function MessageSkeleton({ mine }: { mine: boolean }) {
+  return (
+    <div className={"flex " + (mine ? "justify-end" : "justify-start")}>
+      <div className={"flex max-w-[78%] items-end gap-2 " + (mine ? "flex-row-reverse" : "")}>
+        {!mine && <div className="h-6 w-6 shrink-0 rounded-full bg-white/10 animate-pulse" />}
+        <div className={"h-9 animate-pulse rounded-2xl bg-white/[0.08] " + (mine ? "rounded-br-md w-40" : "rounded-bl-md w-52")} />
+      </div>
+    </div>
+  );
+}
+function SkeletonList() {
+  const patterns = [false, true, false, false, true, false, true] as const;
+  return (
+    <div className="space-y-3 px-4 py-4">
+      {patterns.map((mine, i) => <MessageSkeleton key={i} mine={mine} />)}
+    </div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════════ */
+/*  Audio player                                                             */
+/* ════════════════════════════════════════════════════════════════════════ */
+/** Safe mm:ss formatter — never returns NaN or Infinity */
+function fmtTime(seconds: number): string {
+  if (!isFinite(seconds) || isNaN(seconds) || seconds < 0) return "0:00";
+  const s = Math.floor(seconds);
+  return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+}
+
+const AudioPlayer = memo(function AudioPlayer({ url }: { url: string }) {
+  const audioRef     = useRef<HTMLAudioElement>(null);
+  const [playing,    setPlaying]    = useState(false);
+  const [progress,   setProgress]   = useState(0);        // 0–1
+  const [currentSec, setCurrentSec] = useState(0);        // raw seconds
+  const [duration,   setDuration]   = useState(0);        // raw seconds
+  const [metaReady,  setMetaReady]  = useState(false);    // true once loadedmetadata fires
+  const [loadError,  setLoadError]  = useState(false);
+
+  /* Guard: don't render if url is empty */
+  if (!url) return null;
+
+  const toggle = () => {
+    const a = audioRef.current;
+    if (!a || loadError) return;
+    if (playing) {
+      a.pause();
+      setPlaying(false);
+    } else {
+      a.play()
+        .then(() => setPlaying(true))
+        .catch(() => setLoadError(true));
+    }
+  };
+
+  const handleTimeUpdate = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    const a = e.currentTarget;
+    const dur = a.duration;
+    const cur = a.currentTime;
+    /* Guard against Infinity (live streams) and NaN */
+    if (isFinite(dur) && dur > 0) {
+      setProgress(cur / dur);
+      setCurrentSec(cur);
+    }
+  };
+
+  const captureDuration = (el: HTMLAudioElement) => {
+    const dur = el.duration;
+    if (isFinite(dur) && !isNaN(dur) && dur > 0) {
+      setDuration(dur);
+    }
+  };
+
+  const handleLoadedMetadata = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    captureDuration(e.currentTarget);
+    setMetaReady(true);
+    setLoadError(false);
+  };
+
+  /* onDurationChange fires when duration becomes known (e.g. after buffering starts) */
+  const handleDurationChange = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    captureDuration(e.currentTarget);
+  };
+
+  /* onCanPlay fires even on servers that skip loadedmetadata (e.g., no range-request support).
+     Use it as a fallback to capture duration if metadata handler didn't already. */
+  const handleCanPlay = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    captureDuration(e.currentTarget);
+    if (!metaReady) {
+      setMetaReady(true);
+      setLoadError(false);
+    }
+  };
+
+  const handleEnded = () => {
+    setPlaying(false);
+    setProgress(0);
+    setCurrentSec(0);
+    if (audioRef.current) audioRef.current.currentTime = 0;
+  };
+
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    const a = audioRef.current;
+    if (!a || !metaReady || !isFinite(duration) || duration === 0) return;
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    a.currentTime = ratio * duration;
+    setProgress(ratio);
+    setCurrentSec(ratio * duration);
+  };
+
+  return (
+    <div className="flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2.5 backdrop-blur-xl min-w-[200px] max-w-[260px]">
+      <audio
+        ref={audioRef}
+        src={url}
+        preload="metadata"
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onDurationChange={handleDurationChange}
+        onCanPlay={handleCanPlay}
+        onEnded={handleEnded}
+        onError={() => { setLoadError(true); setMetaReady(true); }}
+      />
+
+      {/* Play / Pause button */}
+      <button
+        onClick={toggle}
+        disabled={loadError}
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 text-white disabled:opacity-40"
+      >
+        {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+      </button>
+
+      <div className="flex flex-1 flex-col gap-1.5">
+        {/* Scrub bar */}
+        <div
+          className="relative h-1.5 w-full cursor-pointer overflow-hidden rounded-full bg-white/20"
+          onClick={handleSeek}
+        >
+          <div
+            className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 transition-[width] duration-100"
+            style={{ width: `${progress * 100}%` }}
+          />
+        </div>
+
+        {/* Time display */}
+        <div className="flex items-center justify-between">
+          {loadError ? (
+            <span className="text-[10px] text-red-400/80">Playback error</span>
+          ) : !metaReady || duration === 0 ? (
+            /* Spinner until we have a valid non-zero duration */
+            <span className="flex items-center gap-1 text-[10px] text-white/40">
+              <span className="h-2.5 w-2.5 animate-spin rounded-full border border-white/20 border-t-white/60 inline-block" />
+              Loading…
+            </span>
+          ) : (
+            <span className="text-[10px] text-white/50 tabular-nums">
+              {fmtTime(currentSec)} / {fmtTime(duration)}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+/* ════════════════════════════════════════════════════════════════════════ */
+/*  Image lightbox                                                           */
+/* ════════════════════════════════════════════════════════════════════════ */
+function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/92 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.img
+        initial={{ scale: 0.92, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.92, opacity: 0 }}
+        src={src}
+        alt="fullscreen"
+        className="max-h-[90dvh] max-w-[95vw] rounded-2xl object-contain shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+        draggable={false}
+      />
+      {/* Top controls */}
+      <div className="absolute top-safe-4 right-4 flex gap-2" style={{ top: `calc(env(safe-area-inset-top, 0px) + 12px)` }}>
+        <a
+          href={src}
+          download
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white backdrop-blur hover:bg-white/20"
+        >
+          <Download className="h-4 w-4" />
+        </a>
+        <button
+          onClick={onClose}
+          className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white backdrop-blur hover:bg-white/20"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════════ */
+/*  MessageBubble                                                            */
+/* ════════════════════════════════════════════════════════════════════════ */
+interface BubbleProps {
+  msg:           SupabaseMessage;
+  mine:          boolean;
+  peerAvatar:    string;
+  peerName:      string;
+  isLast:        boolean;
+  onImageTap:    (src: string) => void;
+  onLongPress:   (id: string, mine: boolean, text: string | null) => void;
+  reactions:     MessageReaction[];
+  myId:          string;
+  /* Sender flair — true = the message author has a King badge.
+     Mapped from peer.is_owner for !mine bubbles, my own profile for mine. */
+  senderIsKing:  boolean;
+  /* Use-prompt CTA (only meaningful when msg.is_prompt is true) */
+  onUsePrompt:   (prompt: string) => void;
+  /* Edit mode */
+  isEditing:    boolean;
+  editText:     string;
+  onEditChange: (v: string) => void;
+  onEditSave:   () => void;
+  onEditCancel: () => void;
+  /* Grouping (Messenger-style consecutive messages) */
+  grouped:      boolean;   // true = same sender as previous msg within 3 min → less top margin, no avatar
+  groupedNext:  boolean;   // true = next msg is same sender → tighter bottom radius
+}
+
+const REACTION_EMOJIS = ["❤️", "👍", "😂", "😮", "😢"] as const;
+
+const MessageBubble = memo(function MessageBubble({
+  msg, mine, peerAvatar, peerName, onImageTap,
+  onLongPress, reactions, myId,
+  senderIsKing, onUsePrompt,
+  isEditing, editText, onEditChange, onEditSave, onEditCancel,
+  grouped: isGrouped, groupedNext: isGroupedNext,
+}: BubbleProps) {
+  const isImage  = !!msg.image_url && !msg.audio_url;
+  const isAudio  = !!msg.audio_url;
+  const isPrompt = !!msg.is_prompt && !isImage && !isAudio;
+  const lpTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const promptText = (msg.prompt || msg.text || "").trim();
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(promptText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard blocked — silently no-op */
+    }
+  };
+
+  /* Group reactions by emoji: { emoji → {count, iMine} } */
+  const rxnMap = reactions.reduce<Record<string, { count: number; iMine: boolean }>>(
+    (acc, r) => {
+      if (!acc[r.emoji]) acc[r.emoji] = { count: 0, iMine: false };
+      acc[r.emoji].count++;
+      if (r.user_id === myId) acc[r.emoji].iMine = true;
+      return acc;
+    },
+    {}
+  );
+
+  const startLp = () => {
+    lpTimer.current = setTimeout(() => onLongPress(msg.id, mine, msg.text), 500);
+  };
+  const cancelLp = () => { if (lpTimer.current) clearTimeout(lpTimer.current); };
+
+  const Avatar = () => (
+    <div className="h-6 w-6 shrink-0 overflow-hidden rounded-full border border-white/10">
+      {peerAvatar
+        ? <img src={peerAvatar} alt="" loading="lazy" className="h-full w-full object-cover" />
+        : <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-[10px] font-bold text-white">{peerName.charAt(0)}</div>}
+    </div>
+  );
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+      className={"flex flex-col " + (mine ? "items-end" : "items-start") + (isGrouped ? " mt-0.5" : " mt-2")}
+    >
+      <div className={
+        "flex items-end gap-2 " +
+        (mine ? "flex-row-reverse " : "") +
+        (isImage ? "max-w-[88%]" : "max-w-[78%]")
+      }>
+        {/* Peer avatar — hide (but reserve space) when grouped */}
+        {!mine && !isImage && (isGrouped ? <div className="h-6 w-6 shrink-0" /> : <Avatar />)}
+        {!mine &&  isAudio && (isGrouped ? <div className="h-6 w-6 shrink-0" /> : <Avatar />)}
+
+        {/* ── Content ─────────────────────────────────────────────────── */}
+        <div
+          onMouseDown={startLp} onMouseUp={cancelLp} onMouseLeave={cancelLp}
+          onTouchStart={startLp} onTouchEnd={cancelLp} onTouchMove={cancelLp}
+          className="select-none"
+        >
+          {isAudio ? (
+            <AudioPlayer url={msg.audio_url!} />
+
+          ) : isImage ? (
+            <div
+              className="group relative cursor-pointer overflow-hidden rounded-2xl border border-white/10 shadow-lg"
+              style={{ maxWidth: "min(72vw, 320px)" }}
+              onClick={() => onImageTap(msg.image_url!)}
+            >
+              <img
+                src={msg.image_url!}
+                alt="shared image"
+                loading="lazy"
+                decoding="async"
+                className="block w-full max-h-80 object-cover"
+              />
+              <div className="absolute inset-0 bg-black/0 transition-colors group-active:bg-black/25" />
+              <a
+                href={msg.image_url!} download target="_blank" rel="noopener noreferrer"
+                className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-black/50 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100 active:opacity-100"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Download className="h-3.5 w-3.5" />
+              </a>
+              <div className="absolute bottom-2 right-2 grid h-6 w-6 place-items-center rounded-full bg-black/40 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100 active:opacity-100">
+                <svg viewBox="0 0 16 16" fill="none" className="h-3 w-3" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M10 2h4v4M6 14H2v-4M14 6l-4 4M2 10l4-4" />
+                </svg>
+              </div>
+            </div>
+
+          ) : isEditing ? (
+            /* ── Inline edit input ─────────────────────────────────── */
+            <div className="flex flex-col gap-1.5 min-w-[180px] max-w-[260px]">
+              <textarea
+                autoFocus
+                value={editText}
+                onChange={(e) => onEditChange(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onEditSave(); } if (e.key === "Escape") onEditCancel(); }}
+                rows={2}
+                className="w-full resize-none rounded-xl border border-purple-500/60 bg-white/10 px-3 py-2 text-sm text-white outline-none focus:border-purple-400 backdrop-blur-xl"
+              />
+              <div className="flex justify-end gap-2">
+                <button onClick={onEditCancel} className="rounded-lg px-2.5 py-1 text-[11px] text-white/50 hover:bg-white/5">Cancel</button>
+                <button onClick={onEditSave} className="rounded-lg bg-purple-600/80 px-2.5 py-1 text-[11px] text-white hover:bg-purple-500">Save</button>
+              </div>
+            </div>
+
+          ) : isPrompt ? (
+            /* ── Prompt bubble (Send Prompt to Chat) ───────────────── */
+            <div
+              className={
+                "relative flex flex-col gap-2 rounded-2xl border px-3.5 py-3 backdrop-blur-xl shadow-[0_4px_22px_-6px_rgba(168,85,247,0.45)] " +
+                "bg-[linear-gradient(135deg,rgba(168,85,247,0.18),rgba(236,72,153,0.14),rgba(59,130,246,0.18))] " +
+                (senderIsKing
+                  ? "border-yellow-300/60 ring-2 ring-yellow-300/30 shadow-[0_4px_28px_-4px_rgba(251,191,36,0.5)]"
+                  : "border-white/15") +
+                " min-w-[200px] max-w-[300px]"
+              }
+            >
+              <div className="flex items-center gap-1.5">
+                <Sparkles className="h-3 w-3 text-pink-300" />
+                <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-pink-200/90">
+                  Prompt
+                </span>
+                {senderIsKing && (
+                  <span className="ml-auto rounded-full bg-yellow-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-yellow-300">
+                    👑 King
+                  </span>
+                )}
+              </div>
+              <p className="text-sm leading-relaxed text-white/95 whitespace-pre-wrap break-words">
+                {promptText || msg.text}
+              </p>
+              {msg.edited && (
+                <span className="text-[10px] text-white/40">(edited)</span>
+              )}
+              <div className="mt-1 flex gap-2">
+                <button
+                  onClick={handleCopy}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-semibold text-white/85 hover:bg-white/10 active:scale-95"
+                >
+                  {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                  {copied ? "Copied" : "Copy"}
+                </button>
+                <button
+                  onClick={() => onUsePrompt(promptText || msg.text || "")}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-[0_4px_14px_-4px_rgba(236,72,153,0.55)] active:scale-95"
+                >
+                  <Wand2 className="h-3 w-3" />
+                  Use prompt
+                </button>
+              </div>
+            </div>
+
+          ) : (
+            /* ── Text bubble ───────────────────────────────────────── */
+            <div className={
+              mine
+                ? `${isGrouped ? "rounded-2xl rounded-tr-md" : ""} ${isGroupedNext ? "rounded-br-2xl" : "rounded-br-md"} rounded-2xl bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 px-3.5 py-2 text-sm text-white shadow-[0_4px_18px_-4px_rgba(236,72,153,0.45)]`
+                : `${isGrouped ? "rounded-2xl rounded-tl-md" : ""} ${isGroupedNext ? "rounded-bl-2xl" : "rounded-bl-md"} rounded-2xl border border-white/10 bg-white/[0.06] px-3.5 py-2 text-sm text-white backdrop-blur-xl`
+            }>
+              {msg.text}
+              {msg.edited && (
+                <span className="ml-1.5 text-[10px] opacity-50">(edited)</span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Reactions row ─────────────────────────────────────────────── */}
+      {Object.keys(rxnMap).length > 0 && (
+        <div className={"flex flex-wrap gap-1 mt-1 " + (mine ? "justify-end pr-1" : "justify-start pl-8")}>
+          {Object.entries(rxnMap).map(([emoji, { count, iMine }]) => (
+            <span
+              key={emoji}
+              className={
+                "flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs cursor-default " +
+                (iMine ? "bg-purple-600/40 border border-purple-500/50" : "bg-white/10 border border-white/10")
+              }
+            >
+              {emoji}{count > 1 && <span className="text-[10px] text-white/60">{count}</span>}
+            </span>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  );
+});
+
+/* ════════════════════════════════════════════════════════════════════════ */
+/*  Voice recorder hook                                                      */
+/* ════════════════════════════════════════════════════════════════════════ */
+type RecorderState = "idle" | "recording" | "uploading";
+
+function useVoiceRecorder() {
+  const [state,    setState]    = useState<RecorderState>("idle");
+  const [duration, setDuration] = useState(0);
+  const mediaRef  = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const start = useCallback(async (): Promise<boolean> => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.start(100);
+      mediaRef.current = mr;
+      setState("recording");
+      setDuration(0);
+      timerRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const stop = useCallback((): Promise<Blob | null> => {
+    return new Promise((resolve) => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      const mr = mediaRef.current;
+      if (!mr || mr.state === "inactive") { setState("idle"); resolve(null); return; }
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        mr.stream.getTracks().forEach((t) => t.stop());
+        setState("idle");
+        resolve(blob.size > 0 ? blob : null);
+      };
+      mr.stop();
+    });
+  }, []);
+
+  const cancel = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    const mr = mediaRef.current;
+    if (mr && mr.state !== "inactive") {
+      mr.onstop = () => { mr.stream.getTracks().forEach((t) => t.stop()); };
+      mr.stop();
+    }
+    chunksRef.current = [];
+    setState("idle");
+    setDuration(0);
+  }, []);
+
+  const markUploading = useCallback(() => setState("uploading"), []);
+
+  return { state, duration, start, stop, cancel, markUploading };
+}
+
+/* ════════════════════════════════════════════════════════════════════════ */
+/*  Helpers                                                                  */
+/* ════════════════════════════════════════════════════════════════════════ */
+function TypingDots() {
+  return (
+    <div className="flex items-center gap-1">
+      {[0, 1, 2].map((i) => (
+        <motion.span
+          key={i}
+          className="h-1.5 w-1.5 rounded-full bg-white/60"
+          animate={{ opacity: [0.3, 1, 0.3], y: [0, -3, 0] }}
+          transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function AttachBtn({ icon: Icon, label, onClick }: { icon: typeof Send; label: string; onClick: () => void }) {
+  return (
+    <motion.button whileTap={{ scale: 0.95 }} onClick={onClick} className="flex flex-col items-center gap-1 rounded-xl px-3 py-2 hover:bg-white/5">
+      <span className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-purple-600/80 via-pink-500/70 to-blue-500/80 text-white">
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="text-[10px] text-white/70">{label}</span>
+    </motion.button>
+  );
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════ */
+/*  ChatThread (main component)                                              */
+/* ════════════════════════════════════════════════════════════════════════ */
+export default function ChatThread() {
+  const [, params]   = useRoute("/messages/:id");
+  const otherId      = params?.id || "";
+  const [, navigate] = useLocation();
+
+  const { supabaseUser } = useAuth();
+  const myId = supabaseUser?.id ?? "";
+
+  const [otherUser,   setOtherUser]   = useState<ConversationUser | null>(null);
+  const [text,        setText]        = useState("");
+  const [showAttach,  setShowAttach]  = useState(false);
+  const [uploading,   setUploading]   = useState(false);
+  /* Supabase-backed typing indicator — replaces Socket.io */
+  const { peerTyping, sendTyping } = useTypingStatus(myId ?? null, otherId ?? null);
+  const [sendError,   setSendError]   = useState<string | null>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+
+  /* Edit */
+  const [editingId,   setEditingId]   = useState<string | null>(null);
+  const [editText,    setEditText]    = useState("");
+
+  /* Action sheet (long-press menu) */
+  type ActionSheet = { id: string; mine: boolean; text: string | null };
+  const [actionSheet, setActionSheet] = useState<ActionSheet | null>(null);
+
+  /* Nickname */
+  const [nickname,       setNickname]       = useState<string | null>(null);
+  const [nicknamingOpen, setNicknamingOpen] = useState(false);
+  const [nicknameInput,  setNicknameInput]  = useState("");
+
+  const scrollRef   = useRef<HTMLDivElement>(null);
+  const fileRef     = useRef<HTMLInputElement>(null);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const recorder = useVoiceRecorder();
+
+  usePresenceHeartbeat(myId || null);
+  const { messages, loading, error: msgError } = useMessages(myId || null, otherId || null);
+
+  const messageIds = messages.map((m) => m.id);
+  const { reactions: allReactions, optimisticToggle } = useReactions(myId || null, otherId || null, messageIds);
+
+  useEffect(() => {
+    if (!otherId) return;
+    fetchUserById(otherId).then(setOtherUser);
+  }, [otherId]);
+
+  /* Load nickname on open */
+  useEffect(() => {
+    if (!myId || !otherId) return;
+    fetchNickname(myId, otherId).then(setNickname);
+  }, [myId, otherId]);
+
+  /* Count how many unseen messages from the OTHER user are in our thread.
+     markThreadSeen only fires when that number changes (or on open),
+     never just because we sent a message. */
+  const unseenInboundCount = messages.filter(
+    (m) => m.sender_id === otherId && !m.seen,
+  ).length;
+
+  useEffect(() => {
+    if (myId && otherId) markThreadSeen(myId, otherId);
+  }, [myId, otherId, unseenInboundCount]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const bottomRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    /* rAF ensures the new message node is painted before we scroll */
+    const raf = requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({ behavior: messages.length <= 1 ? "auto" : "smooth" });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [messages.length]);
+
+  /* ── Typing indicator is handled by useTypingStatus (Supabase) ── */
+
+  /* Auto-dismiss send error */
+  useEffect(() => {
+    if (!sendError) return;
+    const t = setTimeout(() => setSendError(null), 4000);
+    return () => clearTimeout(t);
+  }, [sendError]);
+
+  const handleTextChange = useCallback((val: string) => {
+    setText(val);
+    /* Drive Supabase typing status — hook handles debounce & auto-stop */
+    sendTyping(val.trim().length > 0);
+  }, [sendTyping]);
+
+  const send = useCallback(async () => {
+    const t = text.trim();
+    if (!t || !myId || !otherId) return;
+    setText("");
+    sendTyping(false); /* Clear typing indicator on send */
+    if (typingTimer.current) clearTimeout(typingTimer.current);
+    const err = await sendMessage(myId, otherId, { text: t });
+    if (err) setSendError("Failed to send. Check connection.");
+  }, [text, myId, otherId, sendTyping]);
+
+  const handleImagePick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !myId || !otherId) return;
+    setShowAttach(false);
+    setUploading(true);
+    try {
+      const url = await uploadChatImage(file, myId);
+      if (url) {
+        const err = await sendMessage(myId, otherId, { image_url: url });
+        if (err) setSendError("Image sent but message failed. Retry.");
+      } else {
+        setSendError("Image upload failed. Try again.");
+      }
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }, [myId, otherId]);
+
+  /* ── Hold-to-record handlers ── */
+  const handleMicDown = useCallback(async (e: React.PointerEvent) => {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    if (recorder.state !== "idle") return;
+    setShowAttach(false);
+    const ok = await recorder.start();
+    if (!ok) setSendError("Microphone access denied.");
+  }, [recorder]);
+
+  const handleMicUp = useCallback(async (e: React.PointerEvent) => {
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    if (recorder.state !== "recording") return;
+    recorder.markUploading();
+    const blob = await recorder.stop();
+    if (!blob || !myId || !otherId) return;
+    setUploading(true);
+    try {
+      const url = await uploadAudioMessage(blob, myId);
+      if (url) {
+        const err = await sendMessage(myId, otherId, { audio_url: url });
+        if (err) setSendError("Voice message failed to send.");
+      } else {
+        setSendError("Audio upload failed. Try again.");
+      }
+    } finally {
+      setUploading(false);
+    }
+  }, [recorder, myId, otherId]);
+
+  const handleMicCancel = useCallback(() => {
+    /* Finger slid off or pointer left — cancel recording */
+    if (recorder.state === "recording") recorder.cancel?.();
+  }, [recorder]);
+
+  const handleImageTap = useCallback((src: string) => setLightboxSrc(src), []);
+
+  /* Long-press → open action sheet */
+  const handleLongPress = useCallback((id: string, mine: boolean, text: string | null) => {
+    setActionSheet({ id, mine, text });
+  }, []);
+
+  /* Edit */
+  const handleStartEdit = useCallback(() => {
+    if (!actionSheet) return;
+    setEditingId(actionSheet.id);
+    setEditText(actionSheet.text || "");
+    setActionSheet(null);
+  }, [actionSheet]);
+
+  const handleEditSave = useCallback(async () => {
+    if (!editingId || !myId) return;
+    const t = editText.trim();
+    if (!t) return;
+    const prevId = editingId;
+    setEditingId(null);
+    const err = await editMessage(prevId, myId, t);
+    if (err) setSendError("Edit failed. Try again.");
+  }, [editingId, editText, myId]);
+
+  const handleEditCancel = useCallback(() => { setEditingId(null); setEditText(""); }, []);
+
+  /* Reaction from action sheet */
+  const handleReact = useCallback(async (msgId: string, emoji: string) => {
+    if (!myId) return;
+    setActionSheet(null);
+    optimisticToggle(msgId, myId, emoji);
+    await toggleReaction(msgId, myId, emoji);
+  }, [myId, optimisticToggle]);
+
+  /* Nickname */
+  const handleOpenNickname = useCallback(() => {
+    setNicknameInput(nickname || "");
+    setNicknamingOpen(true);
+  }, [nickname]);
+
+  const handleSaveNickname = useCallback(async () => {
+    if (!myId || !otherId) return;
+    const n = nicknameInput.trim();
+    setNicknamingOpen(false);
+    setNickname(n || null);
+    await upsertNickname(myId, otherId, n);
+  }, [myId, otherId, nicknameInput]);
+
+  const peerName   = nickname || otherUser?.name || (loading ? "" : "User");
+  const peerAvatar = otherUser?.avatar_url || "";
+  const peerOnline = isUserOnline(otherUser?.last_seen);
+
+  /* Self profile — used to flag MY prompt bubbles with the King treatment
+     when the current user is the owner. Lazy single fetch + cache via the
+     same fetchUserById helper used for peers. */
+  const [me, setMe] = useState<ConversationUser | null>(null);
+  useEffect(() => {
+    if (!myId) return;
+    fetchUserById(myId).then(setMe);
+  }, [myId]);
+  const myIsKing   = Boolean(me?.is_owner);
+  const peerIsKing = Boolean(otherUser?.is_owner);
+
+  /* "Use prompt" CTA — drops the prompt into the global generator state
+     and routes the user to the prompt-image generator. */
+  const setActivePrompt = useAppStore((s) => s.setActivePrompt);
+  const handleUsePrompt = useCallback((p: string) => {
+    if (!p) return;
+    setActivePrompt(p);
+    navigate("/create/prompt-image");
+  }, [setActivePrompt, navigate]);
+  const isRecording = recorder.state === "recording";
+  const showMic     = !text.trim() && !uploading;
+
+  /* Last message the CURRENT USER sent — used for the seen avatar */
+  const lastMyMsg = [...messages].reverse().find((m) => m.sender_id === myId) ?? null;
+
+  if (!otherId || !myId) {
+    return (
+      <div className="grid h-full place-items-center text-white/60">
+        <button onClick={() => navigate("/messages")} className="text-sm underline">Back to messages</button>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex h-full flex-col">
+        {/* ── Header ────────────────────────────────────────────────────── */}
+        <div
+          className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/[0.06] bg-background/70 px-4 backdrop-blur-2xl"
+          style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)`, paddingBottom: 12 }}
+        >
+          <button onClick={() => navigate("/messages")} className="card-premium grid h-9 w-9 place-items-center rounded-full text-white">
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+
+          {/* Avatar — tap to view profile */}
+          <button
+            onClick={() => navigate(`/profile/${otherId}`)}
+            className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-white/10"
+          >
+            {peerAvatar ? (
+              <img src={peerAvatar} alt="" loading="lazy" className="h-full w-full object-cover" />
+            ) : (
+              <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-xs font-bold text-white">
+                {peerName.charAt(0)}
+              </div>
+            )}
+            <span className={
+              "absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-background transition-colors " +
+              (peerOnline ? "bg-emerald-400" : "bg-white/25")
+            } />
+          </button>
+
+          <div className="min-w-0 flex-1">
+            <button
+              onClick={() => navigate(`/profile/${otherId}`)}
+              onContextMenu={(e) => { e.preventDefault(); handleOpenNickname(); }}
+              className="flex w-full items-center gap-1.5 text-left"
+            >
+              <span className="truncate text-sm font-semibold text-white">
+                {peerName || <span className="h-3.5 w-24 rounded animate-pulse bg-white/10 inline-block" />}
+              </span>
+              <NameBadges
+                isOwner={Boolean(otherUser?.is_owner)}
+                isVerified={Boolean(otherUser?.is_verified)}
+                size="sm"
+              />
+              {nickname && <span className="text-[10px] font-normal text-purple-300/60">(nickname)</span>}
+            </button>
+            <AnimatePresence mode="wait">
+              {peerTyping ? (
+                <motion.div key="typing" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="flex items-center gap-1">
+                  <TypingDots />
+                  <span className="text-[11px] text-purple-300/80">typing…</span>
+                </motion.div>
+              ) : (
+                <motion.div key="status" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className={"text-[11px] " + (peerOnline ? "text-emerald-400/80" : "text-white/40")}>
+                  {otherUser ? getLastSeenText(otherUser.last_seen) : ""}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+        </div>
+
+        {/* ── Error banners ─────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {sendError && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+              className="mx-4 mt-2 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2"
+            >
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+              <span className="text-xs text-red-300">{sendError}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {msgError && !loading && (
+          <div className="mx-4 mt-2 flex items-center gap-2 rounded-xl border border-orange-500/20 bg-orange-500/10 px-3 py-2">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0 text-orange-400" />
+            <span className="text-xs text-orange-300">
+              Something went wrong. Please refresh and try again.
+            </span>
+          </div>
+        )}
+
+        {/* ── Messages ──────────────────────────────────────────────────── */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto hide-scrollbar">
+          {loading && <SkeletonList />}
+
+          {!loading && messages.length === 0 && !msgError && (
+            <div className="flex flex-col items-center justify-center gap-3 py-20 text-center px-4">
+              <div className="h-14 w-14 overflow-hidden rounded-full border border-white/10">
+                {peerAvatar ? (
+                  <img src={peerAvatar} alt="" loading="lazy" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-lg font-bold text-white">
+                    {peerName.charAt(0)}
+                  </div>
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-white">{peerName}</p>
+                {otherUser?.username && <p className="text-xs text-white/45">@{otherUser.username}</p>}
+              </div>
+              <p className="text-xs text-white/40">Say hello! This is the start of your conversation.</p>
+            </div>
+          )}
+
+          {!loading && (
+            <div className="px-4 py-4">
+              <AnimatePresence initial={false}>
+                {messages.map((msg, idx) => {
+                  const prev = idx > 0 ? messages[idx - 1] : null;
+                  const next = idx < messages.length - 1 ? messages[idx + 1] : null;
+                  const GROUP_MS = 3 * 60_000;
+                  /* grouped = same sender within 3 min of previous message */
+                  const grouped = !!(prev && prev.sender_id === msg.sender_id &&
+                    new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() < GROUP_MS);
+                  /* groupedNext = next message also continues the chain */
+                  const groupedNext = !!(next && next.sender_id === msg.sender_id &&
+                    new Date(next.created_at).getTime() - new Date(msg.created_at).getTime() < GROUP_MS);
+                  const mine = msg.sender_id === myId;
+                  return (
+                    <MessageBubble
+                      key={msg.id}
+                      msg={msg}
+                      mine={mine}
+                      peerAvatar={peerAvatar}
+                      peerName={peerName}
+                      isLast={idx === messages.length - 1}
+                      onImageTap={handleImageTap}
+                      onLongPress={handleLongPress}
+                      reactions={allReactions.filter((r) => r.message_id === msg.id)}
+                      myId={myId}
+                      senderIsKing={mine ? myIsKing : peerIsKing}
+                      onUsePrompt={handleUsePrompt}
+                      isEditing={editingId === msg.id}
+                      editText={editText}
+                      onEditChange={setEditText}
+                      onEditSave={handleEditSave}
+                      onEditCancel={handleEditCancel}
+                      grouped={grouped}
+                      groupedNext={groupedNext}
+                    />
+                  );
+                })}
+              </AnimatePresence>
+
+              {/* Typing indicator bubble */}
+              <AnimatePresence>
+                {peerTyping && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.9 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    className="flex justify-start"
+                  >
+                    <div className="flex items-end gap-2">
+                      <div className="h-6 w-6 shrink-0 overflow-hidden rounded-full border border-white/10">
+                        {peerAvatar
+                          ? <img src={peerAvatar} alt="" loading="lazy" className="h-full w-full object-cover" />
+                          : <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-[10px] font-bold text-white">{peerName.charAt(0)}</div>}
+                      </div>
+                      <div className="rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.06] px-4 py-3 backdrop-blur-xl">
+                        <TypingDots />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* ── Seen / sent receipt ─────────────────────────────────────── */}
+          {!loading && lastMyMsg && (
+            <div className="pb-2 pr-4 flex items-center justify-end gap-1.5">
+              {lastMyMsg.seen_at ? (
+                /* ✔✔ blue + avatar = Seen */
+                <div title="Seen" className="flex items-center gap-1.5">
+                  <CheckCheck className="h-3.5 w-3.5 text-blue-400" />
+                  {peerAvatar ? (
+                    <img src={peerAvatar} alt="Seen" loading="lazy" className="h-4 w-4 rounded-full object-cover ring-1 ring-blue-400/60" />
+                  ) : (
+                    <div className="h-4 w-4 rounded-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-[7px] font-bold text-white ring-1 ring-blue-400/60">
+                      {peerName.charAt(0)}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* ✔ grey = Sent (not yet read) */
+                <span className="flex items-center gap-0.5 text-[10px] text-white/35">
+                  <Check className="h-3 w-3" />
+                  Sent
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Sentinel for auto-scroll */}
+          <div ref={bottomRef} className="h-px" />
+        </div>
+
+        {/* ── Recording bar ─────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {isRecording && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex items-center justify-between bg-red-500/15 border-t border-red-500/20 px-4 py-2"
+            >
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-sm text-red-300 font-medium">Recording {fmtTime(recorder.duration)}</span>
+              </div>
+              <button onClick={recorder.cancel} className="flex items-center gap-1 text-xs text-white/50 hover:text-white/80">
+                <X className="h-3.5 w-3.5" /> Cancel
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Composer ──────────────────────────────────────────────────── */}
+        <div
+          className="relative border-t border-white/[0.06] bg-background/85 px-3 pt-2 backdrop-blur-2xl"
+          style={{ paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + 12px)` }}
+        >
+          <AnimatePresence>
+            {showAttach && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
+                className="absolute bottom-full left-3 mb-2 flex gap-2 rounded-2xl border border-white/10 bg-background/95 p-2 backdrop-blur-2xl shadow-2xl"
+              >
+                <AttachBtn icon={ImageIcon} label="Photo" onClick={() => { setShowAttach(false); fileRef.current?.click(); }} />
+                <AttachBtn icon={X} label="Close" onClick={() => setShowAttach(false)} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="flex items-center gap-2">
+            {/* + attach button (hidden while recording) */}
+            {!isRecording && (
+              <motion.button whileTap={{ scale: 0.9 }} onClick={() => setShowAttach((v) => !v)} className="card-premium grid h-10 w-10 shrink-0 place-items-center rounded-full text-white">
+                <Plus className={"h-5 w-5 transition-transform " + (showAttach ? "rotate-45" : "")} />
+              </motion.button>
+            )}
+
+            {/* Input area */}
+            <div className="flex flex-1 items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-4 backdrop-blur-xl">
+              {uploading ? (
+                <div className="flex h-10 flex-1 items-center gap-2 text-xs text-white/60">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-purple-500" />
+                  Uploading…
+                </div>
+              ) : isRecording ? (
+                <div className="flex h-10 flex-1 items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-sm text-white/70">Tap stop to send</span>
+                </div>
+              ) : (
+                <input
+                  value={text}
+                  onChange={(e) => handleTextChange(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
+                  placeholder={`Message ${peerName.split(" ")[0]}`}
+                  className="h-10 flex-1 bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
+                />
+              )}
+            </div>
+
+            {/* Mic (hold to record) or Send (has text) */}
+            {showMic ? (
+              <motion.button
+                onPointerDown={handleMicDown}
+                onPointerUp={handleMicUp}
+                onPointerLeave={handleMicCancel}
+                onPointerCancel={handleMicCancel}
+                animate={isRecording ? { scale: [1, 1.12, 1.08] } : { scale: 1 }}
+                transition={isRecording ? { repeat: Infinity, duration: 0.9 } : {}}
+                className={
+                  "grid h-10 w-10 shrink-0 place-items-center rounded-full text-white transition-colors select-none touch-none " +
+                  (isRecording
+                    ? "bg-gradient-to-r from-red-600 to-pink-600 shadow-[0_4px_18px_-4px_rgba(239,68,68,0.6)]"
+                    : "card-premium")
+                }
+              >
+                {isRecording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </motion.button>
+            ) : (
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={send}
+                disabled={!text.trim() || uploading}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 text-white shadow-[0_4px_18px_-4px_rgba(236,72,153,0.55)] disabled:opacity-40"
+              >
+                <Send className="h-4 w-4" />
+              </motion.button>
+            )}
+          </div>
+        </div>
+
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImagePick} />
+      </div>
+
+      {/* ── Image lightbox ──────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {lightboxSrc && (
+          <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+        )}
+      </AnimatePresence>
+
+      {/* ── Action sheet (long-press) ────────────────────────────────────── */}
+      <AnimatePresence>
+        {actionSheet && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end justify-center"
+            onClick={() => setActionSheet(null)}
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 26, stiffness: 260 }}
+              className="relative w-full max-w-md rounded-t-3xl border-t border-white/10 bg-[#111] p-4 pb-8 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Reaction row */}
+              <div className="mb-3 flex items-center justify-center gap-3">
+                {REACTION_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => handleReact(actionSheet.id, emoji)}
+                    className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-xl active:scale-90 transition-transform hover:bg-white/20"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+              <div className="h-px bg-white/10 mb-3" />
+
+              {/* Edit (own messages only) */}
+              {actionSheet.mine && actionSheet.text && (
+                <button
+                  onClick={handleStartEdit}
+                  className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm text-white hover:bg-white/5 active:bg-white/10"
+                >
+                  <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-white/60" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M14.5 2.5l3 3-10 10H4.5v-3l10-10z" />
+                  </svg>
+                  Edit message
+                </button>
+              )}
+
+              <button
+                onClick={() => setActionSheet(null)}
+                className="mt-1 flex w-full items-center justify-center rounded-xl px-4 py-3 text-sm text-white/50 hover:bg-white/5"
+              >
+                Cancel
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Nickname modal ───────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {nicknamingOpen && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end justify-center"
+            onClick={() => setNicknamingOpen(false)}
+          >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 26, stiffness: 260 }}
+              className="relative w-full max-w-md rounded-t-3xl border-t border-white/10 bg-[#111] p-6 pb-10 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="mb-4 text-center text-sm font-semibold text-white">
+                Set nickname for <span className="text-purple-300">{otherUser?.name || peerName}</span>
+              </h3>
+              <input
+                autoFocus
+                value={nicknameInput}
+                onChange={(e) => setNicknameInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSaveNickname(); if (e.key === "Escape") setNicknamingOpen(false); }}
+                placeholder={otherUser?.name || "Nickname…"}
+                maxLength={40}
+                className="w-full rounded-xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-purple-500 backdrop-blur-xl"
+              />
+              <p className="mt-1.5 text-[10px] text-white/30 text-center">Leave blank to use real name. Right-click the name in the header to reopen.</p>
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={() => setNicknamingOpen(false)}
+                  className="flex-1 rounded-xl border border-white/10 py-2.5 text-sm text-white/60 hover:bg-white/5"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveNickname}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-purple-600 to-pink-500 py-2.5 text-sm font-semibold text-white"
+                >
+                  Save
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
