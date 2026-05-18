@@ -1,13 +1,15 @@
-interface Props {
-  className?: string;
-  rounded?: string;
-}
+import * as React from "react";
 
-export function Skeleton({ className = "", rounded = "rounded-2xl" }: Props) {
+type Props = React.HTMLAttributes<HTMLDivElement> & {
+  rounded?: string;
+};
+
+export function Skeleton({ className = "", rounded = "rounded-2xl", style, ...props }: Props) {
   return (
     <div
       className={`shimmer ${rounded} ${className}`}
-      style={{ backgroundColor: "rgba(255,255,255,0.04)" }}
+      style={{ backgroundColor: "rgba(255,255,255,0.04)", ...style }}
+      {...props}
     />
   );
 }
