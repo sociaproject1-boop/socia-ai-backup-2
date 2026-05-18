@@ -186,8 +186,8 @@ export const charVariants: Variants = {
     y: 0,
     rotateX: 0,
     transformPerspective: 800,
-    transition: { type: 'spring', stiffness: 400, damping: 25 },
-  },
+    transition: { type: 'spring' as const, stiffness: 400, damping: 25 },
+  } as Variants[string],
 };
 
 export const charContainerVariants: Variants = {

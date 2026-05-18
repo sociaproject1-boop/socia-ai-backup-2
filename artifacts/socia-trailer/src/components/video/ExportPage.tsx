@@ -38,6 +38,7 @@ export default function ExportPage() {
         if (countdownRef.current) clearInterval(countdownRef.current);
       };
     }
+    return undefined;
   }, [exportState]);
 
   // Clean up on unmount
@@ -97,7 +98,7 @@ export default function ExportPage() {
       stream = await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: 30 },
         audio: false,
-        // @ts-expect-error — Chrome 107+ hint for current-tab capture
+        // @ts-ignore — Chrome 107+ hint for current-tab capture
         preferCurrentTab: true,
       } as DisplayMediaStreamOptions);
     } catch (err) {
