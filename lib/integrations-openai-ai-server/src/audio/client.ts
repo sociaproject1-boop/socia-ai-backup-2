@@ -140,7 +140,7 @@ export async function voiceChat(
       ],
     }],
   });
-  const message = response.choices[0]?.message as Record<string, unknown> | undefined;
+  const message = response.choices[0]?.message as unknown as Record<string, unknown> | undefined;
   const transcript = (message?.["audio"] as Record<string, unknown> | undefined)?.["transcript"] as string || message?.["content"] as string || "";
   const audioData  = (message?.["audio"] as Record<string, unknown> | undefined)?.["data"] as string ?? "";
   return {
@@ -199,7 +199,7 @@ export async function textToSpeech(
       { role: "user",   content: `Repeat the following text verbatim: ${text}` },
     ],
   });
-  const audioData = ((response.choices[0]?.message as Record<string, unknown> | undefined)?.["audio"] as Record<string, unknown> | undefined)?.["data"] as string ?? "";
+  const audioData = ((response.choices[0]?.message as unknown as Record<string, unknown> | undefined)?.["audio"] as Record<string, unknown> | undefined)?.["data"] as string ?? "";
   return Buffer.from(audioData, "base64");
 }
 

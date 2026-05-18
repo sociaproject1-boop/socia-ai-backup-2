@@ -209,7 +209,7 @@ router.post("/admin/receipts/:id/decide", requireAdmin(), async (req, res) => {
 
   const patch: Record<string, unknown> = {
     review_status: action,
-    reviewed_by:   claims?.username ?? claims?.sub,
+    reviewed_by:   claims?.username ?? claims?.adminId,
     reviewed_at:   new Date().toISOString(),
   };
   if (notes) patch["review_notes"] = notes;
@@ -225,20 +225,18 @@ router.post("/admin/receipts/:id/decide", requireAdmin(), async (req, res) => {
   if (notes) {
     await sb.from("receipt_review_notes").insert({
       receipt_id: id,
-      admin_id:   claims?.sub ?? "system",
+      admin_id:   claims?.adminId ?? "system",
       admin_name: claims?.username ?? "Admin",
       note:       `[${action.toUpperCase()}] ${notes}`,
       is_internal: true,
     });
   }
 
-  await audit(sb, {
-    admin_id:   claims?.sub,
-    admin_name: claims?.username,
-    action:     `receipt_${action}`,
-    entity_id:  id,
-    entity_type: "payment_receipt",
-    notes,
+  await audit(claims, `receipt_${action}`, {
+    req,
+    targetType:  "payment_receipt",
+    targetId:    id,
+    meta:        { notes },
   });
 
   /* ── Auto-ban check: escalate after repeated rejections ── */
@@ -256,20 +254,20 @@ router.post("/admin/receipts/:id/decide", requireAdmin(), async (req, res) => {
           await sb.from("users")
             .update({ is_banned: true, suspension_reason: `Auto-banned: ${n} rejected payment receipts detected` })
             .eq("id", rc.user_id);
-          await audit(sb, {
-            admin_id: "system", admin_name: "AutoBan", action: "user.auto_banned",
-            entity_id: rc.user_id, entity_type: "user",
-            notes: `Auto-banned after ${n} rejected receipts`,
+          await audit(null, "user.auto_banned", {
+            targetType: "user",
+            targetId:   rc.user_id,
+            meta:       { rejectedCount: n },
           });
           req.log.warn({ userId: rc.user_id, rejectedCount: n }, "[auto-ban] permanent ban triggered");
         } else if (n >= 3) {
           await sb.from("users")
             .update({ is_suspended: true, suspension_reason: `Auto-suspended: ${n} rejected receipts — fraud pattern detected` })
             .eq("id", rc.user_id);
-          await audit(sb, {
-            admin_id: "system", admin_name: "AutoBan", action: "user.auto_suspended",
-            entity_id: rc.user_id, entity_type: "user",
-            notes: `Auto-suspended after ${n} rejected receipts`,
+          await audit(null, "user.auto_suspended", {
+            targetType: "user",
+            targetId:   rc.user_id,
+            meta:       { rejectedCount: n },
           });
           req.log.warn({ userId: rc.user_id, rejectedCount: n }, "[auto-ban] auto-suspension triggered");
         }
@@ -318,19 +316,17 @@ router.post("/admin/receipts/:id/proof", requireAdmin(), async (req, res) => {
 
   await sb.from("receipt_review_notes").insert({
     receipt_id:  id,
-    admin_id:    claims?.sub ?? "system",
+    admin_id:    claims?.adminId ?? "system",
     admin_name:  claims?.username ?? "Admin",
     note:        systemNote,
     is_internal: false,
   });
 
-  await audit(sb, {
-    admin_id:    claims?.sub,
-    admin_name:  claims?.username,
-    action:      "receipt_proof_requested",
-    entity_id:   id,
-    entity_type: "payment_receipt",
-    notes:       note,
+  await audit(claims, "receipt_proof_requested", {
+    req,
+    targetType:  "payment_receipt",
+    targetId:    id,
+    meta:        { notes: note },
   });
 
   broadcastAuditEvent({
@@ -361,7 +357,7 @@ router.post("/admin/receipts/:id/notes", requireAdmin(), async (req, res) => {
     .from("receipt_review_notes")
     .insert({
       receipt_id:  id,
-      admin_id:    claims?.sub ?? "system",
+      admin_id:    claims?.adminId ?? "system",
       admin_name:  claims?.username ?? "Admin",
       note:        note.trim(),
       is_internal,

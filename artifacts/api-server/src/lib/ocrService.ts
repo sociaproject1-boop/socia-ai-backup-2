@@ -272,7 +272,7 @@ async function getSharedTesseractWorker(): Promise<TesseractWorker> {
     _tesseractWorkerPromise = (async () => {
       // Dynamic import — tesseract.js is marked external in esbuild so it
       // resolves from node_modules at runtime, avoiding WASM path issues.
-      const { createWorker } = await import("tesseract.js") as {
+      const { createWorker } = await import("tesseract.js") as unknown as {
         createWorker: (lang: string, oem?: number, options?: Record<string, unknown>) => Promise<TesseractWorker>;
       };
       const worker = await createWorker("eng", 1, {

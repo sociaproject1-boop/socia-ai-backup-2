@@ -246,12 +246,12 @@ router.post(
       };
 
       if (isReasoning) {
-        (completionParams as Record<string, unknown>).max_completion_tokens = maxOutputTokens;
+        (completionParams as unknown as Record<string, unknown>).max_completion_tokens = maxOutputTokens;
       } else {
         completionParams.max_tokens = maxOutputTokens;
       }
 
-      const stream = await openai.chat.completions.create(completionParams);
+      const stream = await openai.chat.completions.create(completionParams) as AsyncIterable<{ choices?: Array<{ delta?: { content?: string | null }; finish_reason?: string | null }> }>;
 
       let totalChars = 0;
       for await (const chunk of stream) {
@@ -284,7 +284,7 @@ router.post(
         );
 
         // Best-effort: log to ai_requests
-        supabase.from("ai_requests").insert({
+        void Promise.resolve(supabase.from("ai_requests").insert({
           user_id:          user.id,
           plan_code:        plan.code,
           model,
@@ -295,7 +295,7 @@ router.post(
           status:           "completed",
           abuse_score:      abuse.abuseScore,
           route_reason:     routing.reason,
-        }).then(() => {}).catch(() => {});
+        })).catch(() => {});
 
         // Fire-and-forget usage tracking
         const inputChars = messages.reduce((s, m) => s + m.content.length, 0);
