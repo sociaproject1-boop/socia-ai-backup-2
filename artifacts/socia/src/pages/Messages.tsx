@@ -1,24 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, MessageCirclePlus, X, ArrowLeft, User } from "lucide-react";
+import { Search, MessageCirclePlus, X, ArrowLeft, User, Bot, Wifi, WifiOff } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
+import { useAppStore } from "@/lib/store";
 import { useConversations, isUserOnline } from "@/lib/useSupabaseChat";
 import { searchUsers, type UserSearchResult } from "@/lib/supabase";
 import { NameBadges } from "@/components/Badges";
+import { useAiAutoReply } from "@/lib/useAiAutoReply";
 
 export default function Messages() {
   const [, navigate] = useLocation();
   const { supabaseUser } = useAuth();
   const myId = supabaseUser?.id ?? null;
+  const storeUser = useAppStore((s) => s.user);
+  const isOwner = storeUser?.isOwner ?? false;
+
   const [q, setQ] = useState("");
-  const [searching, setSearching] = useState(false);   // user-search mode
+  const [searching, setSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { conversations, loading } = useConversations(myId);
+
+  const ai = useAiAutoReply(isOwner);
 
   // Debounced user search
   useEffect(() => {
@@ -54,6 +61,104 @@ export default function Messages() {
           <MessageCirclePlus className="h-[18px] w-[18px]" strokeWidth={1.9} />
         </motion.button>
       </div>
+
+      {/* ── AI Auto Reply Panel (admin only) ────────────────────────────────── */}
+      <AnimatePresence>
+        {isOwner && !ai.loading && (
+          <motion.div
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            className="mb-4 overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.03]"
+          >
+            <div className="flex items-center justify-between px-4 py-3">
+              {/* Left: icon + label */}
+              <div className="flex items-center gap-2.5">
+                <div className={
+                  "flex h-8 w-8 items-center justify-center rounded-full transition-all " +
+                  (ai.enabled
+                    ? "bg-gradient-to-br from-purple-600 via-pink-500 to-blue-500 shadow-[0_0_14px_rgba(168,85,247,0.5)]"
+                    : "bg-white/[0.08]")
+                }>
+                  <Bot className={"h-4 w-4 " + (ai.enabled ? "text-white" : "text-white/50")} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">AI Auto Reply</p>
+                  <p className={"text-[11px] " + (ai.enabled ? "text-purple-300" : "text-white/40")}>
+                    {ai.enabled
+                      ? (ai.mode === "offline" ? "Offline mode — always on" : "Online mode — yields on activity")
+                      : "Off — manual replies only"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Right: toggle */}
+              <button
+                disabled={ai.saving}
+                onClick={() => ai.toggle(!ai.enabled, ai.mode)}
+                className={
+                  "relative h-6 w-11 rounded-full transition-all duration-300 focus:outline-none disabled:opacity-50 " +
+                  (ai.enabled
+                    ? "bg-gradient-to-r from-purple-600 to-pink-500"
+                    : "bg-white/[0.12]")
+                }
+                aria-label={ai.enabled ? "Disable AI auto reply" : "Enable AI auto reply"}
+              >
+                <motion.span
+                  layout
+                  transition={{ type: "spring", stiffness: 700, damping: 35 }}
+                  className={
+                    "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm " +
+                    (ai.enabled ? "left-[22px]" : "left-0.5")
+                  }
+                />
+              </button>
+            </div>
+
+            {/* Mode selector — only when enabled */}
+            <AnimatePresence>
+              {ai.enabled && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="flex gap-2 border-t border-white/[0.06] px-4 py-3">
+                    <button
+                      disabled={ai.saving}
+                      onClick={() => ai.toggle(true, "offline")}
+                      className={
+                        "flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold transition-all disabled:opacity-50 " +
+                        (ai.mode === "offline"
+                          ? "bg-purple-600/30 text-purple-300 border border-purple-500/40"
+                          : "bg-white/[0.05] text-white/50 border border-white/[0.06] hover:bg-white/[0.08]")
+                      }
+                    >
+                      <WifiOff className="h-3 w-3" />
+                      Offline mode
+                    </button>
+                    <button
+                      disabled={ai.saving}
+                      onClick={() => ai.toggle(true, "online")}
+                      className={
+                        "flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold transition-all disabled:opacity-50 " +
+                        (ai.mode === "online"
+                          ? "bg-emerald-600/25 text-emerald-300 border border-emerald-500/40"
+                          : "bg-white/[0.05] text-white/50 border border-white/[0.06] hover:bg-white/[0.08]")
+                      }
+                    >
+                      <Wifi className="h-3 w-3" />
+                      Online mode
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── User-search panel (new chat) ─────────────────────────────────── */}
       <AnimatePresence>

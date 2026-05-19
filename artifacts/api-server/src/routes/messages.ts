@@ -19,6 +19,12 @@ import { Router } from "express";
 import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/supabaseAuth.js";
 import { takeChatToken } from "../lib/chatRateLimit.js";
 import { logger } from "../lib/logger.js";
+import {
+  ADMIN_EMAIL,
+  shouldAiReply,
+  markAdminActive,
+} from "../lib/aiAutoReplyState.js";
+import { getAdminUserId, triggerAiReply } from "../lib/aiAutoReplyEngine.js";
 
 const router = Router();
 
@@ -80,6 +86,39 @@ router.post("/messages/send", requireAuth, async (req, res): Promise<void> => {
     res.status(500).json({ error: "Failed to send message", code: "DB_ERROR" });
     return;
   }
+
+  // ── AI auto-reply hook ─────────────────────────────────────────────────
+  // Fire-and-forget — never block the response.
+
+  // 1. Track admin manual activity so online-mode AI yields after manual replies.
+  if (user.email === ADMIN_EMAIL) {
+    markAdminActive();
+  }
+
+  // 2. Trigger AI reply when a user messages the admin and the feature is on.
+  if (
+    text &&
+    typeof text === "string" &&
+    user.email !== ADMIN_EMAIL &&  // sender is NOT the admin
+    shouldAiReply()
+  ) {
+    const messageText = String(text).trim();
+    const senderId    = user.id;
+    const receiverId  = String(receiver_id);
+
+    // Async: look up admin ID, confirm the receiver is admin, then reply.
+    (async () => {
+      try {
+        const adminId = await getAdminUserId();
+        if (adminId && receiverId === adminId) {
+          await triggerAiReply(senderId, messageText);
+        }
+      } catch (err) {
+        logger.warn({ err }, "[aiAutoReply] background dispatch failed");
+      }
+    })();
+  }
+  // ── End AI hook ────────────────────────────────────────────────────────
 
   res.json({ ok: true, id: data.id });
 });

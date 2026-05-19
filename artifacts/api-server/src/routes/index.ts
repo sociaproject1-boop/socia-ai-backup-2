@@ -29,6 +29,7 @@ import adminRenderJobsRouter   from "./adminRenderJobs.js";
 import projectsRouter          from "./projects.js";
 import voiceSynthRouter        from "./voiceSynth.js";
 import exportTrailerRouter     from "./exportTrailer.js";
+import aiAutoReplyRouter       from "./aiAutoReply.js";
 
 const router: IRouter = Router();
 
@@ -62,5 +63,6 @@ router.use(adminRenderJobsRouter);
 router.use(projectsRouter);
 router.use(voiceSynthRouter);
 router.use(exportTrailerRouter);
+router.use(aiAutoReplyRouter);
 
 export default router;
