@@ -295,7 +295,10 @@ export default function Messages() {
                   preview={conv.lastText}
                   time={conv.lastAt}
                   unread={conv.unread}
-                  online={presences[conv.otherId] === "online" || (presences[conv.otherId] === undefined && isUserOnline(conv.otherLastSeen))}
+                  presenceStatus={
+                    presences[conv.otherId] ??
+                    (isUserOnline(conv.otherLastSeen) ? "online" : "offline")
+                  }
                   isOwner={conv.otherIsOwner}
                   isVerified={conv.otherIsVerified}
                   index={i}
@@ -318,14 +321,19 @@ export default function Messages() {
 }
 
 function ConvRow({
-  name, username, avatar, preview, time, unread, online,
+  name, username, avatar, preview, time, unread, presenceStatus,
   isOwner, isVerified, index, onClick,
 }: {
   name: string; username: string; avatar: string; preview: string;
-  time: string; unread: boolean; online: boolean;
+  time: string; unread: boolean;
+  presenceStatus: "online" | "away" | "offline";
   isOwner: boolean; isVerified: boolean;
   index: number; onClick: () => void;
 }) {
+  const isOnline = presenceStatus === "online";
+  const isAway   = presenceStatus === "away";
+  const showDot  = isOnline || isAway;
+
   return (
     <motion.li
       initial={{ opacity: 0, y: 8 }}
@@ -337,18 +345,42 @@ function ConvRow({
         onClick={onClick}
         className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left active:bg-white/[0.06]"
       >
-        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-white/10">
-          {avatar ? (
-            <img src={avatar} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-sm font-bold text-white">
-              {name.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <span className={
-            "absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background transition-colors " +
-            (online ? "bg-emerald-400" : "bg-white/25")
-          } />
+        {/*
+          Outer wrapper: relative + shrink-0, NOT overflow-hidden.
+          The avatar itself clips internally; the dot lives outside it
+          so it's never cut off by the avatar's rounded corners.
+        */}
+        <div className="relative h-12 w-12 shrink-0">
+          {/* Avatar circle — clips its own contents */}
+          <div className="h-12 w-12 overflow-hidden rounded-full border border-white/10">
+            {avatar ? (
+              <img src={avatar} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-sm font-bold text-white">
+                {name.charAt(0).toUpperCase()}
+              </div>
+            )}
+          </div>
+
+          {/* Presence dot — outside the clipping container, animated in/out */}
+          <AnimatePresence>
+            {showDot && (
+              <motion.span
+                key={presenceStatus}
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                transition={{ type: "spring", stiffness: 500, damping: 28 }}
+                className="absolute bottom-0 right-0 z-10 h-3.5 w-3.5 rounded-full"
+                style={{
+                  background: isOnline ? "#22c55e" : "#f59e0b",
+                  boxShadow: isOnline
+                    ? "0 0 0 2.5px #000, 0 0 8px rgba(34,197,94,0.65)"
+                    : "0 0 0 2.5px #000, 0 0 8px rgba(245,158,11,0.5)",
+                }}
+              />
+            )}
+          </AnimatePresence>
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2">
