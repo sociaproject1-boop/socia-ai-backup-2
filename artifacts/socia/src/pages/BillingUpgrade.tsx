@@ -139,7 +139,6 @@ function PlanCard({ plan, isCurrent, onSelect }: {
             <span className="text-3xl font-black app-text">₱{plan.price_php.toLocaleString()}</span>
             {!isFree && <span className="text-xs app-text-muted">/ {plan.duration_days}d</span>}
           </div>
-          {!isFree && <div className="text-[11px] app-text-muted">{plan.credits.toLocaleString()} credits • HD enabled</div>}
         </div>
       </div>
 
