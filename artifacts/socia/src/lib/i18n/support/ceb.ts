@@ -12,7 +12,7 @@ const ceb: SupportCopy = {
   methodCard:         "Card",
   cta:                "Padayon sa Secure Payment",
   back:               "Balik",
-  securing:           "Gisiguro ang imong contribution…",
+  securing:           "Giandam ang secure checkout…",
   trustLine:          "Powered by PayMongo · Encrypted ug secure ang checkout",
   recentSupporters:   "Bag-ong mga supporter",
   noRecentSupporters: "Una-una sa pagsuporta sa Socia karon.",

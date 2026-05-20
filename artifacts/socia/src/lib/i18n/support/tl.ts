@@ -12,7 +12,7 @@ const tl: SupportCopy = {
   methodCard:         "Card",
   cta:                "Magpatuloy sa Secure Payment",
   back:               "Bumalik",
-  securing:           "Ineensure ang iyong contribution…",
+  securing:           "Hinahanda ang secure checkout…",
   trustLine:          "Powered by PayMongo · Encrypted at secure ang checkout",
   recentSupporters:   "Mga kamakailang supporter",
   noRecentSupporters: "Maging una sa pagsuporta sa Socia ngayon.",

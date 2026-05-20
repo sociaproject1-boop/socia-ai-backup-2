@@ -262,8 +262,43 @@ router.post("/paymongo/support-checkout", requireAuth, async (req: Request, res:
     .single();
 
   if (insErr || !row) {
-    logger.error({ err: insErr }, "[paymongo/support] failed to insert pending row");
-    return res.status(500).json({ code: "DB_INSERT_FAILED" });
+    // Map common Supabase error shapes to actionable user-facing codes so the
+    // modal can show a clean toast instead of a generic 500. We include the
+    // PostgREST error code + message in the server log for diagnostics.
+    const pgCode = (insErr as { code?: string } | null)?.code ?? "";
+    const pgMsg  = (insErr as { message?: string } | null)?.message ?? "";
+    logger.error(
+      { err: insErr, pgCode, pgMsg, userId: user.id, amountCentavos },
+      "[paymongo/support] failed to insert pending row",
+    );
+
+    // PGRST205 = "Could not find the table 'public.community_support' in the
+    // schema cache" — migration 36 has not been applied to this Supabase
+    // project yet. Surface this clearly so the user knows what to do.
+    if (pgCode === "PGRST205" || /community_support/i.test(pgMsg) && /not find|schema cache/i.test(pgMsg)) {
+      return res.status(503).json({
+        code:    "SUPPORT_NOT_READY",
+        message: "Community support is being set up. Please try again in a moment.",
+      });
+    }
+    // 23503 = foreign-key violation (user_id not in auth.users)
+    if (pgCode === "23503") {
+      return res.status(401).json({
+        code:    "SESSION_EXPIRED",
+        message: "Your session has expired. Please sign in again to continue.",
+      });
+    }
+    // 23514 = check constraint (amount below floor, even though we already validated)
+    if (pgCode === "23514") {
+      return res.status(400).json({
+        code:    "AMOUNT_BELOW_MIN",
+        message: "Minimum contribution is ₱50.",
+      });
+    }
+    return res.status(500).json({
+      code:    "SUPPORT_INSERT_FAILED",
+      message: "We couldn't start your contribution. Please try again.",
+    });
   }
 
   const ref = row.id as string;

@@ -12,7 +12,7 @@ const en: SupportCopy = {
   methodCard:         "Card",
   cta:                "Continue Secure Payment",
   back:               "Back",
-  securing:           "Securing your contribution…",
+  securing:           "Preparing secure checkout…",
   trustLine:          "Powered by PayMongo · End-to-end encrypted checkout",
   recentSupporters:   "Recent supporters",
   noRecentSupporters: "Be the first to support Socia today.",

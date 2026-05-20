@@ -82,7 +82,17 @@ async function createSupportCheckout(amountCentavos: number): Promise<{ checkout
   });
   const d = await r.json().catch(() => ({} as Record<string, unknown>));
   if (!r.ok || !d.checkout_url) {
-    throw new Error((d.message as string) ?? (d.code as string) ?? "Checkout failed");
+    // Prefer the human message the backend ships; fall back to a known code
+    // mapping, then to a generic copy. Never leak raw error codes to the UI.
+    const code    = (d.code as string)    ?? "";
+    const message = (d.message as string) ?? "";
+    if (message) throw new Error(message);
+    if (code === "SUPPORT_NOT_READY")    throw new Error("Community support is being set up. Please try again in a moment.");
+    if (code === "SESSION_EXPIRED")      throw new Error("Your session has expired. Please sign in again to continue.");
+    if (code === "AMOUNT_BELOW_MIN")     throw new Error("Minimum contribution is ₱50.");
+    if (code === "AMOUNT_ABOVE_MAX")     throw new Error("Maximum contribution per transaction is ₱10,000.");
+    if (code === "PAYMONGO_NOT_CONFIGURED") throw new Error("Payments aren't configured yet. Please contact support.");
+    throw new Error("We couldn't start your contribution. Please try again.");
   }
   return { checkout_url: d.checkout_url as string };
 }
