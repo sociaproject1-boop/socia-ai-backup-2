@@ -18,15 +18,19 @@
  *      Polled by the success page. Returns the current status of one
  *      paymongo_payments row (scoped to the caller's user_id).
  *
- * Plan catalogue:
- *   premium      ₱499  / 4,500 credits  / 30 days   (chat)
- *   elite        ₱1499 / 9,000 credits  / 30 days   (chat)
- *   super_elite  ₱3999 / 15,000 credits / 30 days   (chat)
- *   cinematic    ₱3000 / 10 scenes      / 30 days   (parallel add-on)
+ * Plan catalogue (creator system — daily soft quotas + monthly credit pool):
+ *   premium      ₱499  / 30 days   150 chat / 20 img / 5 vid daily   tier 1
+ *   elite        ₱999  / 30 days   300 chat / 50 img / 10 vid daily  tier 2
+ *   super_elite  ₱1999 / 30 days   500 chat / 100 img / 20 vid daily tier 3
+ *   cinematic    ₱2499 / 30 days   10 cinematic projects/mo (add-on)
  *
- * Chat plans grant credits + extend plan_expires_at (stacking on existing
- * expiry). Cinematic grants scene quota + extends cinematic_expires_at on
- * a separate parallel track so users can hold both at once.
+ * Chat plans grant: monthly credit pool + daily quotas (chat/image/video)
+ * + priority_tier (0=free, 1/2/3=paid). Cinematic grants project quota on a
+ * separate parallel track so users can hold any chat plan + cinematic.
+ *
+ * Daily quotas are SOFT limits. When exceeded, the render pipeline runs in
+ * "economy mode" (lower quality, lower queue priority) instead of blocking
+ * the user — see consume_usage() SQL function for the status contract.
  *
  * Env required:
  *   PAYMONGO_SECRET_KEY      (sk_live_... or sk_test_...)
@@ -51,18 +55,24 @@ interface PlanDef {
   amount_centavos: number;
   duration_days: number;
   kind: PlanKind;
-  /** Chat plans: credits granted. Cinematic: scenes granted. */
+  /** Chat plans: monthly credit pool. Cinematic: monthly project quota. */
   credits: number;        // chat-plan credit grant (0 for cinematic)
-  scenes: number;         // cinematic scene grant (0 for chat plans)
+  projects: number;       // cinematic monthly project quota (0 for chat plans)
+  /** Daily soft quotas (chat plans only). */
+  daily_chat: number;
+  daily_image: number;
+  daily_video: number;
+  /** Render queue priority. 0=free, 1=premium, 2=elite, 3=super_elite. */
+  priority_tier: number;
   /** users.plan_code value to set (chat plans only). */
   plan_code_db: string | null;
 }
 
 const PLANS: Record<PlanCode, PlanDef> = {
-  premium:     { code: "premium",     name: "Socia Premium",          amount_centavos:  49_900, duration_days: 30, kind: "chat",      credits:  4_500, scenes:  0, plan_code_db: "premium" },
-  elite:       { code: "elite",       name: "Socia Elite",            amount_centavos: 149_900, duration_days: 30, kind: "chat",      credits:  9_000, scenes:  0, plan_code_db: "elite" },
-  super_elite: { code: "super_elite", name: "Socia Super Elite",      amount_centavos: 399_900, duration_days: 30, kind: "chat",      credits: 15_000, scenes:  0, plan_code_db: "super_elite" },
-  cinematic:   { code: "cinematic",   name: "AI Cinematic Studio",    amount_centavos: 300_000, duration_days: 30, kind: "cinematic", credits:      0, scenes: 10, plan_code_db: null },
+  premium:     { code: "premium",     name: "Socia Premium",       amount_centavos:  49_900, duration_days: 30, kind: "chat",      credits:  4_500, projects:  0, daily_chat: 150, daily_image:  20, daily_video:  5, priority_tier: 1, plan_code_db: "premium" },
+  elite:       { code: "elite",       name: "Socia Elite",         amount_centavos:  99_900, duration_days: 30, kind: "chat",      credits:  9_000, projects:  0, daily_chat: 300, daily_image:  50, daily_video: 10, priority_tier: 2, plan_code_db: "elite" },
+  super_elite: { code: "super_elite", name: "Socia Super Elite",   amount_centavos: 199_900, duration_days: 30, kind: "chat",      credits: 15_000, projects:  0, daily_chat: 500, daily_image: 100, daily_video: 20, priority_tier: 3, plan_code_db: "super_elite" },
+  cinematic:   { code: "cinematic",   name: "AI Cinematic Studio", amount_centavos: 249_900, duration_days: 30, kind: "cinematic", credits:      0, projects: 10, daily_chat:   0, daily_image:   0, daily_video:  0, priority_tier: 0, plan_code_db: null },
 };
 
 function isPlanCode(v: unknown): v is PlanCode {
@@ -360,7 +370,15 @@ router.post("/paymongo/webhook", async (req: Request, res: Response) => {
     return res.json({ ok: true, marked: "failed" });
   }
 
-  // SUCCESS path. Idempotent flip: only one webhook can move pending → paid.
+  // SUCCESS path. Status flip + entitlement grant happen in a SINGLE
+  // Postgres transaction via paymongo_finalize_{chat,cinematic}(). If grant
+  // fails for any reason the whole TX rolls back, the row stays pending,
+  // and PayMongo's automatic retry will re-attempt cleanly. This eliminates
+  // the previous failure mode where a Node crash between two separate
+  // statements could leave a row "paid" with no entitlement granted.
+  //
+  // Idempotency lives inside the function (locks the row FOR UPDATE, checks
+  // processed_event_ids + status='paid'), so duplicate deliveries are safe.
   const rowPlan: unknown = row.plan_code;
   if (!isPlanCode(rowPlan)) {
     logger.error({ id: row.id, plan: row.plan_code }, "[paymongo/webhook] unknown plan_code");
@@ -368,70 +386,39 @@ router.post("/paymongo/webhook", async (req: Request, res: Response) => {
   }
   const plan = PLANS[rowPlan];
 
-  const { data: claimed, error: claimErr } = await sb
-    .from("paymongo_payments")
-    .update({
-      status: "paid",
-      paymongo_payment_id: paymentId ?? row.paymongo_payment_id,
-      credits_added: plan.kind === "chat" ? plan.credits : plan.scenes,
-      paid_at: new Date().toISOString(),
-      raw_event: event,
-      processed_event_ids: eventId ? [...(row.processed_event_ids ?? []), eventId] : row.processed_event_ids,
-    })
-    .eq("id", row.id)
-    .neq("status", "paid")
-    .select("id")
-    .maybeSingle();
-
-  if (claimErr) {
-    logger.error({ err: claimErr }, "[paymongo/webhook] claim update failed");
-    return res.status(500).json({ code: "DB_ERROR" });
-  }
-  if (!claimed) {
-    return res.json({ ok: true, ignored: "already_paid" });
-  }
-
-  // Grant: chat plans add credits + extend plan_expires_at; cinematic adds
-  // scenes + extends cinematic_expires_at on a parallel track. The grant is
-  // executed by a SECURITY DEFINER SQL function that does an atomic relative
-  // update (`credits = credits + N`, `expires_at = GREATEST(now, current) +
-  // interval`). This guarantees that two paid webhooks for the same user
-  // processed concurrently (different refs) cannot lose credits/scenes via
-  // interleaved baseline reads — Postgres takes a row lock during UPDATE.
-  //
-  // We swallow grant errors after the status flip so a partial grant does
-  // not trigger a webhook retry that would re-flip the row — raw_event jsonb
-  // gives admin a full audit trail to reconcile manually if needed.
-  try {
-    if (plan.kind === "chat" && plan.plan_code_db) {
-      const { error: grantErr } = await sb.rpc("grant_paymongo_chat_plan", {
-        p_user_id:       row.user_id,
-        p_plan_code:     plan.plan_code_db,
-        p_credits:       plan.credits,
-        p_duration_days: plan.duration_days,
+  const finalize = plan.kind === "chat" && plan.plan_code_db
+    ? sb.rpc("paymongo_finalize_chat", {
+        p_payment_id:          row.id,
+        p_paymongo_payment_id: paymentId ?? null,
+        p_event_id:            eventId ?? null,
+        p_event:               event as object,
+        p_plan_code_db:        plan.plan_code_db,
+        p_credits:             plan.credits,
+        p_duration_days:       plan.duration_days,
+        p_daily_chat:          plan.daily_chat,
+        p_daily_image:         plan.daily_image,
+        p_daily_video:         plan.daily_video,
+        p_priority_tier:       plan.priority_tier,
+      })
+    : sb.rpc("paymongo_finalize_cinematic", {
+        p_payment_id:          row.id,
+        p_paymongo_payment_id: paymentId ?? null,
+        p_event_id:            eventId ?? null,
+        p_event:               event as object,
+        p_projects:            plan.projects,
+        p_duration_days:       plan.duration_days,
       });
-      if (grantErr) {
-        logger.error({ err: grantErr, paymentId: row.id }, "[paymongo/webhook] chat grant failed — admin reconcile needed");
-      } else {
-        logger.info({ userId: row.user_id, plan: plan.code, credits: plan.credits }, "[paymongo/webhook] chat plan granted");
-      }
-    } else if (plan.kind === "cinematic") {
-      const { error: grantErr } = await sb.rpc("grant_paymongo_cinematic", {
-        p_user_id:       row.user_id,
-        p_scenes:        plan.scenes,
-        p_duration_days: plan.duration_days,
-      });
-      if (grantErr) {
-        logger.error({ err: grantErr, paymentId: row.id }, "[paymongo/webhook] cinematic grant failed — admin reconcile needed");
-      } else {
-        logger.info({ userId: row.user_id, plan: plan.code, scenes: plan.scenes }, "[paymongo/webhook] cinematic plan granted");
-      }
-    }
-  } catch (err) {
-    logger.error({ err, paymentId: row.id }, "[paymongo/webhook] grant crashed — admin reconcile needed");
+
+  const { data: finalizeResult, error: finalizeErr } = await finalize;
+  if (finalizeErr) {
+    // TX rolled back. Surface 500 so PayMongo retries — do NOT 200 here.
+    logger.error({ err: finalizeErr, paymentId: row.id }, "[paymongo/webhook] finalize failed — will be retried");
+    return res.status(500).json({ code: "FINALIZE_FAILED" });
   }
 
-  return res.json({ ok: true, granted: true });
+  const outcome = (finalizeResult as { result?: string } | null)?.result ?? "unknown";
+  logger.info({ userId: row.user_id, plan: plan.code, outcome }, "[paymongo/webhook] finalize complete");
+  return res.json({ ok: true, outcome });
 });
 
 export default router;

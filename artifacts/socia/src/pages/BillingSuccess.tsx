@@ -87,8 +87,8 @@ export default function BillingSuccess() {
             <p className="mt-2 text-sm app-text-muted">
               {payment
                 ? payment.plan_code === "cinematic"
-                  ? <>+{payment.credits_added.toLocaleString()} cinematic scenes added. 4K HDR, voice & camera controls unlocked.</>
-                  : <>+{payment.credits_added.toLocaleString()} messages added to your account.</>
+                  ? <>+{payment.credits_added.toLocaleString()} cinematic projects unlocked. 1080p export, voice acting & camera controls active.</>
+                  : <>Your daily creator quotas are now active. Start creating — past daily limits we keep you flowing in economy render mode.</>
                 : "Your plan is now active."}
             </p>
             <div className="mt-5 flex flex-col gap-2">

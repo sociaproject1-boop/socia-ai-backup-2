@@ -4,11 +4,15 @@
  * Card form. Credits + plan activation happen automatically when the
  * PayMongo webhook fires — no admin review.
  *
- * Plans:
- *   Premium      ₱499/mo  → 4,500 messages (1 msg = 1 credit)
- *   Elite        ₱1499/mo → 9,000 messages
- *   Super Elite  ₱3999/mo → 15,000 messages
- *   AI Cinematic Studio ₱3000/mo → 10 cinematic scenes (parallel add-on)
+ * Plans (creator system — soft daily quotas + monthly pool):
+ *   Premium      ₱499/mo   150 chat · 20 img · 5 vid daily
+ *   Elite        ₱999/mo   300 chat · 50 img · 10 vid daily
+ *   Super Elite  ₱1999/mo  500 chat · 100 img · 20 vid daily
+ *   AI Cinematic Studio ₱2499/mo  10 cinematic projects (parallel add-on)
+ *
+ * UI language is creator-friendly: NO "limit reached" / "blocked" wording.
+ * Past daily quota → render runs in "economy mode" (lower res / lower queue
+ * priority) so creators are never frustrated mid-flow.
  */
 import { useEffect, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
@@ -35,55 +39,55 @@ const PLANS: UpgradePlan[] = [
     code: "premium",
     name: "Premium",
     price_php: 499,
-    subtitle: "150 messages/day · Advanced AI",
+    subtitle: "Daily creator toolkit · standard quality",
     features: [
-      "4,500 messages per month",
-      "Advanced AI model",
-      "3-second cooldown",
-      "Up to 4,000-word messages",
-      "HD images & priority queue",
+      "150 AI chats every day",
+      "20 standard-quality images daily",
+      "5 short AI videos daily",
+      "5s image · 30s video cooldown",
+      "Keep creating after limits in economy render mode",
     ],
     accent: "premium",
   },
   {
     code: "elite",
     name: "Elite",
-    price_php: 1499,
-    subtitle: "300 messages/day · Elite reasoning",
+    price_php: 999,
+    subtitle: "Heavy creator daily · faster renders",
     features: [
-      "9,000 messages per month",
-      "Elite AI reasoning",
-      "Near-zero cooldown",
-      "Up to 8,000-word messages",
-      "Priority generation queue",
+      "300 AI chats every day",
+      "50 better-quality images daily",
+      "10 AI videos daily · faster queue",
+      "3s image · 20s video cooldown",
+      "Adaptive quality past daily limits — never blocked",
     ],
     accent: "elite",
   },
   {
     code: "super_elite",
     name: "Super Elite",
-    price_php: 3999,
-    subtitle: "500 messages/day · Pro reasoning",
+    price_php: 1999,
+    subtitle: "Top tier · priority render queue",
     features: [
-      "15,000 messages per month",
-      "Pro reasoning model",
-      "Instant responses",
-      "Up to 16,000-word messages",
-      "Top-tier priority queue",
+      "500 AI chats every day",
+      "100 high-quality images daily",
+      "20 AI videos daily · priority queue",
+      "1s image · 10s video cooldown",
+      "Highest queue priority + adaptive overflow mode",
     ],
     accent: "super_elite",
   },
   {
     code: "cinematic",
     name: "AI Cinematic Studio",
-    price_php: 3000,
-    subtitle: "10 cinematic scenes/month · 4K HDR",
+    price_php: 2499,
+    subtitle: "Pro cinematic creator add-on",
     features: [
-      "Up to 10 cinematic scenes per month",
-      "11 camera moves · 15 directing controls per scene",
-      "4K HDR export",
-      "Character voice acting",
-      "Ambient sound design",
+      "10 cinematic projects per month",
+      "Up to 10 scenes per project · 30s final video",
+      "1080p export · voice acting · ambient sound",
+      "Cinematic motion + camera controls",
+      "Extra projects continue in economy cinematic mode",
       "Full render history",
     ],
     accent: "cinematic",
@@ -164,9 +168,9 @@ export default function BillingUpgrade() {
       <div className="px-4 pt-4">
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-5">
           <div className="text-[10px] font-bold uppercase tracking-widest app-text-muted">Pick your plan</div>
-          <h2 className="mt-1 text-2xl font-black text-gradient">Create more. Pay less.</h2>
+          <h2 className="mt-1 text-2xl font-black text-gradient">Create freely. All month.</h2>
           <p className="mt-1 text-sm app-text-muted">
-            Pay securely with GCash, Maya or Card — credits unlock the moment payment clears.
+            Generous daily quotas — and you keep creating in economy mode if you push past them. GCash, Maya or Card.
           </p>
           {payError && (
             <div className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
@@ -199,8 +203,9 @@ export default function BillingUpgrade() {
           <ol className="list-decimal list-inside space-y-1">
             <li>Pick a plan — tap Pay and choose GCash, Maya, or Card on the next screen.</li>
             <li>Complete payment on PayMongo's secure checkout.</li>
-            <li>Your plan unlocks automatically — no admin review.</li>
-            <li>Plans renew monthly. Cinematic Studio can be combined with any chat plan.</li>
+            <li>Your plan unlocks instantly — no admin review.</li>
+            <li>Fair usage: past daily quotas, creating continues in economy render mode (lower priority, lower res) so your flow never breaks.</li>
+            <li>Cinematic Studio is a parallel add-on — stacks on any chat plan.</li>
           </ol>
         </div>
       </div>
