@@ -22,6 +22,7 @@
  *      failure the modal stays mounted with an inline error.
  */
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Check, Shield, Globe2, X, Film, Sparkles, Crown, Star, ChevronDown,
@@ -136,13 +137,39 @@ export default function PolicyModal({ open, plan, onAgree, onClose }: Props) {
     }
   }, [open]);
 
-  // Lock body scroll while open (without layout shift on iOS Safari we'd
-  // need scrollbar padding, but the AMOLED background has no visible bar).
+  // Body scroll lock that preserves the exact page scroll position.
+  // We use position:fixed + negative top instead of overflow:hidden because
+  // iOS Safari ignores overflow:hidden on <body> (the page still scrolls
+  // under the modal) AND because closing the modal must drop the user
+  // back at the precise plan card they tapped — never at the top.
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const prev = {
+      position: body.style.position,
+      top:      body.style.top,
+      left:     body.style.left,
+      right:    body.style.right,
+      width:    body.style.width,
+      overflow: body.style.overflow,
+    };
+    body.style.position = "fixed";
+    body.style.top      = `-${scrollY}px`;
+    body.style.left     = "0";
+    body.style.right    = "0";
+    body.style.width    = "100%";
+    body.style.overflow = "hidden";
+    return () => {
+      body.style.position = prev.position;
+      body.style.top      = prev.top;
+      body.style.left     = prev.left;
+      body.style.right    = prev.right;
+      body.style.width    = prev.width;
+      body.style.overflow = prev.overflow;
+      // Restore scroll synchronously so the page never flashes at top.
+      window.scrollTo(0, scrollY);
+    };
   }, [open]);
 
   // Focus management: remember what had focus, focus the primary CTA on
@@ -254,7 +281,16 @@ export default function PolicyModal({ open, plan, onAgree, onClose }: Props) {
     return s;
   }, [policy, content]);
 
-  return (
+  // Render the modal into document.body via a portal so it escapes any
+  // transformed / filtered ancestor (motion.div cards in the pricing page
+  // create containing blocks that would otherwise trap our position:fixed
+  // overlay, causing the modal to render at the wrong vertical offset and
+  // forcing users to scroll up to see it). The portal guarantees the
+  // overlay sits above every page chrome element and is positioned
+  // relative to the viewport, not the trigger's stacking context.
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -465,7 +501,8 @@ export default function PolicyModal({ open, plan, onAgree, onClose }: Props) {
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
 
