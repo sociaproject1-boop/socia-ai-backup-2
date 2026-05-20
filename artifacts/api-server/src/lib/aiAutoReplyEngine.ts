@@ -146,20 +146,17 @@ export async function triggerAiReply(
     // 3. Generate reply
     let reply: string | null = null;
     try {
-      const res = await (openai.chat.completions.create as (params: {
-        model: string;
-        max_completion_tokens: number;
-        messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
-      }) => Promise<{ choices: Array<{ message: { content: string | null } }> }>)({
+      const params: Parameters<typeof openai.chat.completions.create>[0] = {
         model,
         max_completion_tokens: 120,
         messages: [
           { role: "system", content: buildSystemPrompt(lang) },
           // Last 10 turns of history for context
-          ...history.slice(-10).map((m) => ({ role: m.role, content: m.content })),
+          ...history.slice(-10).map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
           { role: "user", content: userMessage },
         ],
-      });
+      };
+      const res = await openai.chat.completions.create(params) as { choices: Array<{ message: { content: string | null } }> };
       reply = res.choices[0]?.message?.content?.trim() ?? null;
     } catch (err) {
       logger.error({ err }, "[aiAutoReply] OpenAI call failed");
