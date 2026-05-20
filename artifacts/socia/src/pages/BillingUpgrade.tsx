@@ -135,10 +135,12 @@ function PlanCard({ plan, isCurrent, onSelect }: {
             {isPro ? <Crown className="h-3 w-3 text-amber-400" /> : <Sparkles className="h-3 w-3" />}
             {plan.name}
           </div>
-          <div className="mt-1.5 flex items-baseline gap-1">
-            <span className="text-3xl font-black app-text">₱{plan.price_php.toLocaleString()}</span>
-            {!isFree && <span className="text-xs app-text-muted">/ {plan.duration_days}d</span>}
-          </div>
+          {isFree && (
+            <div className="mt-1.5 flex items-baseline gap-1">
+              <span className="text-3xl font-black app-text">₱{plan.price_php.toLocaleString()}</span>
+            </div>
+          )}
+          {!isFree && <div className="text-[11px] app-text-muted">{plan.credits.toLocaleString()} credits • HD enabled</div>}
         </div>
       </div>
 
