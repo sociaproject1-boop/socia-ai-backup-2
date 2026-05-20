@@ -42,6 +42,7 @@ import {
 import { runFraudChecks }          from "../lib/fraudDetection.js";
 import { analyzeImageTampering }   from "../lib/imageTamperDetection.js";
 import { broadcastFraudEvent }     from "../lib/adminSocket.js";
+import { evaluateRules }           from "./adminEscalation.js";
 import { computeBlurScore, analyzeSuspiciousText, analyzeReceiptStructure } from "../lib/receiptHeuristics.js";
 
 const router = Router();
@@ -371,6 +372,15 @@ router.post("/receipts/verify", requireAuth, async (req, res): Promise<void> => 
 
   /* Broadcast to admin live feed when fraud threshold is exceeded */
   if (fraud.score >= 50) {
+    /* Fire auto-escalation rules (DB-backed). Fire-and-forget; the
+       partial unique index dedupes pending escalations per user. */
+    evaluateRules({
+      userId:   user.id,
+      username: (user as { username?: string }).username,
+      score:    fraud.score,
+      type:     verificationStatus === "blocked" ? "receipt_blocked" : "high_score",
+    }).catch(() => { /* swallow — logged inside evaluateRules */ });
+
     broadcastFraudEvent({
       type:      verificationStatus === "blocked" ? "receipt_blocked" : "high_score",
       severity:  fraud.score >= 100 ? "critical" : "high",

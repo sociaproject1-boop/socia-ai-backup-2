@@ -10,8 +10,26 @@
  */
 import { useState, useEffect, useRef, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Brain, Zap, TrendingUp, AlertOctagon, Circle, Activity, Info } from "lucide-react";
+import { Brain, Zap, TrendingUp, AlertOctagon, Circle, Activity, Info, History } from "lucide-react";
 import type { LiveFraudEvent } from "../../lib/useAdminSocket";
+import { adminFetch } from "@/lib/adminAuth";
+
+/* DB shape returned by /admin/anomaly/history */
+interface AnomalyHistoryRow {
+  id:             string;
+  user_id:        string | null;
+  username:       string | null;
+  event_count:    number;
+  critical_count: number;
+  high_count:     number;
+  avg_score:      number;
+  max_score:      number;
+  risk_score:     number;
+  escalated:      boolean;
+  first_seen:     string;
+  last_seen:      string;
+  created_at:     string;
+}
 
 /* ── Types ────────────────────────────────────────────────────────────── */
 interface AnomalyCluster {
@@ -239,8 +257,38 @@ export default function AnomalyEngine({
 }) {
   const [clusters,  setClusters]  = useState<AnomalyCluster[]>([]);
   const [signals,   setSignals]   = useState<AnomalySignal[]>([]);
-  const [tab,       setTab]       = useState<"clusters" | "signals">("signals");
-  const seenRef = useRef<Set<string>>(new Set());
+  const [history,   setHistory]   = useState<AnomalyHistoryRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError,   setHistoryError]   = useState<string | null>(null);
+  const [tab,       setTab]       = useState<"signals" | "clusters" | "history">("signals");
+  const seenRef       = useRef<Set<string>>(new Set());
+  const persistedRef  = useRef<Set<string>>(new Set()); // userId set — escalations already POSTed
+  /* Bound both Sets so they can't leak in long-running admin sessions */
+  const SEEN_CAP      = 1000;
+  const PERSIST_CAP   = 500;
+
+  /* Load history on mount + every 30s while open */
+  useEffect(() => {
+    let alive = true;
+    const loadHistory = async () => {
+      try {
+        const data = await adminFetch<{ events: AnomalyHistoryRow[] }>(
+          "/admin/anomaly/history?limit=30",
+        );
+        if (!alive) return;
+        setHistory(data.events);
+        setHistoryError(null);
+      } catch (e) {
+        if (!alive) return;
+        setHistoryError((e as Error).message);
+      } finally {
+        if (alive) setHistoryLoading(false);
+      }
+    };
+    loadHistory();
+    const id = setInterval(loadHistory, 30_000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
 
   /* Update clusters on new events */
   useEffect(() => {
@@ -248,6 +296,11 @@ export default function AnomalyEngine({
     const latest = liveEvents[0];
     if (!latest || seenRef.current.has(latest.id)) return;
     seenRef.current.add(latest.id);
+    /* Cap to prevent unbounded memory growth — drop oldest half when full */
+    if (seenRef.current.size > SEEN_CAP) {
+      const arr = Array.from(seenRef.current);
+      seenRef.current = new Set(arr.slice(-Math.floor(SEEN_CAP / 2)));
+    }
     if (!latest.userId || latest.severity === "info") return;
 
     const now = Date.now();
@@ -309,6 +362,55 @@ export default function AnomalyEngine({
     setSignals(detectSignals(liveEvents.slice(0, 50)));
   }, [liveEvents]);
 
+  /* Persist escalated clusters to DB (fire-and-forget, deduped per session) */
+  useEffect(() => {
+    const toPersist = clusters.filter((c) => c.escalated && !persistedRef.current.has(c.userId));
+    if (toPersist.length === 0) return;
+    for (const c of toPersist) {
+      persistedRef.current.add(c.userId);
+      if (persistedRef.current.size > PERSIST_CAP) {
+        const arr = Array.from(persistedRef.current);
+        persistedRef.current = new Set(arr.slice(-Math.floor(PERSIST_CAP / 2)));
+      }
+      adminFetch("/admin/anomaly/record", {
+        method: "POST",
+        body: JSON.stringify({
+          userId:        c.userId,
+          username:      c.username,
+          eventCount:    c.eventCount,
+          criticalCount: c.criticalCount,
+          highCount:     c.highCount,
+          avgScore:      c.avgScore,
+          maxScore:      c.maxScore,
+          riskScore:     c.riskScore,
+          escalated:     true,
+          firstSeen:     new Date(c.firstSeen).toISOString(),
+          lastSeen:      new Date(c.lastSeen).toISOString(),
+        }),
+      }).then(() => {
+        /* Optimistically prepend to history */
+        setHistory((prev) => [{
+          id:             `local-${c.userId}-${Date.now()}`,
+          user_id:        c.userId,
+          username:       c.username ?? null,
+          event_count:    c.eventCount,
+          critical_count: c.criticalCount,
+          high_count:     c.highCount,
+          avg_score:      c.avgScore,
+          max_score:      c.maxScore,
+          risk_score:     c.riskScore,
+          escalated:      true,
+          first_seen:     new Date(c.firstSeen).toISOString(),
+          last_seen:      new Date(c.lastSeen).toISOString(),
+          created_at:     new Date().toISOString(),
+        }, ...prev].slice(0, 30));
+      }).catch(() => {
+        /* Swallow — retry on next escalation */
+        persistedRef.current.delete(c.userId);
+      });
+    }
+  }, [clusters]);
+
   const escalated  = clusters.filter((c) => c.escalated).length;
   const avgRisk    = clusters.length
     ? Math.round(clusters.reduce((s, c) => s + c.riskScore, 0) / clusters.length)
@@ -355,7 +457,11 @@ export default function AnomalyEngine({
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-white/[0.06] px-4 py-2">
-        {([["signals", "Signals", signals.length], ["clusters", "Clusters", clusters.length]] as const).map(([key, label, count]) => (
+        {([
+          ["signals",  "Signals",  signals.length],
+          ["clusters", "Clusters", clusters.length],
+          ["history",  "History",  history.length],
+        ] as const).map(([key, label, count]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -400,6 +506,56 @@ export default function AnomalyEngine({
                 </div>
               ) : clusters.map((c) => <ClusterCard key={c.userId} c={c} />)}
             </AnimatePresence>
+          </div>
+        )}
+        {tab === "history" && (
+          <div className="space-y-2">
+            {historyLoading && history.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-12">
+                <History className="h-8 w-8 animate-pulse text-white/15" />
+                <p className="text-[11px] text-white/25">Loading anomaly history…</p>
+              </div>
+            ) : historyError && history.length === 0 ? (
+              <div className="rounded-xl border border-red-500/25 bg-red-500/[0.04] p-4 text-center">
+                <p className="text-[11px] font-semibold text-red-300">Failed to load history</p>
+                <p className="mt-1 text-[10px] text-white/35">{historyError}</p>
+              </div>
+            ) : history.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-12">
+                <History className="h-8 w-8 text-white/10" />
+                <p className="text-[11px] text-white/20">No persisted anomaly events yet</p>
+                <p className="text-[9px] text-white/12">Escalated clusters are saved here automatically</p>
+              </div>
+            ) : (
+              history.map((h) => (
+                <div key={h.id}
+                  className={`rounded-xl border p-3 transition ${
+                    h.escalated
+                      ? "border-red-500/25 bg-red-500/[0.04]"
+                      : "border-white/[0.05] bg-white/[0.02]"
+                  }`}>
+                  <div className="flex items-center gap-2">
+                    {h.escalated && (
+                      <span className="rounded-full bg-red-500/20 px-1.5 py-0.5 text-[8px] font-bold text-red-300">
+                        ESCALATED
+                      </span>
+                    )}
+                    <p className="truncate text-[12px] font-semibold text-white">
+                      {h.username ?? h.user_id?.slice(0, 8) ?? "anonymous"}
+                    </p>
+                    <span className="ml-auto text-[9px] text-white/30">
+                      {new Date(h.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-[10px] sm:grid-cols-4">
+                    <div><span className="text-white/30">Risk </span><span className="font-bold text-orange-300">{h.risk_score}</span></div>
+                    <div><span className="text-white/30">Events </span><span className="font-mono text-white/70">{h.event_count}</span></div>
+                    <div><span className="text-white/30">Crit </span><span className="font-mono text-red-300">{h.critical_count}</span></div>
+                    <div><span className="text-white/30">Max </span><span className="font-mono text-white/70">{Math.round(h.max_score)}</span></div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>

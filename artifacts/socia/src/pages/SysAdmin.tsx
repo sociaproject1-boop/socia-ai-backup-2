@@ -2399,8 +2399,8 @@ function ReceiptsTab({ defaultFilter = "needs_review" }: { defaultFilter?: strin
 
 /* ════════════ STUDIO ADMIN TAB ════════════ */
 
-const LS_STUDIO_CFG = "socia_admin_studio_cfg_v1";
-
+/* DB-backed via /admin/studio/models (Wave 2). The `studio_model_config`
+   table is the source of truth — no more localStorage. */
 interface StudioModelCfg {
   id:           string;
   name:         string;
@@ -2410,45 +2410,121 @@ interface StudioModelCfg {
   maxFrames:    number;
 }
 
-const DEFAULT_STUDIO_CFG: StudioModelCfg[] = [
-  { id: "kling-standard",  name: "Kling Standard",  enabled: true,  creditsPerSeg: 20, minPlan: "p15", maxFrames: 10 },
-  { id: "kling-cinematic", name: "Kling Cinematic",  enabled: true,  creditsPerSeg: 30, minPlan: "p15", maxFrames: 10 },
-  { id: "runway-gen4",     name: "Runway Gen-4",     enabled: false, creditsPerSeg: 50, minPlan: "p30", maxFrames: 10 },
-  { id: "veo-ultra",       name: "Veo Ultra",        enabled: false, creditsPerSeg: 80, minPlan: "p30", maxFrames: 10 },
-  { id: "anime-motion",    name: "Anime Motion",     enabled: false, creditsPerSeg: 25, minPlan: "p15", maxFrames: 10 },
-  { id: "hyper-real",      name: "Hyper Real",       enabled: false, creditsPerSeg: 45, minPlan: "p30", maxFrames: 10 },
-];
-
-function loadStudioCfg(): StudioModelCfg[] {
-  try {
-    const s = localStorage.getItem(LS_STUDIO_CFG);
-    return s ? JSON.parse(s) : DEFAULT_STUDIO_CFG;
-  } catch { return DEFAULT_STUDIO_CFG; }
+interface ServerStudioModel {
+  id:              string;
+  name:            string;
+  enabled:         boolean;
+  credits_per_seg: number;
+  min_plan:        "free" | "p15" | "p30";
+  max_frames:      number;
 }
 
-function saveStudioCfg(cfg: StudioModelCfg[]) {
-  try { localStorage.setItem(LS_STUDIO_CFG, JSON.stringify(cfg)); } catch { /* noop */ }
+function studioToFrontend(m: ServerStudioModel): StudioModelCfg {
+  return {
+    id:            m.id,
+    name:          m.name,
+    enabled:       m.enabled,
+    creditsPerSeg: m.credits_per_seg,
+    minPlan:       m.min_plan,
+    maxFrames:     m.max_frames,
+  };
 }
 
 function StudioAdminTab() {
-  const [models, setModels]   = useState<StudioModelCfg[]>(() => loadStudioCfg());
-  const [saved, setSaved]     = useState(false);
+  const [models,   setModels]   = useState<StudioModelCfg[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState<string | null>(null);
+  const [saved,    setSaved]    = useState(false);
+  const [saving,   setSaving]   = useState(false);
+  const [dirty,    setDirty]    = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  /* Load from DB on mount */
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const data = await adminFetch<{ models: ServerStudioModel[] }>("/admin/studio/models");
+        if (!alive) return;
+        setModels(data.models.map(studioToFrontend));
+        setError(null);
+      } catch (e) {
+        if (!alive) return;
+        setError((e as Error).message);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   const update = (id: string, patch: Partial<StudioModelCfg>) => {
     setModels((prev) => prev.map((m) => m.id === id ? { ...m, ...patch } : m));
+    setDirty(true);
   };
 
-  const handleSave = () => {
-    saveStudioCfg(models);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      /* PATCH every model in parallel — server validates each */
+      await Promise.all(models.map((m) =>
+        adminFetch(`/admin/studio/models/${m.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            enabled:         m.enabled,
+            credits_per_seg: m.creditsPerSeg,
+            min_plan:        m.minPlan,
+            max_frames:      m.maxFrames,
+          }),
+        })
+      ));
+      setSaved(true);
+      setDirty(false);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleReset = () => {
-    setModels(DEFAULT_STUDIO_CFG);
-    saveStudioCfg(DEFAULT_STUDIO_CFG);
+  /* "Reset" = discard local edits, re-fetch DB state (DB is the truth) */
+  const handleReset = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await adminFetch<{ models: ServerStudioModel[] }>("/admin/studio/models");
+      setModels(data.models.map(studioToFrontend));
+      setDirty(false);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (loading && !models.length) {
+    return (
+      <div className="flex items-center justify-center py-24 text-white/40">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading studio config…
+      </div>
+    );
+  }
+  if (error && !models.length) {
+    return (
+      <div className="rounded-xl border border-red-500/30 bg-red-500/[0.05] p-6 text-center">
+        <XCircle className="mx-auto mb-2 h-8 w-8 text-red-400" />
+        <p className="text-sm font-semibold text-red-300">Failed to load studio config</p>
+        <p className="mt-1 text-xs text-white/40">{error}</p>
+        <button onClick={handleReset}
+          className="mt-3 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70 hover:bg-white/10">
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   const PLAN_OPTS: { v: StudioModelCfg["minPlan"]; label: string }[] = [
     { v: "free", label: "Free" },
@@ -2469,18 +2545,26 @@ function StudioAdminTab() {
           </h2>
           <p className="mt-1 text-xs text-white/45">
             Configure rendering engines, credit costs, plan access, and frame limits.
-            Settings saved to admin browser — full backend persistence requires a DB migration.
+            Changes are saved to the database and apply to all admins.
           </p>
+          {dirty && (
+            <p className="mt-1 text-[10px] font-semibold text-yellow-400/80">● Unsaved changes</p>
+          )}
+          {error && (
+            <p className="mt-1 text-[10px] font-semibold text-red-400/80">{error}</p>
+          )}
         </div>
         <div className="flex gap-2">
-          <button onClick={handleReset}
-            className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/60 transition hover:bg-white/10 hover:text-white">
-            Reset Defaults
+          <button onClick={handleReset} disabled={loading || saving}
+            className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/60 transition hover:bg-white/10 hover:text-white disabled:opacity-50">
+            Reload from DB
           </button>
-          <button onClick={handleSave}
-            className={"flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition " +
+          <button onClick={handleSave} disabled={saving || !dirty}
+            className={"flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition disabled:opacity-50 " +
               (saved ? "bg-green-500/80" : "bg-purple-600 hover:bg-purple-500")}>
-            {saved ? <><Check className="h-3.5 w-3.5" /> Saved!</> : "Save Changes"}
+            {saving  ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>
+            : saved  ? <><Check className="h-3.5 w-3.5" /> Saved!</>
+            :          "Save Changes"}
           </button>
         </div>
       </div>
@@ -2604,13 +2688,13 @@ function StudioAdminTab() {
         </button>
       </div>
 
-      <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/[0.05] p-4">
-        <p className="text-xs font-semibold text-yellow-300">Note on Persistence</p>
+      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4">
+        <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-300">
+          <CheckCircle2 className="h-3.5 w-3.5" /> Database-backed
+        </p>
         <p className="mt-1 text-xs text-white/40 leading-relaxed">
-          Studio model configs are stored in admin browser localStorage for this prototype.
-          To persist across admins and enforce server-side, create a <code className="text-yellow-400/60">studio_model_config</code> table
-          and expose it via <code className="text-yellow-400/60">GET /admin/studio/models</code> and
-          <code className="text-yellow-400/60"> PATCH /admin/studio/models/:id</code>.
+          Config is persisted server-side via <code className="text-emerald-400/60">/admin/studio/models</code>.
+          Changes apply to all admins immediately and survive page reloads. Validation is enforced server-side.
         </p>
       </div>
     </div>
