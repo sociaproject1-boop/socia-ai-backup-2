@@ -218,6 +218,147 @@ router.post("/paymongo/checkout-session", requireAuth, async (req: Request, res:
 });
 
 /* ─────────────────────────────────────────────────────────────────────────
+ * POST /api/paymongo/support-checkout
+ *
+ * Community-support contribution. Variable amount (min ₱50). Inserts a
+ * pending row in community_support, creates a PayMongo checkout session,
+ * and returns the hosted checkout URL. The webhook (below) finalizes the
+ * row + atomically increments community_funding totals.
+ * ───────────────────────────────────────────────────────────────────── */
+const SUPPORT_MIN_CENTAVOS = 5_000;       //  ₱50
+const SUPPORT_MAX_CENTAVOS = 1_000_000;   //  ₱10,000 — safety ceiling per tx
+
+router.post("/paymongo/support-checkout", requireAuth, async (req: Request, res: Response) => {
+  const sb = getServiceClient();
+  if (!sb) return res.status(503).json({ code: "DB_UNAVAILABLE" });
+  if (!process.env["PAYMONGO_SECRET_KEY"]) {
+    return res.status(503).json({ code: "PAYMONGO_NOT_CONFIGURED" });
+  }
+
+  const user = getAuthedUser(req);
+  if (!user?.id) return res.status(401).json({ code: "UNAUTHENTICATED" });
+
+  // Server-side amount validation — never trust client totals.
+  const amountCentavos = Number(req.body?.amount_centavos);
+  if (!Number.isFinite(amountCentavos) || !Number.isInteger(amountCentavos)) {
+    return res.status(400).json({ code: "INVALID_AMOUNT" });
+  }
+  if (amountCentavos < SUPPORT_MIN_CENTAVOS) {
+    return res.status(400).json({ code: "AMOUNT_BELOW_MIN", min: SUPPORT_MIN_CENTAVOS });
+  }
+  if (amountCentavos > SUPPORT_MAX_CENTAVOS) {
+    return res.status(400).json({ code: "AMOUNT_ABOVE_MAX", max: SUPPORT_MAX_CENTAVOS });
+  }
+
+  // 1. Pending row first so we always have a DB record.
+  const { data: row, error: insErr } = await sb
+    .from("community_support")
+    .insert({
+      user_id: user.id,
+      amount_centavos: amountCentavos,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+
+  if (insErr || !row) {
+    logger.error({ err: insErr }, "[paymongo/support] failed to insert pending row");
+    return res.status(500).json({ code: "DB_INSERT_FAILED" });
+  }
+
+  const ref = row.id as string;
+  const origin = appOrigin(req);
+  const successUrl = `${origin}/support/success?ref=${encodeURIComponent(ref)}`;
+  const cancelUrl  = `${origin}/support/cancelled?ref=${encodeURIComponent(ref)}`;
+
+  // 2. Create PayMongo checkout session.
+  const payload = {
+    data: {
+      attributes: {
+        send_email_receipt: false,
+        show_description:   false,
+        show_line_items:    true,
+        cancel_url:  cancelUrl,
+        success_url: successUrl,
+        line_items: [{
+          currency: "PHP",
+          amount:   amountCentavos,
+          name:     "Socia Community Support",
+          quantity: 1,
+        }],
+        payment_method_types: ["gcash", "paymaya", "card"],
+        description: "Socia community support contribution",
+        reference_number: ref,
+        metadata: {
+          ref,
+          user_id: user.id,
+          kind:    "community_support",
+        },
+      },
+    },
+  };
+
+  let pmRes: Awaited<ReturnType<typeof fetch>>;
+  try {
+    pmRes = await paymongoFetch("/checkout_sessions", {
+      method: "POST",
+      body:   JSON.stringify(payload),
+    });
+  } catch (err) {
+    logger.error({ err }, "[paymongo/support] network error creating checkout session");
+    await sb.from("community_support").update({ status: "failed" }).eq("id", ref);
+    return res.status(502).json({ code: "PAYMONGO_UNREACHABLE" });
+  }
+
+  const pmJson: unknown = await pmRes.json().catch(() => null);
+  if (!pmRes.ok || !pmJson || typeof pmJson !== "object") {
+    logger.error({ status: pmRes.status, body: pmJson }, "[paymongo/support] create session non-2xx");
+    await sb.from("community_support").update({ status: "failed" }).eq("id", ref);
+    return res.status(502).json({ code: "PAYMONGO_ERROR" });
+  }
+
+  const session = (pmJson as { data?: { id?: string; attributes?: { checkout_url?: string } } }).data;
+  const sessionId   = session?.id;
+  const checkoutUrl = session?.attributes?.checkout_url;
+  if (!sessionId || !checkoutUrl) {
+    logger.error({ pmJson }, "[paymongo/support] missing session id or checkout_url");
+    await sb.from("community_support").update({ status: "failed" }).eq("id", ref);
+    return res.status(502).json({ code: "PAYMONGO_BAD_RESPONSE" });
+  }
+
+  await sb
+    .from("community_support")
+    .update({ paymongo_session_id: sessionId, raw_session: pmJson as object })
+    .eq("id", ref);
+
+  return res.json({ ok: true, ref, checkout_url: checkoutUrl });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * GET /api/paymongo/support/:ref      — status poll for the support success page
+ * ───────────────────────────────────────────────────────────────────── */
+router.get("/paymongo/support/:ref", requireAuth, async (req: Request, res: Response) => {
+  const sb = getServiceClient();
+  if (!sb) return res.status(503).json({ code: "DB_UNAVAILABLE" });
+  const user = getAuthedUser(req);
+  if (!user?.id) return res.status(401).json({ code: "UNAUTHENTICATED" });
+
+  const ref = String(req.params["ref"] ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(ref)) return res.status(400).json({ code: "INVALID_REF" });
+
+  const { data, error } = await sb
+    .from("community_support")
+    .select("id, status, amount_centavos, payment_method, paid_at")
+    .eq("id", ref)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ code: "DB_ERROR" });
+  if (!data) return res.status(404).json({ code: "NOT_FOUND" });
+  return res.json({ payment: data });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────
  * GET /api/paymongo/payment/:ref     — status poll for success page
  * ───────────────────────────────────────────────────────────────────── */
 router.get("/paymongo/payment/:ref", requireAuth, async (req: Request, res: Response) => {
@@ -334,24 +475,85 @@ router.post("/paymongo/webhook", async (req: Request, res: Response) => {
     return res.status(503).json({ code: "DB_UNAVAILABLE" });
   }
 
-  const lookup = sessionId
-    ? sb.from("paymongo_payments").select("*").eq("paymongo_session_id", sessionId).maybeSingle()
-    : refFromMeta
-      ? sb.from("paymongo_payments").select("*").eq("id", refFromMeta).maybeSingle()
-      : null;
+  // Two payment surfaces share this webhook: plan subscriptions (paymongo_payments)
+  // and community-support contributions (community_support). PayMongo retry
+  // events sometimes strip metadata, so we CANNOT rely on metadata.kind alone.
+  // We probe both tables by session_id (and ref as a fallback) and dispatch
+  // by whichever row exists. metadata.kind is used as a fast-path hint only.
+  const metaKind = String((innerAttrs.metadata?.["kind"] as string | undefined) ?? "");
 
-  if (!lookup) {
+  if (!sessionId && !refFromMeta) {
     logger.warn({ eventId, eventType }, "[paymongo/webhook] no session id or ref in event");
     return res.json({ ok: true, ignored: "no_ref" });
   }
 
-  const { data: row, error: lookErr } = await lookup;
-  if (lookErr) {
-    logger.error({ err: lookErr }, "[paymongo/webhook] lookup error");
+  // Resolve which table owns this session by probing both. Run in parallel.
+  const planQuery = sessionId
+    ? sb.from("paymongo_payments").select("*").eq("paymongo_session_id", sessionId).maybeSingle()
+    : sb.from("paymongo_payments").select("*").eq("id", refFromMeta!).maybeSingle();
+  const supportQuery = sessionId
+    ? sb.from("community_support").select("*").eq("paymongo_session_id", sessionId).maybeSingle()
+    : sb.from("community_support").select("*").eq("id", refFromMeta!).maybeSingle();
+
+  const [planRes, supportRes] = await Promise.all([planQuery, supportQuery]);
+
+  // ANY lookup error must trigger a retry — otherwise an error on one table
+  // combined with an empty result on the other would silently drop a real
+  // payable event as "row_not_found". PayMongo's retry will re-deliver and
+  // we'll succeed once both queries return cleanly.
+  if (planRes.error || supportRes.error) {
+    logger.error(
+      { planErr: planRes.error, supportErr: supportRes.error },
+      "[paymongo/webhook] lookup error — returning 500 so PayMongo retries"
+    );
     return res.status(500).json({ code: "DB_ERROR" });
   }
+
+  const supportRowFound = !!supportRes.data;
+  const planRowFound    = !!planRes.data;
+  // If both tables somehow contain the same session id (should be impossible
+  // given separate insert paths), prefer the explicit metadata.kind hint;
+  // otherwise prefer support since it's the newer surface.
+  const isSupportEvent = supportRowFound && (!planRowFound || metaKind === "community_support");
+
+  // ── Support path ────────────────────────────────────────────────────────
+  if (isSupportEvent) {
+    const srow = supportRes.data!;
+
+    if (eventId && Array.isArray(srow.processed_event_ids) && srow.processed_event_ids.includes(eventId)) {
+      return res.json({ ok: true, ignored: "duplicate_event" });
+    }
+
+    if (isFailure) {
+      await sb.from("community_support").update({
+        status: "failed",
+        raw_event: event,
+        processed_event_ids: eventId ? [...(srow.processed_event_ids ?? []), eventId] : srow.processed_event_ids,
+      }).eq("id", srow.id).neq("status", "paid");
+      return res.json({ ok: true, marked: "support_failed" });
+    }
+
+    // SUCCESS path — atomic finalize (status flip + community_funding increment).
+    const { data: sFinResult, error: sFinErr } = await sb.rpc("paymongo_finalize_support", {
+      p_payment_id:          srow.id,
+      p_paymongo_payment_id: paymentId ?? null,
+      p_event_id:            eventId  ?? null,
+      p_event:               event as object,
+    });
+
+    if (sFinErr) {
+      logger.error({ err: sFinErr, paymentId: srow.id }, "[paymongo/webhook] support finalize failed — will be retried");
+      return res.status(500).json({ code: "FINALIZE_FAILED" });
+    }
+    const sOutcome = (sFinResult as { result?: string } | null)?.result ?? "unknown";
+    logger.info({ userId: srow.user_id, outcome: sOutcome }, "[paymongo/webhook] support finalize complete");
+    return res.json({ ok: true, kind: "support", outcome: sOutcome });
+  }
+
+  // ── Plan path ───────────────────────────────────────────────────────────
+  const row = planRes.data;
   if (!row) {
-    logger.warn({ eventId, sessionId, refFromMeta }, "[paymongo/webhook] row not found");
+    logger.warn({ eventId, sessionId, refFromMeta }, "[paymongo/webhook] row not found in either table");
     return res.json({ ok: true, ignored: "row_not_found" });
   }
 

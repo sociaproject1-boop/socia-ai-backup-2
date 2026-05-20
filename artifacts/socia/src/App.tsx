@@ -42,6 +42,8 @@ const Billing            = lazy(() => import("@/pages/Billing"));
 const BillingUpgrade     = lazy(() => import("@/pages/BillingUpgrade"));
 const BillingSuccess     = lazy(() => import("@/pages/BillingSuccess"));
 const BillingCancelled   = lazy(() => import("@/pages/BillingCancelled"));
+const SupportSuccess     = lazy(() => import("@/pages/SupportSuccess"));
+const SupportCancelled   = lazy(() => import("@/pages/SupportCancelled"));
 const AuthCallback       = lazy(() => import("@/pages/AuthCallback"));
 const SysAdminLogin      = lazy(() => import("@/pages/SysAdminLogin"));
 const SysAdmin           = lazy(() => import("@/pages/SysAdmin"));
@@ -156,6 +158,8 @@ function Router() {
       <Route path="/billing/upgrade"      component={BillingUpgrade} />
       <Route path="/billing/success"      component={BillingSuccess} />
       <Route path="/billing/cancelled"    component={BillingCancelled} />
+      <Route path="/support/success"      component={SupportSuccess} />
+      <Route path="/support/cancelled"    component={SupportCancelled} />
       <Route path="/subscription"         component={BillingUpgrade} />
       <Route path="/creator/monetization"  component={CreatorMonetization} />
       <Route path="/creator/affiliate"    component={AffiliateProgram} />

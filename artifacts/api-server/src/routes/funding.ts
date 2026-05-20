@@ -9,6 +9,7 @@
 import { Router }  from "express";
 import { createClient } from "@supabase/supabase-js";
 import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/supabaseAuth.js";
+import { getServiceClient } from "../lib/adminAuth.js";
 
 const router = Router();
 
@@ -45,8 +46,80 @@ router.get("/funding/progress", async (req, res): Promise<void> => {
   }
 });
 
+/* ── GET /api/funding/recent-supporters ────────────────────────────── */
+// Public, anonymized feed of the latest confirmed contributions. Used by
+// the home Community Funding card to surface social proof. We mask the
+// username to "first 2 chars + ***" so no user is identifiable by amount.
+router.get("/funding/recent-supporters", async (req, res): Promise<void> => {
+  try {
+    // community_support RLS only allows owner-read; for the public feed we
+    // use the service client and project only non-PII columns before masking.
+    const sb = getServiceClient();
+    if (!sb) { res.json({ supporters: [] }); return; }
+
+    const { data, error } = await sb
+      .from("community_support")
+      .select("id, amount_centavos, paid_at, user_id")
+      .eq("status", "paid")
+      .order("paid_at", { ascending: false })
+      .limit(10);
+
+    if (error) {
+      req.log.warn({ err: error }, "funding/recent-supporters db error");
+      res.json({ supporters: [] });
+      return;
+    }
+    const rows = (data ?? []) as Array<{ id: string; amount_centavos: number; paid_at: string; user_id: string }>;
+
+    // Project ONLY the username (which we mask) — avatar_url is omitted on
+    // purpose: a raw avatar combined with timestamp+amount is enough to
+    // re-identify a contributor and defeats anonymization.
+    const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
+    const usernames: Record<string, string | null> = {};
+    if (userIds.length > 0) {
+      const { data: udata } = await sb
+        .from("users")
+        .select("id, username")
+        .in("id", userIds);
+      for (const u of (udata ?? []) as Array<{ id: string; username: string | null }>) {
+        usernames[u.id] = u.username;
+      }
+    }
+
+    const mask = (name: string | null): string => {
+      if (!name) return "Anonymous";
+      const trimmed = name.trim();
+      if (trimmed.length <= 2) return trimmed + "***";
+      return trimmed.slice(0, 2) + "***";
+    };
+
+    res.json({
+      supporters: rows.map((r) => ({
+        id:       r.id,
+        amount:   r.amount_centavos / 100,
+        paid_at:  r.paid_at,
+        username: mask(usernames[r.user_id] ?? null),
+      })),
+    });
+  } catch (err) {
+    req.log.error({ err }, "funding/recent-supporters failed");
+    res.status(500).json({ code: "SERVER_ERROR" });
+  }
+});
+
 /* ── POST /api/funding/donate ──────────────────────────────────────── */
-router.post("/funding/donate", requireAuth, async (req, res): Promise<void> => {
+// RETIRED: the manual reference-number + screenshot flow has been replaced
+// by automated PayMongo Checkout. Returns 410 Gone so any stale client
+// surfaces a clear error and falls back to the new UI on next refresh.
+router.post("/funding/donate", requireAuth, async (_req, res): Promise<void> => {
+  res.status(410).json({
+    code: "GONE",
+    message: "Manual donations are no longer accepted. Use the Support Socia button to contribute via secure PayMongo checkout.",
+  });
+});
+
+/* ── (DEAD CODE — preserved for git history only, never reachable) ──── */
+async function _legacyDonateForGitHistory(req: import("express").Request, res: import("express").Response): Promise<void> {
   const supabase = getRequestSupabase(req);
   const user     = getAuthedUser(req);
 
@@ -103,7 +176,8 @@ router.post("/funding/donate", requireAuth, async (req, res): Promise<void> => {
   }
 
   res.json({ ok: true, id: data.id });
-});
+}
+void _legacyDonateForGitHistory;
 
 /* ── GET /api/funding/my ───────────────────────────────────────────── */
 router.get("/funding/my", requireAuth, async (req, res): Promise<void> => {

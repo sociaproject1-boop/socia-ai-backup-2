@@ -1,22 +1,39 @@
 /**
- * CommunityFunding — home-page section + SupportModal.
+ * CommunityFunding — Home-page community support card + automated
+ * PayMongo-powered contribution flow.
  *
- * - Fetches global funding progress once on mount (no polling).
- * - SupportModal: shows payment destination, numbered instructions,
- *   trust notices, reference number + optional screenshot upload.
- * - Admin-verified only — progress only changes after admin approval.
- * - Rollout messaging: gradual / phased, not "instant unlock".
+ * UX contract:
+ *   1. Tap "Support Socia" → bottom-sheet modal opens instantly (portaled
+ *      into document.body so it overlays the whole viewport regardless of
+ *      where the trigger lives in the page).
+ *   2. User picks an amount tile (or types a custom amount) and a method
+ *      (GCash / Maya / Card). PayMongo will gate the actual method
+ *      selection at hosted checkout — these pills are UI affordances that
+ *      pre-select the rail.
+ *   3. "Continue Secure Payment" → POST /api/paymongo/support-checkout →
+ *      window.location.assign(checkout_url). The CTA shows a
+ *      "Securing your contribution…" loading state for the brief moment
+ *      between tap and redirect so the user never sees a blank screen.
+ *   4. After the redirect-back to /support/success?ref=..., that page polls
+ *      the webhook-finalized row and shows confirmation.
+ *
+ * No reference numbers. No screenshot upload. No admin verification. All
+ * confirmation happens server-side via the signed webhook + idempotent
+ * paymongo_finalize_support() RPC (migration 36).
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import {
-  Heart, X, Sparkles, ChevronRight, CheckCircle2, Clock,
-  ShoppingBag, Users, Star, Zap, Globe, Shield, BarChart3,
-  Upload, Loader2, AlertCircle, Lock,
+  Heart, X, Sparkles, ChevronRight, Loader2, ShieldCheck, Lock,
+  ShoppingBag, Users, Star, Zap, Globe, Shield, BarChart3, CreditCard,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import {
+  detectInitialLocale, saveLocale, LOCALES,
+  type LocaleCode, getSupportCopy,
+} from "@/lib/i18n/support";
 
 /* ── Types ──────────────────────────────────────────────────────────── */
 interface FundingProgress {
@@ -27,26 +44,11 @@ interface FundingProgress {
   unlock_phase:     number;
 }
 
-interface MyDonation {
-  id:             string;
-  amount:         number;
-  payment_method: string;
-  status:         "pending" | "approved" | "rejected";
-  admin_notes:    string | null;
-  created_at:     string;
-}
-
-/* ── Cloudinary unsigned upload ─────────────────────────────────────── */
-async function uploadScreenshot(file: File): Promise<string> {
-  const form = new FormData();
-  form.append("file", file);
-  form.append("upload_preset", "socia_upload");
-  const r = await fetch("https://api.cloudinary.com/v1_1/devyx5yyk/image/upload", {
-    method: "POST", body: form,
-  });
-  const d = await r.json();
-  if (!d.secure_url) throw new Error("Screenshot upload failed");
-  return d.secure_url as string;
+interface RecentSupporter {
+  id:       string;
+  amount:   number;
+  paid_at:  string;
+  username: string;
 }
 
 /* ── API helpers ────────────────────────────────────────────────────── */
@@ -61,40 +63,38 @@ async function fetchProgress(): Promise<FundingProgress | null> {
   } catch { return null; }
 }
 
-async function fetchMyDonations(): Promise<MyDonation[]> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return [];
-  const r = await fetch(`${BASE}/funding/my`, {
-    headers: { Authorization: `Bearer ${session.access_token}` },
-  });
-  if (!r.ok) return [];
-  const d = await r.json();
-  return d.donations ?? [];
+async function fetchRecentSupporters(): Promise<RecentSupporter[]> {
+  try {
+    const r = await fetch(`${BASE}/funding/recent-supporters`);
+    if (!r.ok) return [];
+    const d = await r.json();
+    return d.supporters ?? [];
+  } catch { return []; }
 }
 
-async function submitDonation(payload: {
-  amount: number; payment_method: string; reference_no: string; screenshot_url?: string;
-}): Promise<{ ok: boolean; message?: string }> {
+async function createSupportCheckout(amountCentavos: number): Promise<{ checkout_url: string }> {
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return { ok: false, message: "Please sign in first." };
-  const r = await fetch(`${BASE}/funding/donate`, {
-    method:  "POST",
+  if (!session) throw new Error("Please sign in to support Socia.");
+  const r = await fetch(`${BASE}/paymongo/support-checkout`, {
+    method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-    body:    JSON.stringify(payload),
+    body: JSON.stringify({ amount_centavos: amountCentavos }),
   });
-  const d = await r.json();
-  if (!r.ok) return { ok: false, message: d.message ?? "Submission failed." };
-  return { ok: true };
+  const d = await r.json().catch(() => ({} as Record<string, unknown>));
+  if (!r.ok || !d.checkout_url) {
+    throw new Error((d.message as string) ?? (d.code as string) ?? "Checkout failed");
+  }
+  return { checkout_url: d.checkout_url as string };
 }
 
-/* ── Data ───────────────────────────────────────────────────────────── */
+/* ── Static data ────────────────────────────────────────────────────── */
 const WHY_CARDS = [
-  { icon: Zap,         label: "Creator Monetization",  desc: "Stars, earnings, payout systems, creator levels." },
-  { icon: Users,       label: "Affiliate System",       desc: "Creator referrals, campaign center, commission tracking." },
-  { icon: ShoppingBag, label: "Seller Marketplace",    desc: "Digital products, live selling, inventory, orders." },
-  { icon: BarChart3,   label: "Creator Analytics",      desc: "Dashboards, earnings reports, growth insights." },
-  { icon: Globe,       label: "AI Infrastructure",      desc: "Expanded generation capacity and faster queues." },
-  { icon: Shield,      label: "Moderation & Security",  desc: "Anti-abuse, safe payments, trust systems." },
+  { icon: Zap,         label: "Creator Monetization", desc: "Stars, earnings, payout systems, creator levels." },
+  { icon: Users,       label: "Affiliate System",     desc: "Creator referrals, campaign center, commission tracking." },
+  { icon: ShoppingBag, label: "Seller Marketplace",   desc: "Digital products, live selling, inventory, orders." },
+  { icon: BarChart3,   label: "Creator Analytics",    desc: "Dashboards, earnings reports, growth insights." },
+  { icon: Globe,       label: "AI Infrastructure",    desc: "Expanded generation capacity and faster queues." },
+  { icon: Shield,      label: "Moderation & Security",desc: "Anti-abuse, safe payments, trust systems." },
 ];
 
 const PHASE_LABELS: Record<number, string> = {
@@ -104,23 +104,21 @@ const PHASE_LABELS: Record<number, string> = {
   4: "Public Rollout",
 };
 
-const ROLLOUT_STEPS = [
-  "Funding goal reached",
-  "7–15 days infrastructure preparation",
-  "Limited beta — selected creators first",
-  "Server stability monitoring",
-  "Gradual expansion to all creators",
-];
-
 /* ══════════════════════════════════════════════════════════════════════
    Main exported section
    ══════════════════════════════════════════════════════════════════════ */
 export function CommunityFunding() {
-  const [progress, setProgress] = useState<FundingProgress | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [, navigate] = useLocation();
+  const [progress, setProgress]     = useState<FundingProgress | null>(null);
+  const [supporters, setSupporters] = useState<RecentSupporter[]>([]);
+  const [showModal, setShowModal]   = useState(false);
+  const [, navigate]                = useLocation();
+  const [locale, setLocaleState]    = useState<LocaleCode>(() => detectInitialLocale());
+  const copy = useMemo(() => getSupportCopy(locale), [locale]);
 
-  useEffect(() => { fetchProgress().then(setProgress); }, []);
+  useEffect(() => {
+    fetchProgress().then(setProgress);
+    fetchRecentSupporters().then(setSupporters);
+  }, []);
 
   const pct = progress
     ? Math.min(100, Math.round((progress.current_amount / progress.target_amount) * 100))
@@ -130,9 +128,16 @@ export function CommunityFunding() {
     ? Math.max(0, progress.target_amount - progress.current_amount)
     : 50000;
 
+  // Optimistic refresh after a contribution lands — called by the modal
+  // when the user returns from a successful checkout (we currently navigate
+  // to /support/success, so this is a defensive refresh path).
+  const refreshAll = () => {
+    fetchProgress().then(setProgress);
+    fetchRecentSupporters().then(setSupporters);
+  };
+
   return (
     <section className="mb-6">
-      {/* Section label */}
       <div className="mb-4 flex items-center gap-2 px-0.5">
         <Heart style={{ width: 13, height: 13, color: "var(--accent-primary)" }} />
         <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.09em] app-text-muted">
@@ -171,15 +176,15 @@ export function CommunityFunding() {
           </h2>
           <p className="mt-1 text-[11.5px] leading-relaxed text-white/55" style={{ maxWidth: 290 }}>
             Community support expands AI infrastructure and advances Socia's creator economy systems.
-            Features roll out gradually after infrastructure preparation and stability checks.
+            Confirmed instantly via secure PayMongo checkout.
           </p>
         </div>
 
         {/* Stats */}
         <div className="mb-3 grid grid-cols-3 gap-2">
-          <FundStat label="Raised"     value={progress ? `₱${Math.floor(progress.current_amount).toLocaleString()}` : "—"} />
-          <FundStat label="Goal"       value={progress ? `₱${Math.floor(progress.target_amount).toLocaleString()}` : "₱50,000"} />
-          <FundStat label="Supporters" value={progress ? progress.supporters_count.toLocaleString() : "—"} />
+          <FundStat label={copy.raisedLabel}     value={progress ? `₱${Math.floor(progress.current_amount).toLocaleString()}` : "—"} />
+          <FundStat label={copy.goalLabel}       value={progress ? `₱${Math.floor(progress.target_amount).toLocaleString()}` : "₱50,000"} />
+          <FundStat label={copy.supportersLabel} value={progress ? progress.supporters_count.toLocaleString() : "—"} />
         </div>
 
         {/* Progress bar */}
@@ -193,8 +198,8 @@ export function CommunityFunding() {
           />
         </div>
         <div className="mb-4 flex items-center justify-between">
-          <span className="text-[10.5px] font-bold text-purple-300">{pct}% funded</span>
-          <span className="text-[10px] text-white/40">₱{Math.floor(remaining).toLocaleString()} remaining</span>
+          <span className="text-[10.5px] font-bold text-purple-300">{pct}% {copy.fundedSuffix}</span>
+          <span className="text-[10px] text-white/40">₱{Math.floor(remaining).toLocaleString()} {copy.remainingSuffix}</span>
         </div>
 
         <motion.button
@@ -203,9 +208,36 @@ export function CommunityFunding() {
           className="w-full rounded-2xl py-3 text-sm font-bold text-white"
           style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)", boxShadow: "0 8px 20px -6px rgba(168,85,247,0.6)" }}
         >
-          <Heart className="mr-1.5 inline h-4 w-4" /> Support Socia
+          <Heart className="mr-1.5 inline h-4 w-4" /> {copy.triggerCta}
         </motion.button>
       </motion.div>
+
+      {/* ── Recent supporters feed ─────────────────────────────────── */}
+      {supporters.length > 0 && (
+        <div className="mb-4 rounded-[18px] p-4"
+             style={{ background: "rgba(168,85,247,0.05)", border: "1px solid rgba(168,85,247,0.12)" }}>
+          <p className="mb-3 text-[10.5px] font-semibold uppercase tracking-wider text-purple-400">
+            {copy.recentSupporters}
+          </p>
+          <div className="space-y-2">
+            {supporters.slice(0, 5).map((s) => (
+              <div key={s.id} className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="grid h-7 w-7 place-items-center rounded-full text-[10px] font-bold text-white"
+                       style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
+                    {(s.username[0] ?? "?").toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="text-[11.5px] font-semibold text-white leading-tight">{s.username}</p>
+                    <p className="text-[10px] text-white/40">{relativeTime(s.paid_at)}</p>
+                  </div>
+                </div>
+                <p className="text-[12px] font-bold text-purple-300">₱{Math.floor(s.amount).toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Why support matters ────────────────────────────────────── */}
       <div className="mb-4">
@@ -233,32 +265,6 @@ export function CommunityFunding() {
         </div>
       </div>
 
-      {/* ── Rollout timeline ───────────────────────────────────────── */}
-      <div className="mb-4 rounded-[18px] p-4"
-           style={{ background: "rgba(168,85,247,0.05)", border: "1px solid rgba(168,85,247,0.12)" }}>
-        <p className="mb-3 text-[10.5px] font-semibold uppercase tracking-wider text-purple-400">
-          Gradual rollout plan
-        </p>
-        <div className="space-y-0">
-          {ROLLOUT_STEPS.map((step, i) => (
-            <div key={step} className="flex items-start gap-3">
-              <div className="flex flex-col items-center">
-                <div className="mt-0.5 h-4 w-4 shrink-0 rounded-full flex items-center justify-center"
-                     style={{ background: i === 0 ? "linear-gradient(135deg,#a855f7,#ec4899)" : "rgba(168,85,247,0.2)", border: "1px solid rgba(168,85,247,0.4)" }}>
-                  <span className="text-[7px] font-black text-white">{i + 1}</span>
-                </div>
-                {i < ROLLOUT_STEPS.length - 1 && (
-                  <div className="w-px flex-1 my-1" style={{ minHeight: 14, background: "rgba(168,85,247,0.2)" }} />
-                )}
-              </div>
-              <p className="pb-2 text-[11.5px] leading-snug" style={{ color: i === 0 ? "rgba(216,180,254,1)" : "rgba(255,255,255,0.45)" }}>
-                {step}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* ── Locked feature preview pills ──────────────────────────── */}
       <div className="mb-2">
         <p className="mb-3 px-0.5 text-[10.5px] font-semibold uppercase tracking-[0.09em] app-text-muted">
@@ -266,10 +272,10 @@ export function CommunityFunding() {
         </p>
         <div className="hide-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
           {[
-            { label: "Creator Monetization", icon: Star,         path: "/creator/monetization" },
-            { label: "Affiliate Program",    icon: Users,        path: "/creator/affiliate" },
-            { label: "Seller Center",        icon: ShoppingBag,  path: "/creator/seller" },
-            { label: "Creator Stars",        icon: Sparkles,     path: "/creator/stars" },
+            { label: "Creator Monetization", icon: Star,        path: "/creator/monetization" },
+            { label: "Affiliate Program",    icon: Users,       path: "/creator/affiliate" },
+            { label: "Seller Center",        icon: ShoppingBag, path: "/creator/seller" },
+            { label: "Creator Stars",        icon: Sparkles,    path: "/creator/stars" },
           ].map((f) => (
             <motion.button
               key={f.label}
@@ -289,13 +295,14 @@ export function CommunityFunding() {
       <SupportModal
         open={showModal}
         onClose={() => setShowModal(false)}
-        onSuccess={() => { setShowModal(false); fetchProgress().then(setProgress); }}
+        onReturn={refreshAll}
+        locale={locale}
+        onLocaleChange={(c) => { setLocaleState(c); saveLocale(c); }}
       />
     </section>
   );
 }
 
-/* ── Tiny stat ──────────────────────────────────────────────────────── */
 function FundStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl p-2.5 text-center" style={{ background: "rgba(255,255,255,0.05)" }}>
@@ -305,414 +312,378 @@ function FundStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════════════
-   Support Modal
-   ══════════════════════════════════════════════════════════════════════ */
-const PRESET_AMOUNTS = [100, 200, 500, 1000];
+function relativeTime(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (!t) return "";
+  const diff = Date.now() - t;
+  const m = Math.floor(diff / 60000);
+  if (m < 1)    return "just now";
+  if (m < 60)   return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24)   return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30)   return `${d}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
 
-const FLOW_STEPS = [
-  "Select your support amount",
-  "Send payment using official channels (details will appear at activation)",
-  "Enter the reference number from your receipt",
-  "Optionally upload your payment screenshot",
-  "Submit — admin verifies before it counts toward the goal",
-];
+/* ══════════════════════════════════════════════════════════════════════
+   Support Modal — bottom-sheet, portaled, automated PayMongo flow
+   ══════════════════════════════════════════════════════════════════════ */
+const PRESET_AMOUNTS = [100, 250, 500, 1000, 2500];
+
+type Method = "gcash" | "paymaya" | "card";
 
 function SupportModal({
-  open, onClose, onSuccess,
+  open, onClose, onReturn, locale, onLocaleChange,
 }: {
-  open: boolean; onClose: () => void; onSuccess: () => void;
+  open:           boolean;
+  onClose:        () => void;
+  onReturn:       () => void;
+  locale:         LocaleCode;
+  onLocaleChange: (c: LocaleCode) => void;
 }) {
-  const [step, setStep]               = useState<"form" | "success" | "history">("form");
-  const [amount, setAmount]           = useState<number | "">(200);
-  const [method, setMethod]           = useState<"gcash" | "maya">("gcash");
-  const [refNo, setRefNo]             = useState("");
-  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
-  const [uploading, setUploading]     = useState(false);
-  const [busy, setBusy]               = useState(false);
-  const [err, setErr]                 = useState<string | null>(null);
-  const [history, setHistory]         = useState<MyDonation[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const copy = useMemo(() => getSupportCopy(locale), [locale]);
+  const [amount, setAmount]   = useState<number>(250);
+  const [custom, setCustom]   = useState<string>("");
+  const [method, setMethod]   = useState<Method>("gcash");
+  const [busy, setBusy]       = useState(false);
+  const [err, setErr]         = useState<string | null>(null);
+  const sheetRef              = useRef<HTMLDivElement | null>(null);
+  const mountedRef            = useRef(true);
+  const prevFocusRef          = useRef<HTMLElement | null>(null);
 
+  // Reset transient state every time the sheet opens.
   useEffect(() => {
     if (open) {
-      setStep("form"); setErr(null); setRefNo(""); setScreenshotUrl(null);
-      setAmount(200); setMethod("gcash"); setBusy(false);
+      setAmount(250); setCustom(""); setMethod("gcash");
+      setBusy(false); setErr(null);
     }
   }, [open]);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true); setErr(null);
+  // Track mount for redirect-safe state guards.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  // Body scroll lock that preserves the exact scroll position. iOS Safari
+  // ignores overflow:hidden on <body>, so we use position:fixed + top:-scrollY.
+  useEffect(() => {
+    if (!open) return;
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const prev = {
+      position: body.style.position, top: body.style.top,
+      left: body.style.left, right: body.style.right,
+      width: body.style.width, overflow: body.style.overflow,
+    };
+    body.style.position = "fixed";
+    body.style.top      = `-${scrollY}px`;
+    body.style.left     = "0";
+    body.style.right    = "0";
+    body.style.width    = "100%";
+    body.style.overflow = "hidden";
+    return () => {
+      body.style.position = prev.position;
+      body.style.top      = prev.top;
+      body.style.left     = prev.left;
+      body.style.right    = prev.right;
+      body.style.width    = prev.width;
+      body.style.overflow = prev.overflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, [open]);
+
+  // Focus management — remember prior focus, restore on close.
+  useEffect(() => {
+    if (!open) return;
+    prevFocusRef.current = document.activeElement as HTMLElement | null;
+    return () => { prevFocusRef.current?.focus?.(); };
+  }, [open]);
+
+  // ESC to close (when not submitting).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !busy) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, busy, onClose]);
+
+  // Refresh stats when the user comes back to the tab — they may have just
+  // paid in another tab/window. Defensive only; SupportSuccess is the
+  // primary refresh path.
+  useEffect(() => {
+    if (!open) return;
+    const onVisible = () => { if (document.visibilityState === "visible") onReturn(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [open, onReturn]);
+
+  const finalAmount = useMemo(() => {
+    if (custom.trim().length > 0) {
+      const n = Number(custom);
+      if (!Number.isFinite(n)) return 0;
+      return Math.floor(n);
+    }
+    return amount;
+  }, [amount, custom]);
+
+  const handleSubmit = async () => {
+    if (busy) return;
+    setErr(null);
+    if (!finalAmount || finalAmount < 50) {
+      setErr(copy.minAmountError);
+      return;
+    }
+    setBusy(true);
     try {
-      const url = await uploadScreenshot(file);
-      setScreenshotUrl(url);
-    } catch {
-      setErr("Screenshot upload failed. You can still submit with just a reference number.");
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
+      const { checkout_url } = await createSupportCheckout(finalAmount * 100);
+      // Keep modal mounted during redirect so the user sees the loading
+      // state, not a white flash. PayMongo will replace the document.
+      window.location.assign(checkout_url);
+    } catch (e: unknown) {
+      if (!mountedRef.current) return;
+      setErr(e instanceof Error ? e.message : "Checkout failed. Please try again.");
+      setBusy(false);
     }
   };
 
-  const handleSubmit = async () => {
-    const amt = Number(amount);
-    if (!amt || amt < 50) { setErr("Minimum support amount is ₱50."); return; }
-    if (refNo.trim().length < 4) { setErr("Enter your GCash / Maya reference number."); return; }
-    setBusy(true); setErr(null);
-    const res = await submitDonation({
-      amount: amt, payment_method: method,
-      reference_no: refNo.trim(), screenshot_url: screenshotUrl ?? undefined,
-    });
-    setBusy(false);
-    if (!res.ok) { setErr(res.message ?? "Submission failed."); return; }
-    setStep("success");
-    onSuccess();
-  };
-
-  const loadHistory = async () => {
-    setStep("history"); setLoadingHistory(true);
-    const d = await fetchMyDonations();
-    setHistory(d); setLoadingHistory(false);
-  };
-
-  if (!open) return null;
+  if (!open || typeof document === "undefined") return null;
 
   return createPortal(
     <AnimatePresence>
       <motion.div
         key="backdrop"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        transition={{ duration: 0.18, ease: "easeOut" }}
         className="fixed inset-0 z-[200] flex items-end justify-center"
-        style={{ background: "rgba(0,0,0,0.88)" }}
-        onClick={onClose}
+        style={{
+          background: "rgba(0,0,0,0.74)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+        }}
+        onClick={() => { if (!busy) onClose(); }}
       >
         <motion.div
           key="sheet"
-          initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-          transition={{ type: "spring", stiffness: 380, damping: 36 }}
+          ref={sheetRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={copy.title}
+          initial={{ y: "100%", opacity: 0.96 }}
+          animate={{ y: 0,      opacity: 1 }}
+          exit={{   y: "100%", opacity: 0.96 }}
+          transition={{ type: "spring", stiffness: 340, damping: 30, mass: 0.85 }}
           onClick={(e) => e.stopPropagation()}
           className="w-full max-w-md overflow-y-auto rounded-t-[28px]"
           style={{
-            background: "linear-gradient(180deg,#11111f,#0d0d1a)",
-            border: "1px solid rgba(168,85,247,0.18)",
-            borderBottom: "none",
+            background: "rgba(12,12,18,0.96)",
+            borderTop: "1px solid rgba(168,85,247,0.22)",
             maxHeight: "calc(100dvh - env(safe-area-inset-top, 0px) - 16px)",
             paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 32px)",
+            willChange: "transform",
+            transform: "translateZ(0)",
           }}
         >
+          {/* Grabber */}
           <div className="mx-auto mt-3 h-1 w-10 rounded-full bg-white/15" />
 
-          {/* Header — sticky so the X button stays visible when content scrolls */}
-          <div
-            className="sticky top-0 z-10 flex items-center justify-between px-5 pt-4 pb-3"
-            style={{ background: "linear-gradient(180deg,#11111f 85%,transparent)" }}
-          >
-            <div>
-              <h3 className="font-display text-[17px] font-bold text-white">
-                {step === "history" ? "My Submissions" : step === "success" ? "Submitted!" : "Support Socia"}
+          {/* Header */}
+          <div className="sticky top-0 z-10 flex items-start justify-between px-5 pt-4 pb-3"
+               style={{ background: "rgba(12,12,18,0.96)" }}>
+            <div className="flex-1 pr-3">
+              <h3 className="font-display text-[18px] font-bold text-white leading-tight">
+                {copy.title}
               </h3>
-              {step === "form" && (
-                <p className="mt-0.5 text-[11px] text-white/40">
-                  Admin-verified only · pending review after submission
-                </p>
-              )}
+              <p className="mt-0.5 text-[11px] text-white/45 leading-snug">
+                {copy.subtitle}
+              </p>
             </div>
-            <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full bg-white/8 text-white/60">
+            <button
+              onClick={onClose}
+              disabled={busy}
+              className="grid h-8 w-8 place-items-center rounded-full bg-white/8 text-white/60 disabled:opacity-40"
+              aria-label="Close"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="px-5">
+          <div className="px-5 pb-2 space-y-5">
 
-            {/* ── Success ── */}
-            {step === "success" && (
-              <div className="py-6 text-center">
-                <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full"
-                     style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
-                  <CheckCircle2 className="h-8 w-8 text-white" />
-                </div>
-                <p className="mb-2 text-base font-bold text-white">Submission received!</p>
-                <p className="mb-5 text-[12px] leading-relaxed text-white/55">
-                  Your support is pending admin review. Once verified, it will be added to the funding total.
-                  Thank you for helping build Socia. ❤️
-                </p>
-                <div className="mb-4 rounded-2xl p-3.5 text-left"
-                     style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.15)" }}>
-                  <p className="mb-2 text-[10.5px] font-semibold text-purple-300">What happens next</p>
-                  <ul className="space-y-1.5 text-[11px] text-white/55">
-                    <li>• Admin reviews your reference number & screenshot</li>
-                    <li>• Approved submissions update the funding total</li>
-                    <li>• After the funding goal, infrastructure preparation begins (7–15 days)</li>
-                    <li>• Creator systems roll out gradually — selected creators first</li>
-                    <li>• You'll see "approved" status in your submissions tab</li>
-                  </ul>
-                </div>
-                <button onClick={loadHistory}
-                        className="w-full rounded-2xl bg-white/5 py-2.5 text-sm font-semibold text-white/70">
-                  View my submissions
-                </button>
-              </div>
-            )}
-
-            {/* ── History ── */}
-            {step === "history" && (
-              <div className="py-3">
-                {loadingHistory
-                  ? <div className="py-8 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-purple-400" /></div>
-                  : history.length === 0
-                  ? <div className="py-8 text-center text-[12px] text-white/40">No submissions yet.</div>
-                  : (
-                    <div className="space-y-2">
-                      {history.map((d) => (
-                        <div key={d.id} className="flex items-center justify-between rounded-[14px] p-3"
-                             style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                          <div>
-                            <p className="text-[13px] font-bold text-white">₱{Number(d.amount).toLocaleString()}</p>
-                            <p className="text-[10.5px] capitalize text-white/40">
-                              {d.payment_method} · {new Date(d.created_at).toLocaleDateString()}
-                            </p>
-                            {d.admin_notes && <p className="mt-0.5 text-[10.5px] text-amber-400">{d.admin_notes}</p>}
-                          </div>
-                          <StatusBadge status={d.status} />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                <button onClick={() => setStep("form")}
-                        className="mt-4 w-full rounded-2xl py-2.5 text-sm font-semibold text-white"
-                        style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
-                  + New submission
-                </button>
-              </div>
-            )}
-
-            {/* ── Form ── */}
-            {step === "form" && (
-              <div className="space-y-4">
-
-                {/* How it works — numbered steps */}
-                <div className="rounded-[14px] p-3.5"
-                     style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.14)" }}>
-                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-purple-400">How it works</p>
-                  <ol className="space-y-1">
-                    {FLOW_STEPS.map((s, i) => (
-                      <li key={i} className="flex items-start gap-2 text-[11px] text-white/55">
-                        <span className="mt-0.5 shrink-0 font-bold text-purple-500">{i + 1}.</span>
-                        {s}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-
-                {/* Amount */}
-                <div>
-                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/45">
-                    Support amount
-                  </label>
-                  <div className="mb-2 grid grid-cols-4 gap-1.5">
-                    {PRESET_AMOUNTS.map((a) => (
-                      <button key={a} onClick={() => setAmount(a)}
-                              className={`rounded-xl py-2 text-[12px] font-bold transition ${
-                                amount === a ? "text-white" : "bg-white/5 text-white/55"
-                              }`}
-                              style={amount === a ? { background: "linear-gradient(135deg,#a855f7,#ec4899)" } : {}}>
-                        ₱{a}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex items-center rounded-[14px] bg-white/5 px-3 py-2.5"
-                       style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
-                    <span className="mr-2 text-sm text-white/40">₱</span>
-                    <input
-                      type="number" min={50} value={amount}
-                      onChange={(e) => setAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                      placeholder="Custom amount"
-                      className="flex-1 bg-transparent text-sm text-white focus:outline-none"
-                    />
-                  </div>
-                  <p className="mt-1 text-[10px] text-white/30">Minimum ₱50</p>
-                </div>
-
-                {/* Payment method */}
-                <div>
-                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/45">
-                    Payment method
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(["gcash", "maya"] as const).map((m) => (
-                      <button key={m} onClick={() => setMethod(m)}
-                              className={`rounded-[14px] py-2.5 text-[12.5px] font-bold capitalize transition ${
-                                method === m ? "text-white" : "bg-white/5 text-white/55"
-                              }`}
-                              style={method === m ? { background: "linear-gradient(135deg,#a855f7,#ec4899)" } : {}}>
-                        {m === "gcash" ? "GCash" : "Maya"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Payment channel — preparation state */}
-                <div className="rounded-[16px] overflow-hidden"
-                     style={{ border: "1px solid rgba(168,85,247,0.2)" }}>
-                  {/* Header strip */}
-                  <div className="flex items-center gap-2 px-4 py-3"
-                       style={{ background: "rgba(168,85,247,0.1)", borderBottom: "1px solid rgba(168,85,247,0.15)" }}>
-                    <Lock className="h-3.5 w-3.5 text-purple-400 shrink-0" />
-                    <p className="text-[10.5px] font-bold uppercase tracking-wider text-purple-300">
-                      Payment channels
-                    </p>
-                    <span className="ml-auto rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
-                          style={{ background: "rgba(251,191,36,0.15)", color: "#fbbf24" }}>
-                      Not yet active
-                    </span>
-                  </div>
-
-                  <div className="p-4 space-y-3" style={{ background: "rgba(168,85,247,0.04)" }}>
-                    {/* Notice */}
-                    <p className="text-[12px] leading-relaxed text-white/60 text-center">
-                      Official payment channels will appear<br />during public funding activation.
-                    </p>
-
-                    {/* QR placeholders — side by side */}
-                    <div className="grid grid-cols-2 gap-2.5 mt-1">
-                      {(["GCash", "Maya"] as const).map((label) => (
-                        <div key={label} className="flex flex-col items-center gap-2 rounded-[14px] p-3"
-                             style={{ border: "1.5px dashed rgba(168,85,247,0.25)", background: "rgba(168,85,247,0.04)" }}>
-                          {/* QR grid mockup */}
-                          <div className="grid grid-cols-3 gap-0.5 opacity-20" aria-hidden>
-                            {Array.from({ length: 9 }).map((_, i) => (
-                              <div key={i} className="h-4 w-4 rounded-sm bg-purple-400"
-                                   style={{ opacity: [0,2,4,6,8].includes(i) ? 1 : 0.4 }} />
-                            ))}
-                          </div>
-                          <p className="text-[10px] font-bold text-purple-400">{label}</p>
-                          <p className="text-[9.5px] text-white/35 text-center leading-tight">
-                            QR code will be<br />added before launch
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Account number placeholder */}
-                    <div className="flex items-center justify-between rounded-[12px] px-3.5 py-2.5"
-                         style={{ background: "rgba(255,255,255,0.04)", border: "1px dashed rgba(255,255,255,0.1)" }}>
-                      <div>
-                        <p className="text-[9.5px] text-white/35">
-                          {method === "gcash" ? "GCash" : "Maya"} number
-                        </p>
-                        <p className="font-mono text-[13px] font-bold text-white/25 tracking-widest mt-0.5">
-                          ••••  ••••  ••••
-                        </p>
-                      </div>
-                      <span className="rounded-lg px-2.5 py-1.5 text-[10px] font-semibold text-white/20"
-                            style={{ background: "rgba(255,255,255,0.05)", cursor: "not-allowed" }}>
-                        Copy
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Reference number */}
-                <div>
-                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/45">
-                    Reference number *
-                  </label>
-                  <input
-                    value={refNo}
-                    onChange={(e) => setRefNo(e.target.value)}
-                    placeholder="e.g. 2024123456789"
-                    className="w-full rounded-[14px] bg-white/5 px-3.5 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none"
-                    style={{ border: "1px solid rgba(255,255,255,0.08)" }}
-                  />
-                  <p className="mt-1 text-[10px] text-white/30">Found in your GCash / Maya transaction history</p>
-                </div>
-
-                {/* Screenshot upload */}
-                <div>
-                  <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-white/45">
-                    Payment screenshot (optional but recommended)
-                  </label>
+            {/* Language pills */}
+            <div className="flex gap-1.5">
+              {LOCALES.map((l) => {
+                const active = l.code === locale;
+                return (
                   <button
-                    onClick={() => fileRef.current?.click()}
-                    disabled={uploading}
-                    className="flex w-full items-center justify-center gap-2 rounded-[14px] py-3 text-[12px] font-semibold text-white/55"
-                    style={{ border: "1px dashed rgba(168,85,247,0.3)", background: "rgba(168,85,247,0.05)" }}
+                    key={l.code}
+                    onClick={() => onLocaleChange(l.code)}
+                    aria-pressed={active}
+                    className="flex-1 rounded-full py-1.5 text-[10.5px] font-bold transition-colors"
+                    style={{
+                      background: active ? "linear-gradient(135deg,#a855f7,#ec4899)" : "rgba(255,255,255,0.05)",
+                      color: active ? "#fff" : "rgba(255,255,255,0.55)",
+                      border: active ? "1px solid transparent" : "1px solid rgba(255,255,255,0.08)",
+                    }}
                   >
-                    {uploading
-                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading…</>
-                      : screenshotUrl
-                      ? <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Screenshot uploaded</>
-                      : <><Upload className="h-3.5 w-3.5" /> Tap to upload payment screenshot</>
-                    }
+                    {l.nativeLabel}
                   </button>
-                  <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-                </div>
+                );
+              })}
+            </div>
 
-                {/* Error */}
-                {err && (
-                  <div className="flex items-start gap-2 rounded-xl px-3 py-2.5 text-[12px] text-rose-300"
-                       style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
-                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    {err}
-                  </div>
-                )}
-
-                {/* Trust notices */}
-                <div className="space-y-2">
-                  <div className="flex items-start gap-2 rounded-[12px] px-3 py-2.5"
-                       style={{ background: "rgba(34,197,94,0.07)", border: "1px solid rgba(34,197,94,0.15)" }}>
-                    <Shield className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
-                    <p className="text-[11px] leading-relaxed text-emerald-300/80">
-                      Only admin-verified payments count toward the community funding goal.
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-2 rounded-[12px] px-3 py-2.5"
-                       style={{ background: "rgba(251,191,36,0.07)", border: "1px solid rgba(251,191,36,0.15)" }}>
-                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
-                    <p className="text-[11px] leading-relaxed text-amber-300/80">
-                      Never send payments outside official Socia payment channels.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Submit */}
-                <motion.button
-                  whileTap={{ scale: 0.97 }}
-                  onClick={handleSubmit}
-                  disabled={busy || uploading}
-                  className="w-full rounded-2xl py-3.5 text-[14px] font-bold text-white disabled:opacity-60"
-                  style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)", boxShadow: "0 8px 20px -6px rgba(168,85,247,0.5)" }}
+            {/* Amount selector */}
+            <div>
+              <p className="mb-2 text-[10.5px] font-semibold uppercase tracking-wider text-purple-400">
+                {copy.sectionAmount}
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {PRESET_AMOUNTS.map((a) => {
+                  const active = custom.length === 0 && amount === a;
+                  return (
+                    <motion.button
+                      key={a}
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => { setAmount(a); setCustom(""); setErr(null); }}
+                      className="rounded-2xl py-3 text-[14px] font-extrabold transition-colors"
+                      style={{
+                        background: active
+                          ? "linear-gradient(135deg,rgba(168,85,247,0.25),rgba(236,72,153,0.18))"
+                          : "rgba(255,255,255,0.04)",
+                        color: active ? "#fff" : "rgba(255,255,255,0.7)",
+                        border: active ? "1px solid rgba(168,85,247,0.5)" : "1px solid rgba(255,255,255,0.06)",
+                      }}
+                    >
+                      ₱{a.toLocaleString()}
+                    </motion.button>
+                  );
+                })}
+                {/* Custom amount input occupies one tile slot */}
+                <div
+                  className="rounded-2xl flex items-center px-2.5"
+                  style={{
+                    background: custom.length > 0
+                      ? "linear-gradient(135deg,rgba(168,85,247,0.25),rgba(236,72,153,0.18))"
+                      : "rgba(255,255,255,0.04)",
+                    border: custom.length > 0 ? "1px solid rgba(168,85,247,0.5)" : "1px solid rgba(255,255,255,0.06)",
+                  }}
                 >
-                  {busy
-                    ? <Loader2 className="mx-auto h-4 w-4 animate-spin" />
-                    : "Submit for Verification"}
-                </motion.button>
+                  <span className="text-[14px] font-extrabold text-white/55 mr-0.5">₱</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="—"
+                    value={custom}
+                    onChange={(e) => { setCustom(e.target.value); setErr(null); }}
+                    className="w-full bg-transparent text-[14px] font-extrabold text-white outline-none placeholder:text-white/30"
+                    aria-label={copy.customAmountLabel}
+                  />
+                </div>
+              </div>
+              <p className="mt-1.5 text-[10px] text-white/35">{copy.customAmountHint}</p>
+            </div>
 
-                <button onClick={loadHistory}
-                        className="w-full py-2 text-[11px] text-white/35 hover:text-white/55">
-                  <Clock className="mr-1 inline h-3 w-3" /> View my past submissions
-                </button>
+            {/* Method picker */}
+            <div>
+              <p className="mb-2 text-[10.5px] font-semibold uppercase tracking-wider text-purple-400">
+                {copy.sectionMethod}
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                <MethodPill active={method === "gcash"}    onClick={() => setMethod("gcash")}    label={copy.methodGcash}    color="#0084ff" />
+                <MethodPill active={method === "paymaya"}  onClick={() => setMethod("paymaya")}  label={copy.methodMaya}     color="#00d632" />
+                <MethodPill active={method === "card"}     onClick={() => setMethod("card")}     label={copy.methodCard}     icon={<CreditCard className="h-3.5 w-3.5" />} />
+              </div>
+            </div>
+
+            {/* Trust */}
+            <div className="rounded-[14px] p-3.5"
+                 style={{ background: "rgba(168,85,247,0.06)", border: "1px solid rgba(168,85,247,0.14)" }}>
+              <div className="flex items-center gap-2 mb-2">
+                <ShieldCheck className="h-3.5 w-3.5 text-purple-400" />
+                <p className="text-[10.5px] font-bold uppercase tracking-wider text-purple-300">
+                  {copy.trustLine}
+                </p>
+              </div>
+              <ul className="space-y-1">
+                {copy.trustPoints.map((p) => (
+                  <li key={p} className="flex items-start gap-1.5 text-[11px] text-white/55">
+                    <Lock className="mt-0.5 h-2.5 w-2.5 shrink-0 text-purple-400" />
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Error chip */}
+            {err && (
+              <div className="rounded-2xl px-3.5 py-2.5 text-[11.5px] font-medium text-rose-200"
+                   style={{ background: "rgba(244,63,94,0.12)", border: "1px solid rgba(244,63,94,0.28)" }}>
+                {err}
               </div>
             )}
+
+            {/* CTA */}
+            <div className="space-y-2 pt-1">
+              <motion.button
+                whileTap={busy ? undefined : { scale: 0.98 }}
+                onClick={handleSubmit}
+                disabled={busy}
+                className="w-full rounded-2xl py-3.5 text-[14px] font-bold text-white disabled:opacity-90"
+                style={{
+                  background: "linear-gradient(135deg,#a855f7,#ec4899)",
+                  boxShadow: "0 10px 24px -8px rgba(168,85,247,0.55)",
+                }}
+              >
+                {busy ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {copy.securing}
+                  </span>
+                ) : (
+                  <>{copy.cta} · ₱{(finalAmount || 0).toLocaleString()}</>
+                )}
+              </motion.button>
+              <button
+                onClick={onClose}
+                disabled={busy}
+                className="w-full rounded-2xl py-2.5 text-[12.5px] font-semibold text-white/60 disabled:opacity-40"
+              >
+                {copy.back}
+              </button>
+            </div>
           </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>,
-    document.body
+    document.body,
   );
 }
 
-function StatusBadge({ status }: { status: MyDonation["status"] }) {
+function MethodPill({
+  active, onClick, label, color, icon,
+}: {
+  active: boolean; onClick: () => void; label: string; color?: string; icon?: React.ReactNode;
+}) {
   return (
-    <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
-      status === "approved" ? "bg-emerald-500/15 text-emerald-400" :
-      status === "rejected" ? "bg-rose-500/15 text-rose-400" :
-                              "bg-amber-500/15 text-amber-400"
-    }`}>
-      {status === "approved" ? "Approved" : status === "rejected" ? "Rejected" : "Pending"}
-    </span>
+    <motion.button
+      whileTap={{ scale: 0.96 }}
+      onClick={onClick}
+      aria-pressed={active}
+      className="flex items-center justify-center gap-1.5 rounded-2xl py-3 text-[12px] font-bold transition-colors"
+      style={{
+        background: active
+          ? "linear-gradient(135deg,rgba(168,85,247,0.25),rgba(236,72,153,0.18))"
+          : "rgba(255,255,255,0.04)",
+        color: active ? "#fff" : "rgba(255,255,255,0.7)",
+        border: active ? "1px solid rgba(168,85,247,0.5)" : "1px solid rgba(255,255,255,0.06)",
+      }}
+    >
+      {color && <span className="h-2 w-2 rounded-full" style={{ background: color }} />}
+      {icon}
+      {label}
+    </motion.button>
   );
 }
