@@ -165,7 +165,7 @@ function PlanCard({ plan, isCurrent, onSelect }: {
           boxShadow: !isFree && !isCurrent ? "0 12px 32px -10px rgba(168,85,247,0.45)" : undefined,
         }}
       >
-        {isCurrent ? "Current plan" : isFree ? "Free for everyone" : `Pay ₱${plan.price_php} via GCash / Maya`}
+        {isCurrent ? "Current plan" : isFree ? "Free for everyone" : "Pay via GCash / Maya"}
       </button>
     </motion.div>
   );
