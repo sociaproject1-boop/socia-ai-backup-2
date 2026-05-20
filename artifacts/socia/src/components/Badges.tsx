@@ -123,19 +123,31 @@ export function VerifiedBadge({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   );
 }
 
-export function OnlineDot({ online, size = 10 }: { online: boolean; size?: number }) {
+export function OnlineDot({
+  online,
+  status,
+  size = 10,
+}: {
+  online?: boolean;
+  status?: "online" | "away" | "offline";
+  size?: number;
+}) {
+  const eff = status ?? (online ? "online" : "offline");
+  const bg =
+    eff === "online" ? "#22c55e"
+    : eff === "away" ? "#f59e0b"
+    : "#52525b";
+  const shadow =
+    eff === "online"
+      ? "0 0 0 2px hsl(var(--background)), 0 0 8px rgba(34,197,94,0.7)"
+      : eff === "away"
+      ? "0 0 0 2px hsl(var(--background)), 0 0 8px rgba(245,158,11,0.5)"
+      : "0 0 0 2px hsl(var(--background))";
   return (
     <span
-      aria-label={online ? "Online" : "Offline"}
+      aria-label={eff === "online" ? "Online" : eff === "away" ? "Away" : "Offline"}
       className="inline-block rounded-full"
-      style={{
-        width:  size,
-        height: size,
-        background: online ? "#22c55e" : "#52525b",
-        boxShadow: online
-          ? "0 0 0 2px hsl(var(--background)), 0 0 8px rgba(34,197,94,0.7)"
-          : "0 0 0 2px hsl(var(--background))",
-      }}
+      style={{ width: size, height: size, background: bg, boxShadow: shadow }}
     />
   );
 }

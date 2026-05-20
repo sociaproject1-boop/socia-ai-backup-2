@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabase";
 import type { DbUser } from "@/lib/supabase";
 import { useAuth } from "@/lib/authContext";
 import { NameBadges, OnlineDot } from "@/components/Badges";
+import { usePresenceStatus } from "@/lib/usePresence";
 import { FounderHero, KingBadge, VerifiedFounderBadge } from "@/components/profile/FounderHero";
 
 function compact(n: number) {
@@ -38,6 +39,9 @@ export default function UserProfile() {
   };
 
   const sessionUid = supabaseUser?.id ?? null;
+
+  /* ── Realtime presence status (replaces stale profile.is_online from DB) ── */
+  const presenceStatus = usePresenceStatus(userId);
 
   useEffect(() => {
     if (!userId) return;
@@ -185,7 +189,7 @@ export default function UserProfile() {
           <FounderHero
             avatarUrl={avatarSrc}
             initials={initials}
-            isOnline={Boolean(profile.is_online)}
+            isOnline={presenceStatus === "online"}
           />
 
           {/* Centered identity section */}
@@ -293,7 +297,7 @@ export default function UserProfile() {
                   }
                 </div>
                 <div className="absolute bottom-0.5 right-0.5">
-                  <OnlineDot online={Boolean(profile.is_online)} size={14} />
+                  <OnlineDot status={presenceStatus} size={14} />
                 </div>
               </div>
               <div className="relative z-10 pt-1"><ActionButtons /></div>
@@ -310,7 +314,7 @@ export default function UserProfile() {
               {profile.username && (
                 <p className="mt-0.5 flex items-center gap-1.5 text-sm text-white/50">
                   <span className="text-[10px] font-semibold uppercase tracking-[0.1em]">
-                    {profile.is_online ? "Online now" : "Offline"}
+                    {presenceStatus === "online" ? "Online now" : presenceStatus === "away" ? "Away" : "Offline"}
                   </span>
                   · @{profile.username}
                 </p>

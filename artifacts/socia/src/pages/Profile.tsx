@@ -9,6 +9,7 @@ import {
 import { FeedCard } from "@/components/feed/FeedCard";
 import { supabase, uploadAvatar, upsertProfile, isSupabaseReady } from "@/lib/supabase";
 import { NameBadges, OnlineDot } from "@/components/Badges";
+import { usePresenceStatus } from "@/lib/usePresence";
 import {
   FounderHero, KingBadge, VerifiedFounderBadge, MiniWaveform,
 } from "@/components/profile/FounderHero";
@@ -162,6 +163,9 @@ export default function Profile() {
 
   const isAdminProfile = user?.isOwner === true;
 
+  /* ── Realtime presence status (replaces stale user.isOnline from store) ── */
+  const presenceStatus = usePresenceStatus(user?.id ?? null);
+
   /* ── Live follower / following counts ──────────────────────────────── */
   useEffect(() => {
     if (!user?.id) return;
@@ -278,7 +282,7 @@ export default function Profile() {
             <FounderHero
               avatarUrl={showAvatar ? avatarSrc : null}
               initials={initials}
-              isOnline={Boolean(user.isOnline)}
+              isOnline={presenceStatus === "online"}
               isEditing={isEditing}
               onAvatarClick={() => fileRef.current?.click()}
               uploading={uploading}
@@ -521,7 +525,7 @@ export default function Profile() {
                   <NameBadges isOwner={user.isOwner} isVerified={user.isVerified} size="md" />
                 </div>
                 <p className="mt-0.5 flex items-center gap-1.5 text-sm app-text-muted">
-                  <OnlineDot online={Boolean(user.isOnline)} size={8} />
+                  <OnlineDot status={presenceStatus} size={8} />
                   @{user.handle}
                 </p>
                 {user.bio && (
