@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { ArrowLeft, Check, Sparkles, Crown, Shield, Wand2 } from "lucide-react";
-import { fetchMyBilling, type Plan, type BillingSummary } from "@/lib/billing";
+import { fetchMyBilling, createPaymongoCheckout, type Plan, type PlanCode, type BillingSummary } from "@/lib/billing";
 
 const FALLBACK_PLANS: Plan[] = [
   { code: "free", name: "Free",     price_php: 0,    credits: 0,    duration_days: 0,  hd_enabled: false, watermark: true,  is_active: true, sort: 0 },
@@ -46,6 +46,23 @@ export default function BillingUpgrade() {
   const [plans, setPlans] = useState<Plan[]>(FALLBACK_PLANS);
   const [me, setMe] = useState<BillingSummary | null>(null);
   const [loading, setLoading] = useState(false);
+  const [payingPlan, setPayingPlan] = useState<PlanCode | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
+
+  const handlePay = async (code: PlanCode) => {
+    if (payingPlan) return;
+    if (code === "free") return;
+    setPayError(null);
+    setPayingPlan(code);
+    try {
+      const { checkout_url } = await createPaymongoCheckout(code);
+      window.location.assign(checkout_url);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Payment failed. Please try again.";
+      setPayError(msg);
+      setPayingPlan(null);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -81,7 +98,12 @@ export default function BillingUpgrade() {
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-5">
           <div className="text-[10px] font-bold uppercase tracking-widest app-text-muted">Pick your plan</div>
           <h2 className="mt-1 text-2xl font-black text-gradient">Create more. Pay less.</h2>
-          <p className="mt-1 text-sm app-text-muted">Manual GCash / Maya payment. Activated within hours of approval.</p>
+          <p className="mt-1 text-sm app-text-muted">Pay securely with GCash, Maya or Card — credits are added the moment payment clears.</p>
+          {payError && (
+            <div className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+              {payError}
+            </div>
+          )}
         </motion.div>
 
         {loading ? (
@@ -93,7 +115,9 @@ export default function BillingUpgrade() {
                 key={p.code}
                 plan={p}
                 isCurrent={Boolean(me?.plan_code === p.code && (p.code === "free" || (me?.plan_expires_at && new Date(me.plan_expires_at) > new Date())))}
-                onSelect={() => p.code === "free" ? null : navigate(`/billing/checkout/new?plan=${p.code}`)}
+                isPaying={payingPlan === p.code}
+                disabled={payingPlan !== null && payingPlan !== p.code}
+                onSelect={() => handlePay(p.code)}
               />
             ))}
           </div>
@@ -104,10 +128,10 @@ export default function BillingUpgrade() {
             <Shield className="h-3.5 w-3.5" /> How it works
           </div>
           <ol className="list-decimal list-inside space-y-1">
-            <li>Pick a plan — you'll see GCash / Maya QR + the exact amount.</li>
-            <li>Pay, then upload your receipt + reference number.</li>
-            <li>An admin reviews. Approved payments unlock your plan & credits automatically.</li>
-            <li>Free plan stays usable while a paid plan is pending.</li>
+            <li>Pick a plan — tap Pay and choose GCash, Maya, or Card on the next screen.</li>
+            <li>Complete payment on PayMongo's secure checkout.</li>
+            <li>Your credits and plan unlock automatically — no waiting on an admin.</li>
+            <li>Free plan stays usable while a paid plan is processing.</li>
           </ol>
         </div>
       </div>
@@ -115,8 +139,8 @@ export default function BillingUpgrade() {
   );
 }
 
-function PlanCard({ plan, isCurrent, onSelect }: {
-  plan: Plan; isCurrent: boolean | null | undefined; onSelect: () => void;
+function PlanCard({ plan, isCurrent, isPaying, disabled, onSelect }: {
+  plan: Plan; isCurrent: boolean | null | undefined; isPaying: boolean; disabled: boolean; onSelect: () => void;
 }) {
   const isPro = plan.code === "p30";
   const isFree = plan.code === "free";
@@ -159,8 +183,8 @@ function PlanCard({ plan, isCurrent, onSelect }: {
 
       <button
         onClick={onSelect}
-        disabled={isFree || !!isCurrent}
-        className="mt-4 w-full rounded-2xl py-3 text-sm font-bold transition disabled:opacity-50"
+        disabled={isFree || !!isCurrent || disabled || isPaying}
+        className="mt-4 w-full rounded-2xl py-3 text-sm font-bold transition disabled:opacity-50 flex items-center justify-center gap-2"
         style={{
           background: isFree || isCurrent
             ? "rgba(255,255,255,0.06)"
@@ -169,7 +193,14 @@ function PlanCard({ plan, isCurrent, onSelect }: {
           boxShadow: !isFree && !isCurrent ? "0 12px 32px -10px rgba(168,85,247,0.45)" : undefined,
         }}
       >
-        {isCurrent ? "Current plan" : isFree ? "Free for everyone" : "Pay via GCash / Maya"}
+        {isPaying && <Wand2 className="h-4 w-4 animate-spin" />}
+        {isCurrent
+          ? "Current plan"
+          : isFree
+            ? "Free for everyone"
+            : isPaying
+              ? "Redirecting to PayMongo…"
+              : "Pay via GCash / Maya / Card"}
       </button>
     </motion.div>
   );

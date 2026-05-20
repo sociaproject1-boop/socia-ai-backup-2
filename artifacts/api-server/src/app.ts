@@ -62,6 +62,12 @@ app.use(
   }),
 );
 app.use(cookieParser());
+
+// PayMongo webhook MUST receive the raw request body so the HMAC signature
+// can be verified byte-for-byte. Mount express.raw() for this path BEFORE
+// the global express.json() — otherwise json() will parse and replace req.body.
+app.use("/api/paymongo/webhook", express.raw({ type: "application/json", limit: "1mb" }));
+
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 

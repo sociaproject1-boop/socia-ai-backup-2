@@ -214,6 +214,65 @@ export async function fetchAmIAdmin(): Promise<boolean> {
   return !!data;
 }
 
+/* ─────────────── PayMongo automated checkout ─────────────── */
+
+/**
+ * Creates a PayMongo checkout session on the backend and returns the
+ * hosted checkout_url. The caller should `window.location.assign(url)` to
+ * redirect the user to GCash/Maya/Card selection.
+ *
+ * Backend stores a pending row in `paymongo_payments`; the webhook flips
+ * status to 'paid' and credits the user atomically.
+ */
+export async function createPaymongoCheckout(
+  plan: PlanCode,
+): Promise<{ ref: string; checkout_url: string }> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) throw new Error("Not signed in.");
+
+  const r = await fetch("/api/paymongo/checkout-session", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ plan }),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error((body as { code?: string; error?: string }).code ?? body.error ?? `Checkout failed (${r.status})`);
+  }
+  const j = await r.json() as { ref: string; checkout_url: string };
+  if (!j.checkout_url) throw new Error("Missing checkout URL from server.");
+  return j;
+}
+
+export interface PaymongoPaymentStatus {
+  id:               string;
+  status:           "pending" | "paid" | "failed" | "cancelled" | "expired";
+  plan_code:        string;
+  credits_added:    number;
+  amount_centavos:  number;
+  paid_at:          string | null;
+}
+
+export async function fetchPaymongoPayment(ref: string): Promise<PaymongoPaymentStatus> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) throw new Error("Not signed in.");
+
+  const r = await fetch(`/api/paymongo/payment/${encodeURIComponent(ref)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error((body as { code?: string }).code ?? `Lookup failed (${r.status})`);
+  }
+  const j = await r.json() as { payment: PaymongoPaymentStatus };
+  return j.payment;
+}
+
 /* ─────────────── writes (RPCs) ─────────────── */
 export async function submitPayment(args: {
   kind:           "subscription" | "topup";

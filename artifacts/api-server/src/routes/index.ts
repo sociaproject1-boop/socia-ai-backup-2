@@ -33,6 +33,7 @@ import projectsRouter          from "./projects.js";
 import voiceSynthRouter        from "./voiceSynth.js";
 import exportTrailerRouter     from "./exportTrailer.js";
 import aiAutoReplyRouter       from "./aiAutoReply.js";
+import paymongoRouter          from "./paymongo.js";
 
 const router: IRouter = Router();
 
@@ -70,5 +71,6 @@ router.use(projectsRouter);
 router.use(voiceSynthRouter);
 router.use(exportTrailerRouter);
 router.use(aiAutoReplyRouter);
+router.use(paymongoRouter);
 
 export default router;
