@@ -11,6 +11,18 @@ export interface SupportCopy {
   cta:                string;   // "Continue Secure Payment"
   back:               string;
   securing:           string;
+  securingStage2:     string;
+  resumeTitle:        string;
+  resumeBody:         string;
+  resumeCta:          string;
+  openInBrowser:      string;
+  historyTitle:       string;
+  historyEmpty:       string;
+  statusPaid:         string;
+  statusPending:      string;
+  statusFailed:       string;
+  statusCancelled:    string;
+  statusExpired:      string;
   trustLine:          string;   // "Powered by PayMongo · Encrypted checkout"
   recentSupporters:   string;
   noRecentSupporters: string;

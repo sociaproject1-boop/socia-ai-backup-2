@@ -72,7 +72,8 @@ async function fetchRecentSupporters(): Promise<RecentSupporter[]> {
   } catch { return []; }
 }
 
-async function createSupportCheckout(amountCentavos: number): Promise<{ checkout_url: string }> {
+interface CheckoutResult { checkout_url: string; ref: string; resumed: boolean; }
+async function createSupportCheckout(amountCentavos: number): Promise<CheckoutResult> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Please sign in to support Socia.");
   const r = await fetch(`${BASE}/paymongo/support-checkout`, {
@@ -94,7 +95,79 @@ async function createSupportCheckout(amountCentavos: number): Promise<{ checkout
     if (code === "PAYMONGO_NOT_CONFIGURED") throw new Error("Payments aren't configured yet. Please contact support.");
     throw new Error("We couldn't start your contribution. Please try again.");
   }
-  return { checkout_url: d.checkout_url as string };
+  return {
+    checkout_url: d.checkout_url as string,
+    ref:          (d.ref as string) ?? "",
+    resumed:      Boolean(d.resumed),
+  };
+}
+
+interface PendingCheckout {
+  ref:             string;
+  amount_centavos: number;
+  created_at:      string;
+  checkout_url:    string;
+}
+async function fetchPendingCheckout(): Promise<PendingCheckout | null> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
+    const r = await fetch(`${BASE}/community-support/pending`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d.pending ?? null;
+  } catch { return null; }
+}
+
+interface ContributionRow {
+  ref:             string;
+  amount_centavos: number;
+  status:          "pending" | "paid" | "failed" | "cancelled" | "expired";
+  payment_method:  string | null;
+  paid_at:         string | null;
+  created_at:      string;
+  paymongo_ref:    string | null;
+}
+async function fetchContributionHistory(): Promise<ContributionRow[]> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return [];
+    const r = await fetch(`${BASE}/community-support/history`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (!r.ok) return [];
+    const d = await r.json();
+    return d.contributions ?? [];
+  } catch { return []; }
+}
+
+/* ── In-app browser safe redirect ───────────────────────────────────────
+ * Facebook / Messenger / Instagram / TikTok in-app browsers occasionally
+ * sandbox window.location to the embedded webview and refuse cross-origin
+ * navigations, or open the target inside a sub-tab that loses the back
+ * stack. Calling window.top.location.href first breaks out of any iframe,
+ * and falling back to window.location.assign covers the standard case.
+ * The caller is expected to show a manual "Open checkout" link after a
+ * short timeout in case both paths are blocked. */
+function safeRedirectToCheckout(url: string): void {
+  try {
+    if (window.top && window.top !== window) {
+      window.top.location.href = url;
+      return;
+    }
+  } catch { /* cross-origin top access blocked — fall through */ }
+  try { window.location.href = url; return; } catch { /* fall through */ }
+  window.location.assign(url);
+}
+
+function detectInAppBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  // FBAN/FBAV = Facebook app, FB_IAB = FB in-app browser, Instagram, Messenger,
+  // musical_ly + TikTok = TikTok, Line/, KAKAOTALK, Twitter.
+  return /(FBAN|FBAV|FB_IAB|Instagram|Messenger|musical_ly|TikTok|Line\/|KAKAOTALK)/i.test(ua);
 }
 
 /* ── Static data ────────────────────────────────────────────────────── */
@@ -353,22 +426,61 @@ function SupportModal({
   onLocaleChange: (c: LocaleCode) => void;
 }) {
   const copy = useMemo(() => getSupportCopy(locale), [locale]);
-  const [amount, setAmount]   = useState<number>(250);
-  const [custom, setCustom]   = useState<string>("");
-  const [method, setMethod]   = useState<Method>("gcash");
-  const [busy, setBusy]       = useState(false);
-  const [err, setErr]         = useState<string | null>(null);
-  const sheetRef              = useRef<HTMLDivElement | null>(null);
-  const mountedRef            = useRef(true);
-  const prevFocusRef          = useRef<HTMLElement | null>(null);
+  const [amount, setAmount]       = useState<number>(250);
+  const [custom, setCustom]       = useState<string>("");
+  const [method, setMethod]       = useState<Method>("gcash");
+  const [busy, setBusy]           = useState(false);
+  const [err, setErr]             = useState<string | null>(null);
+  // Sequential loading copy: stage 1 ("Preparing secure checkout…") flips to
+  // stage 2 ("Securing encrypted payment…") after 1.5s so the user has a
+  // sense of forward progress while we hit PayMongo + the browser redirects.
+  const [loadingStage, setLoadingStage]   = useState<1 | 2>(1);
+  // Resume banner: surfaced when the user has an in-flight pending row
+  // (closed the tab during a previous checkout). Fetched on open.
+  const [resumable, setResumable]         = useState<PendingCheckout | null>(null);
+  // Contribution history accordion — lazy-loaded when expanded.
+  const [history, setHistory]             = useState<ContributionRow[]>([]);
+  const [historyOpen, setHistoryOpen]     = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  // Manual fallback link shown if the redirect after a tap takes too long
+  // (most often inside FB/IG/TikTok in-app browsers).
+  const [fallbackUrl, setFallbackUrl]     = useState<string | null>(null);
+  const sheetRef                          = useRef<HTMLDivElement | null>(null);
+  const mountedRef                        = useRef(true);
+  const prevFocusRef                      = useRef<HTMLElement | null>(null);
 
-  // Reset transient state every time the sheet opens.
+  // Reset transient state every time the sheet opens, then fetch any
+  // resumable in-flight checkout so we can offer a one-tap recovery.
   useEffect(() => {
     if (open) {
       setAmount(250); setCustom(""); setMethod("gcash");
       setBusy(false); setErr(null);
+      setLoadingStage(1); setFallbackUrl(null);
+      setHistoryOpen(false); setHistoryLoaded(false); setHistory([]);
+      void fetchPendingCheckout().then((p) => {
+        if (mountedRef.current) setResumable(p);
+      });
+    } else {
+      setResumable(null);
     }
   }, [open]);
+
+  // Sequential loading copy timer — switches to stage 2 after 1.5s while busy.
+  useEffect(() => {
+    if (!busy) { setLoadingStage(1); return; }
+    const t = setTimeout(() => setLoadingStage(2), 1500);
+    return () => clearTimeout(t);
+  }, [busy]);
+
+  // Lazy-load history the first time the user expands it. Cheap (≤50 rows)
+  // and avoids paying for it on every modal open.
+  useEffect(() => {
+    if (!open || !historyOpen || historyLoaded) return;
+    void fetchContributionHistory().then((rows) => {
+      if (!mountedRef.current) return;
+      setHistory(rows); setHistoryLoaded(true);
+    });
+  }, [open, historyOpen, historyLoaded]);
 
   // Track mount for redirect-safe state guards.
   useEffect(() => {
@@ -440,6 +552,22 @@ function SupportModal({
     return amount;
   }, [amount, custom]);
 
+  // Redirect helper shared by both "Continue Secure Payment" and the
+  // "Resume checkout" banner. Always navigates with safeRedirectToCheckout,
+  // then arms a manual-fallback link in case the in-app browser silently
+  // blocks the navigation (FB/IG/TikTok).
+  const beginRedirect = (url: string) => {
+    setBusy(true); setErr(null); setLoadingStage(1);
+    setFallbackUrl(null);
+    // If we're already in a known in-app browser, surface the fallback link
+    // immediately so the user has a one-tap escape if the redirect stalls.
+    const inApp = detectInAppBrowser();
+    safeRedirectToCheckout(url);
+    setTimeout(() => {
+      if (mountedRef.current) setFallbackUrl(url);
+    }, inApp ? 600 : 2000);
+  };
+
   const handleSubmit = async () => {
     if (busy) return;
     setErr(null);
@@ -450,14 +578,17 @@ function SupportModal({
     setBusy(true);
     try {
       const { checkout_url } = await createSupportCheckout(finalAmount * 100);
-      // Keep modal mounted during redirect so the user sees the loading
-      // state, not a white flash. PayMongo will replace the document.
-      window.location.assign(checkout_url);
+      beginRedirect(checkout_url);
     } catch (e: unknown) {
       if (!mountedRef.current) return;
       setErr(e instanceof Error ? e.message : "Checkout failed. Please try again.");
       setBusy(false);
     }
+  };
+
+  const handleResume = () => {
+    if (busy || !resumable) return;
+    beginRedirect(resumable.checkout_url);
   };
 
   if (!open || typeof document === "undefined") return null;
@@ -522,6 +653,33 @@ function SupportModal({
           </div>
 
           <div className="px-5 pb-2 space-y-5">
+
+            {/* Resume banner — only when an unfinished checkout exists. */}
+            {resumable && !busy && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-2xl p-3.5"
+                style={{
+                  background: "linear-gradient(135deg, rgba(168,85,247,0.18), rgba(236,72,153,0.12))",
+                  border: "1px solid rgba(168,85,247,0.42)",
+                }}
+              >
+                <p className="text-[11px] font-bold uppercase tracking-wider text-purple-200">
+                  {copy.resumeTitle}
+                </p>
+                <p className="mt-1 text-[11.5px] text-white/65">
+                  {copy.resumeBody}
+                </p>
+                <button
+                  onClick={handleResume}
+                  className="mt-2.5 w-full rounded-xl py-2 text-[12.5px] font-bold text-white"
+                  style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}
+                >
+                  {copy.resumeCta} · ₱{Math.floor(resumable.amount_centavos / 100).toLocaleString()}
+                </button>
+              </motion.div>
+            )}
 
             {/* Language pills */}
             <div className="flex gap-1.5">
@@ -635,12 +793,26 @@ function SupportModal({
               </div>
             )}
 
+            {/* Manual fallback link for in-app browsers that block redirects. */}
+            {fallbackUrl && busy && (
+              <a
+                href={fallbackUrl}
+                target="_top"
+                rel="noopener noreferrer"
+                className="block rounded-2xl px-3.5 py-2.5 text-center text-[11.5px] font-semibold text-purple-200 underline"
+                style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.28)" }}
+              >
+                {copy.openInBrowser}
+              </a>
+            )}
+
             {/* CTA */}
             <div className="space-y-2 pt-1">
               <motion.button
                 whileTap={busy ? undefined : { scale: 0.98 }}
                 onClick={handleSubmit}
                 disabled={busy}
+                aria-busy={busy}
                 className="w-full rounded-2xl py-3.5 text-[14px] font-bold text-white disabled:opacity-90"
                 style={{
                   background: "linear-gradient(135deg,#a855f7,#ec4899)",
@@ -650,7 +822,7 @@ function SupportModal({
                 {busy ? (
                   <span className="flex items-center justify-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    {copy.securing}
+                    {loadingStage === 1 ? copy.securing : copy.securingStage2}
                   </span>
                 ) : (
                   <>{copy.cta} · ₱{(finalAmount || 0).toLocaleString()}</>
@@ -663,6 +835,90 @@ function SupportModal({
               >
                 {copy.back}
               </button>
+            </div>
+
+            {/* Contribution history accordion */}
+            <div className="pt-1">
+              <button
+                onClick={() => setHistoryOpen((v) => !v)}
+                aria-expanded={historyOpen}
+                disabled={busy}
+                className="flex w-full items-center justify-between rounded-2xl px-3.5 py-2.5 text-left text-[11.5px] font-semibold text-white/70 disabled:opacity-40"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+              >
+                <span>{copy.historyTitle}</span>
+                <ChevronRight
+                  className="h-3.5 w-3.5 transition-transform"
+                  style={{ transform: historyOpen ? "rotate(90deg)" : "rotate(0deg)" }}
+                />
+              </button>
+              <AnimatePresence initial={false}>
+                {historyOpen && (
+                  <motion.ul
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{   height: 0, opacity: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className="overflow-hidden mt-2 space-y-1.5"
+                  >
+                    {!historyLoaded && (
+                      <li className="flex items-center gap-2 px-1 py-1 text-[11px] text-white/40">
+                        <Loader2 className="h-3 w-3 animate-spin" /> …
+                      </li>
+                    )}
+                    {historyLoaded && history.length === 0 && (
+                      <li className="px-1 py-1 text-[11px] text-white/40">{copy.historyEmpty}</li>
+                    )}
+                    {history.map((row) => {
+                      const statusLabel =
+                        row.status === "paid"      ? copy.statusPaid
+                      : row.status === "pending"   ? copy.statusPending
+                      : row.status === "failed"    ? copy.statusFailed
+                      : row.status === "cancelled" ? copy.statusCancelled
+                      :                              copy.statusExpired;
+                      const statusColor =
+                        row.status === "paid"      ? "#34d399"
+                      : row.status === "pending"   ? "#fbbf24"
+                      :                              "#f87171";
+                      const ts = row.paid_at ?? row.created_at;
+                      return (
+                        <li
+                          key={row.ref}
+                          className="flex items-center justify-between rounded-xl px-3 py-2"
+                          style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.05)" }}
+                        >
+                          <div className="min-w-0 flex-1 pr-2">
+                            <p className="text-[12.5px] font-bold text-white">
+                              ₱{Math.floor(row.amount_centavos / 100).toLocaleString()}
+                              {row.payment_method && (
+                                <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+                                  · {row.payment_method}
+                                </span>
+                              )}
+                            </p>
+                            <p className="mt-0.5 text-[10px] text-white/35 truncate">
+                              {new Date(ts).toLocaleString()}
+                              {row.paymongo_ref && (
+                                <span className="ml-1.5">· {row.paymongo_ref.slice(0, 12)}…</span>
+                              )}
+                            </p>
+                          </div>
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                            style={{
+                              background: `${statusColor}22`,
+                              color: statusColor,
+                              border: `1px solid ${statusColor}55`,
+                            }}
+                          >
+                            {statusLabel}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </motion.ul>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </motion.div>

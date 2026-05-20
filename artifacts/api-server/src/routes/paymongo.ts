@@ -269,6 +269,40 @@ router.post("/paymongo/support-checkout", requireAuth, async (req: Request, res:
     "[paymongo/support] creating checkout session",
   );
 
+  // 0. Idempotent re-tap recovery.
+  //    If the user already has an in-flight pending row for the SAME amount,
+  //    created in the last 25 minutes (PayMongo checkout sessions expire at
+  //    ~30min by default), and we already have a checkout_url for it,
+  //    return that URL instead of spinning up a fresh session. This makes
+  //    rapid re-taps + "back button then continue" flows safe without
+  //    inflating the rate-limit counter or creating duplicate sessions.
+  //    Different amount → falls through and creates a new session.
+  {
+    const sinceIso = new Date(Date.now() - 25 * 60 * 1000).toISOString();
+    const { data: existing } = await sb
+      .from("community_support")
+      .select("id, paymongo_session_id, raw_session")
+      .eq("user_id", user.id)
+      .eq("status", "pending")
+      .eq("amount_centavos", amountCentavos)
+      .gte("created_at", sinceIso)
+      .not("paymongo_session_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const cachedUrl =
+      (existing?.raw_session as { data?: { attributes?: { checkout_url?: string } } } | null)
+        ?.data?.attributes?.checkout_url;
+    if (existing && cachedUrl) {
+      logger.info(
+        { userId: user.id, ref: existing.id, sessionId: existing.paymongo_session_id },
+        "[paymongo/support] idempotent re-tap — returning existing checkout url",
+      );
+      return res.json({ ok: true, ref: existing.id, checkout_url: cachedUrl, resumed: true });
+    }
+  }
+
   // 1. Atomic create-pending RPC. This is a single transaction on Postgres
   //    that:
   //      • takes a per-user advisory lock (no cross-user blocking)
@@ -454,6 +488,89 @@ router.get("/community-support/stats", async (_req: Request, res: Response) => {
   // RPC returns jsonb — pass straight through (numeric fields stringified by
   // PostgREST become numbers in JSON).
   return res.json(data);
+});
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * GET /api/community-support/pending
+ *
+ * Authed. Returns the caller's most recent pending support row that still
+ * has a usable PayMongo checkout_url (created < 25 min ago). Used by the
+ * home support modal to surface a "Resume your contribution" banner when
+ * the user closed the tab mid-checkout. 404 = nothing to resume.
+ * ───────────────────────────────────────────────────────────────────── */
+router.get("/community-support/pending", requireAuth, async (req: Request, res: Response) => {
+  const sb = getServiceClient();
+  if (!sb) return res.status(503).json({ code: "DB_UNAVAILABLE" });
+  const user = getAuthedUser(req);
+  if (!user?.id) return res.status(401).json({ code: "UNAUTHENTICATED" });
+
+  const sinceIso = new Date(Date.now() - 25 * 60 * 1000).toISOString();
+  const { data, error } = await sb
+    .from("community_support")
+    .select("id, amount_centavos, created_at, paymongo_session_id, raw_session")
+    .eq("user_id", user.id)
+    .eq("status", "pending")
+    .gte("created_at", sinceIso)
+    .not("paymongo_session_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    logger.warn({ err: error, userId: user.id }, "[community-support/pending] db error");
+    return res.json({ pending: null });
+  }
+  const checkoutUrl =
+    (data?.raw_session as { data?: { attributes?: { checkout_url?: string } } } | null)
+      ?.data?.attributes?.checkout_url;
+  if (!data || !checkoutUrl) return res.json({ pending: null });
+
+  return res.json({
+    pending: {
+      ref:             data.id,
+      amount_centavos: data.amount_centavos,
+      created_at:      data.created_at,
+      checkout_url:    checkoutUrl,
+    },
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * GET /api/community-support/history
+ *
+ * Authed. Returns the caller's own contribution history (any status),
+ * newest first, capped at 50 rows. Used by the modal's "Your contributions"
+ * accordion. Includes amount, status, payment_method, timestamp, and the
+ * PayMongo reference id (session id) when available.
+ * ───────────────────────────────────────────────────────────────────── */
+router.get("/community-support/history", requireAuth, async (req: Request, res: Response) => {
+  const sb = getServiceClient();
+  if (!sb) return res.status(503).json({ code: "DB_UNAVAILABLE" });
+  const user = getAuthedUser(req);
+  if (!user?.id) return res.status(401).json({ code: "UNAUTHENTICATED" });
+
+  const { data, error } = await sb
+    .from("community_support")
+    .select("id, amount_centavos, status, payment_method, paid_at, created_at, paymongo_session_id")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    logger.warn({ err: error, userId: user.id }, "[community-support/history] db error");
+    return res.json({ contributions: [] });
+  }
+  return res.json({
+    contributions: (data ?? []).map((r) => ({
+      ref:             r.id,
+      amount_centavos: r.amount_centavos,
+      status:          r.status,
+      payment_method:  r.payment_method,
+      paid_at:         r.paid_at,
+      created_at:      r.created_at,
+      paymongo_ref:    r.paymongo_session_id,
+    })),
+  });
 });
 
 /* ─────────────────────────────────────────────────────────────────────────

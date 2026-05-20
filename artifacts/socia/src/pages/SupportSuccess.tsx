@@ -102,15 +102,38 @@ export default function SupportSuccess() {
 
         {phase === "paid" && (
           <>
-            <motion.div
-              initial={{ scale: 0.7, opacity: 0 }}
-              animate={{ scale: 1,   opacity: 1 }}
-              transition={{ type: "spring", stiffness: 280, damping: 18 }}
-              className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-full"
-              style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}
-            >
-              <CheckCircle2 className="h-8 w-8 text-white" />
-            </motion.div>
+            <div className="relative mx-auto mb-5 h-16 w-16">
+              {/* Pulsing glow ring — purple→pink, fades softly behind the
+                  success badge. Two staggered rings for a richer halo. */}
+              <motion.span
+                aria-hidden
+                className="absolute inset-0 rounded-full"
+                style={{ background: "radial-gradient(circle, rgba(168,85,247,0.55), transparent 65%)" }}
+                initial={{ scale: 0.7, opacity: 0.0 }}
+                animate={{ scale: [0.9, 1.45, 0.9], opacity: [0.55, 0, 0.55] }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: "easeOut" }}
+              />
+              <motion.span
+                aria-hidden
+                className="absolute inset-0 rounded-full"
+                style={{ background: "radial-gradient(circle, rgba(236,72,153,0.55), transparent 65%)" }}
+                initial={{ scale: 0.7, opacity: 0.0 }}
+                animate={{ scale: [1.0, 1.65, 1.0], opacity: [0.4, 0, 0.4] }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: "easeOut", delay: 0.6 }}
+              />
+              <motion.div
+                initial={{ scale: 0.7, opacity: 0 }}
+                animate={{ scale: 1,   opacity: 1 }}
+                transition={{ type: "spring", stiffness: 280, damping: 18 }}
+                className="relative z-[1] grid h-16 w-16 place-items-center rounded-full"
+                style={{
+                  background: "linear-gradient(135deg,#a855f7,#ec4899)",
+                  boxShadow: "0 0 40px -4px rgba(168,85,247,0.65), 0 0 80px -16px rgba(236,72,153,0.5)",
+                }}
+              >
+                <CheckCircle2 className="h-8 w-8 text-white" />
+              </motion.div>
+            </div>
             <h1 className="font-display text-[22px] font-black text-white">
               {copy.thanksTitle}
             </h1>
