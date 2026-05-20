@@ -48,7 +48,7 @@ const ADMIN_CARDS: AdminCardDef[] = [
     dot:      "#22c55e",
     wave:     true,
     waveColor: "#22c55e",
-    href:     "/create/multi-frame",
+    href:     "/admin/ai-monitor",
   },
   {
     iconPath:  "M22 12h-4l-3 9L9 3 6 12H2",
@@ -58,7 +58,7 @@ const ADMIN_CARDS: AdminCardDef[] = [
     dot:      "#a855f7",
     wave:     true,
     waveColor: "#a855f7",
-    href:     "/create/multi-frame",
+    href:     "/admin/render-queue",
   },
   {
     iconPath:  "M12 2a10 10 0 100 20A10 10 0 0012 2zM2 12h4M18 12h4M12 2v4M12 18v4",
@@ -68,7 +68,7 @@ const ADMIN_CARDS: AdminCardDef[] = [
     dot:      "#22c55e",
     wave:     false,
     waveColor: "#22c55e",
-    href:     null,
+    href:     "/admin/system-status",
   },
 ];
 

@@ -344,12 +344,17 @@ function LegacySection({ children }: { children: React.ReactNode }) {
 }
 
 /* ── Main SysAdmin component ─────────────────────────────────────────── */
-export default function SysAdmin({ loginPath = "/sys-admin/login" }: { loginPath?: string } = {}) {
+export default function SysAdmin({
+  loginPath = "/sys-admin/login",
+  initialView,
+}: { loginPath?: string; initialView?: string } = {}) {
   const [, navigate] = useLocation();
   const profile      = useAdminStore((s) => s.profile);
   const setProfile   = useAdminStore((s) => s.setProfile);
   const [hydrated,   setHydrated]   = useState(false);
-  const [view,       setView]       = useState<AdminView>("dashboard");
+  const [view,       setView]       = useState<AdminView>(
+    (initialView as AdminView) || "dashboard",
+  );
   const [collapsed,  setCollapsed]  = useState(() =>
     typeof window !== "undefined" && window.innerWidth < 1024,
   );

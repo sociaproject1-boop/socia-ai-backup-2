@@ -167,6 +167,7 @@ function Router() {
       <Route path="/sys-admin/:rest*"     component={SysAdminPage} />
       <Route path="/admin/login"          component={AdminLogin} />
       <Route path="/admin/dashboard"      component={AdminDashboard} />
+      <Route path="/admin"                component={AdminDashboard} />
       <Route path="/admin/:rest*"         component={AdminDashboard} />
       <Route path="/legal/terms"          component={TermsPage} />
       <Route path="/legal/privacy"        component={PrivacyPage} />
