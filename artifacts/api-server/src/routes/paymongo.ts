@@ -228,6 +228,11 @@ router.post("/paymongo/checkout-session", requireAuth, async (req: Request, res:
 const SUPPORT_MIN_CENTAVOS = 5_000;       //  ₱50
 const SUPPORT_MAX_CENTAVOS = 1_000_000;   //  ₱10,000 — safety ceiling per tx
 
+// Allow-list for the optional payment_method hint. PayMongo gates the real
+// rail selection at hosted checkout — this is purely a defensive check so a
+// malformed client value can't propagate.
+const SUPPORT_METHODS = new Set(["gcash", "paymaya", "card"]);
+
 router.post("/paymongo/support-checkout", requireAuth, async (req: Request, res: Response) => {
   const sb = getServiceClient();
   if (!sb) return res.status(503).json({ code: "DB_UNAVAILABLE" });
@@ -241,25 +246,72 @@ router.post("/paymongo/support-checkout", requireAuth, async (req: Request, res:
   // Server-side amount validation — never trust client totals.
   const amountCentavos = Number(req.body?.amount_centavos);
   if (!Number.isFinite(amountCentavos) || !Number.isInteger(amountCentavos)) {
-    return res.status(400).json({ code: "INVALID_AMOUNT" });
+    return res.status(400).json({ code: "INVALID_AMOUNT", message: "Please enter a valid amount." });
   }
   if (amountCentavos < SUPPORT_MIN_CENTAVOS) {
-    return res.status(400).json({ code: "AMOUNT_BELOW_MIN", min: SUPPORT_MIN_CENTAVOS });
+    return res.status(400).json({ code: "AMOUNT_BELOW_MIN", min: SUPPORT_MIN_CENTAVOS, message: "Minimum contribution is ₱50." });
   }
   if (amountCentavos > SUPPORT_MAX_CENTAVOS) {
-    return res.status(400).json({ code: "AMOUNT_ABOVE_MAX", max: SUPPORT_MAX_CENTAVOS });
+    return res.status(400).json({ code: "AMOUNT_ABOVE_MAX", max: SUPPORT_MAX_CENTAVOS, message: "Maximum contribution per transaction is ₱10,000." });
   }
 
-  // 1. Pending row first so we always have a DB record.
-  const { data: row, error: insErr } = await sb
-    .from("community_support")
-    .insert({
-      user_id: user.id,
-      amount_centavos: amountCentavos,
-      status: "pending",
-    })
-    .select("id")
-    .single();
+  // Optional payment_method hint — if the client provides one, it must be in
+  // the allow-list. Missing is fine; PayMongo shows all three at checkout.
+  const methodHint = req.body?.payment_method;
+  if (methodHint !== undefined && methodHint !== null) {
+    if (typeof methodHint !== "string" || !SUPPORT_METHODS.has(methodHint)) {
+      return res.status(400).json({ code: "INVALID_METHOD", message: "Choose GCash, Maya, or Card." });
+    }
+  }
+
+  logger.info(
+    { userId: user.id, amountCentavos, methodHint: methodHint ?? null },
+    "[paymongo/support] creating checkout session",
+  );
+
+  // 1. Atomic create-pending RPC. This is a single transaction on Postgres
+  //    that:
+  //      • takes a per-user advisory lock (no cross-user blocking)
+  //      • expires THIS user's stale pending rows (>30 min)
+  //      • enforces the sliding-window anti-spam cap (3 / 60s)
+  //      • inserts the new pending row
+  //    The lock+count+insert in one TX makes the rate limit immune to the
+  //    classic TOCTOU race a separate count→insert is vulnerable to.
+  //    Any RPC-level error (network, function missing, etc.) is FAIL-CLOSED:
+  //    we treat it as if the insert failed and return the mapped error code.
+  // Rate-limit window + cap are hardcoded inside the SQL function so a
+  // caller cannot relax them by passing larger values.
+  const { data: rpcData, error: rpcErr } = await sb.rpc("create_pending_community_support", {
+    p_user_id:         user.id,
+    p_amount_centavos: amountCentavos,
+  });
+
+  // RPC returned an application-level rejection (rate limit / amount bound).
+  // Note `rpcData` is jsonb — supabase-js delivers it as the raw object.
+  const rpcResult = rpcData as { ok?: boolean; id?: string; code?: string } | null;
+  if (!rpcErr && rpcResult && rpcResult.ok === false) {
+    if (rpcResult.code === "TOO_MANY_REQUESTS") {
+      logger.warn({ userId: user.id }, "[paymongo/support] rate limited (atomic)");
+      return res.status(429).json({
+        code:    "TOO_MANY_REQUESTS",
+        message: "You're starting checkouts too quickly. Please wait a moment and try again.",
+      });
+    }
+    if (rpcResult.code === "AMOUNT_BELOW_MIN") {
+      return res.status(400).json({ code: "AMOUNT_BELOW_MIN", message: "Minimum contribution is ₱50." });
+    }
+    if (rpcResult.code === "AMOUNT_ABOVE_MAX") {
+      return res.status(400).json({ code: "AMOUNT_ABOVE_MAX", message: "Maximum contribution per transaction is ₱10,000." });
+    }
+    // Unknown application code — fail-closed.
+    logger.error({ rpcResult, userId: user.id }, "[paymongo/support] unexpected rpc rejection");
+    return res.status(500).json({ code: "SUPPORT_INSERT_FAILED", message: "We couldn't start your contribution. Please try again." });
+  }
+
+  // Shim the RPC result into the same shape the downstream code already
+  // expects ({ id } row + supabase-style error).
+  const row    = rpcResult?.ok && rpcResult.id ? { id: rpcResult.id } : null;
+  const insErr = rpcErr;
 
   if (insErr || !row) {
     // Map common Supabase error shapes to actionable user-facing codes so the
@@ -367,6 +419,41 @@ router.post("/paymongo/support-checkout", requireAuth, async (req: Request, res:
     .eq("id", ref);
 
   return res.json({ ok: true, ref, checkout_url: checkoutUrl });
+});
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * GET /api/community-support/stats
+ *
+ * Phase-1 stats endpoint. Single source of truth: computed live from the
+ * community_support table via the community_support_stats() SQL function.
+ *
+ * Includes only status='paid' rows. Excludes pending (older or newer than
+ * the 30-min window), failed, cancelled, and expired. Returns:
+ *   { raised, remaining, goal, supporters, percentage }
+ *
+ * Public endpoint (no auth) — used by the home funding card and any future
+ * dashboards. The stats it returns are deliberately non-PII.
+ * ───────────────────────────────────────────────────────────────────── */
+router.get("/community-support/stats", async (_req: Request, res: Response) => {
+  const sb = getServiceClient();
+  if (!sb) return res.status(503).json({ code: "DB_UNAVAILABLE" });
+
+  // Best-effort expiration sweep so the stats reflect "live" state without
+  // depending on an external scheduler. Cheap because of idx_cs_status.
+  await sb.rpc("expire_stale_community_support").then(
+    () => undefined,
+    (e) => { logger.warn({ err: e }, "[community-support/stats] expire sweep warning (non-fatal)"); },
+  );
+
+  const { data, error } = await sb.rpc("community_support_stats");
+  if (error || !data) {
+    logger.error({ err: error }, "[community-support/stats] rpc failed");
+    // Graceful fallback so the home card never breaks the page.
+    return res.json({ raised: 0, remaining: 50000, goal: 50000, supporters: 0, percentage: 0 });
+  }
+  // RPC returns jsonb — pass straight through (numeric fields stringified by
+  // PostgREST become numbers in JSON).
+  return res.json(data);
 });
 
 /* ─────────────────────────────────────────────────────────────────────────
