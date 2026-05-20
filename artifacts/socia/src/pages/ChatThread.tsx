@@ -834,22 +834,46 @@ export default function ChatThread() {
             <ArrowLeft className="h-4 w-4" />
           </button>
 
-          {/* Avatar — tap to view profile */}
+          {/* Avatar — tap to view profile.
+              Outer button is `relative` but NOT `overflow-hidden`, so the
+              presence dot (sibling) is never clipped by the avatar's
+              rounded border. The image is clipped by its own nested div. */}
           <button
             onClick={() => navigate(`/profile/${otherId}`)}
-            className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-white/10"
+            className="relative h-9 w-9 shrink-0"
+            aria-label={`Open ${peerName}'s profile`}
           >
-            {peerAvatar ? (
-              <img src={peerAvatar} alt="" loading="lazy" className="h-full w-full object-cover" />
-            ) : (
-              <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-xs font-bold text-white">
-                {peerName.charAt(0)}
-              </div>
-            )}
-            <span className={
-              "absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-background transition-colors " +
-              (peerOnline ? "bg-emerald-400" : "bg-white/25")
-            } />
+            <div className="h-9 w-9 overflow-hidden rounded-full border border-white/10">
+              {peerAvatar ? (
+                <img src={peerAvatar} alt="" loading="lazy" className="h-full w-full object-cover" />
+              ) : (
+                <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-xs font-bold text-white">
+                  {peerName.charAt(0)}
+                </div>
+              )}
+            </div>
+
+            {/* Presence dot — sibling of avatar, Messenger-style.
+                Only renders for online/away; offline → no dot. */}
+            <AnimatePresence>
+              {(peerOnline || peerAway) && (
+                <motion.span
+                  key={peerStatus}
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0, opacity: 0 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 28 }}
+                  className="pointer-events-none absolute -bottom-0.5 -right-0.5 z-10 h-2.5 w-2.5 rounded-full"
+                  style={{
+                    background: peerOnline ? "#22c55e" : "#f59e0b",
+                    boxShadow: peerOnline
+                      ? "0 0 0 2px #000, 0 0 8px rgba(34,197,94,0.65)"
+                      : "0 0 0 2px #000, 0 0 8px rgba(245,158,11,0.5)",
+                  }}
+                  aria-label={peerOnline ? "Online" : "Away"}
+                />
+              )}
+            </AnimatePresence>
           </button>
 
           <div className="min-w-0 flex-1">
