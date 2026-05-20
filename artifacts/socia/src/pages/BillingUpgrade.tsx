@@ -19,6 +19,7 @@ import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { ArrowLeft, Check, Sparkles, Crown, Shield, Wand2, Film, Zap, Star } from "lucide-react";
 import { fetchMyBilling, createPaymongoCheckout, type PlanCode, type BillingSummary } from "@/lib/billing";
+import PolicyModal, { type PolicyPlanCode } from "@/components/billing/PolicyModal";
 
 type UpgradePlanCode = "premium" | "elite" | "super_elite" | "cinematic";
 
@@ -113,10 +114,23 @@ export default function BillingUpgrade() {
   const [loading, setLoading] = useState(true);
   const [payingPlan, setPayingPlan] = useState<UpgradePlanCode | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
+  /** Plan currently being reviewed in the policy modal. null = modal closed. */
+  const [policyPlan, setPolicyPlan] = useState<UpgradePlanCode | null>(null);
 
-  const handlePay = async (code: UpgradePlanCode) => {
+  // Tapping Pay opens the policy modal first. Checkout only proceeds after
+  // the user reads the plan policy + global fair-usage statement and taps
+  // "I Understand & Agree". This protects against refund complaints and
+  // "scam" accusations by making the soft-limit behavior explicit upfront.
+  const handlePay = (code: UpgradePlanCode) => {
     if (payingPlan) return;
     setPayError(null);
+    setPolicyPlan(code);
+  };
+
+  const proceedToCheckout = async () => {
+    const code = policyPlan;
+    if (!code) return;
+    setPolicyPlan(null);
     setPayingPlan(code);
     try {
       const { checkout_url } = await createPaymongoCheckout(code as PlanCode);
@@ -195,6 +209,13 @@ export default function BillingUpgrade() {
             ))}
           </div>
         )}
+
+        <PolicyModal
+          open={policyPlan !== null}
+          plan={(policyPlan ?? "premium") as PolicyPlanCode}
+          onAgree={proceedToCheckout}
+          onClose={() => setPolicyPlan(null)}
+        />
 
         <div className="mt-6 rounded-2xl border border-white/10 p-4 text-xs app-text-muted">
           <div className="font-bold app-text text-sm mb-1 flex items-center gap-1.5">
