@@ -84,7 +84,7 @@ export default function BillingUpgrade() {
           <div className="text-center text-sm app-text-muted py-8">Loading plans…</div>
         ) : (
           <div className="space-y-3">
-            {plans.map((p) => (
+            {plans.filter((p) => p.code === "free").map((p) => (
               <PlanCard
                 key={p.code}
                 plan={p}
