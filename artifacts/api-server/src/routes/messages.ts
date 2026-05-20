@@ -23,6 +23,7 @@ import {
   ADMIN_EMAIL,
   shouldAiReply,
   markAdminActive,
+  setOwnerOnline,
 } from "../lib/aiAutoReplyState.js";
 import { getAdminUserId, triggerAiReply } from "../lib/aiAutoReplyEngine.js";
 
@@ -194,6 +195,11 @@ router.post("/presence/heartbeat", requireAuth, async (req, res): Promise<void> 
   const user     = getAuthedUser(req);
   const supabase = getRequestSupabase(req);
 
+  // Accept optional status from realtime presence system
+  const body   = (req.body ?? {}) as Record<string, unknown>;
+  const status = typeof body["status"] === "string" ? body["status"] : "online";
+  const isOnline = status === "online";
+
   // ENFORCED: only updates the authenticated user's own last_seen — id is never from body.
   const { error } = await supabase
     .from("users")
@@ -203,6 +209,12 @@ router.post("/presence/heartbeat", requireAuth, async (req, res): Promise<void> 
   if (error) {
     // Presence is non-critical — log but don't fail the request.
     logger.warn({ err: error, userId: user.id }, "presence/heartbeat update failed");
+  }
+
+  // Sync owner online/offline state into AI auto-reply engine in real time
+  if (user.email === ADMIN_EMAIL) {
+    setOwnerOnline(isOnline);
+    logger.debug({ status, isOnline }, "[presence] owner heartbeat received");
   }
 
   res.json({ ok: true });

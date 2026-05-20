@@ -106,24 +106,14 @@ export function clearUserCache(): void {
 /*  Presence heartbeat                                                        */
 /* ══════════════════════════════════════════════════════════════════════════ */
 
-export function usePresenceHeartbeat(userId: string | null) {
-  useEffect(() => {
-    if (!userId) return;
-    const ping = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) return;
-      try {
-        await fetch("/api/presence/heartbeat", {
-          method:  "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      } catch { /* non-critical — ignore */ }
-    };
-    ping();
-    const id = setInterval(ping, 60_000);
-    return () => clearInterval(id);
-  }, [userId]);
+/**
+ * usePresenceHeartbeat — kept for backward-compat; the real heartbeat is now
+ * handled by useMyPresence() in AuthProvider (15 s, presence-aware).
+ * This is a deliberate no-op.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function usePresenceHeartbeat(_userId: string | null): void {
+  // no-op: useMyPresence in authContext handles heartbeat + AWAY detection
 }
 
 /* ══════════════════════════════════════════════════════════════════════════ */

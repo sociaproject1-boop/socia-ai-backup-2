@@ -18,6 +18,7 @@ import {
   setOnlineStatus,
   claimOwnerBadge,
 } from "./supabase";
+import { useMyPresence } from "./usePresence";
 import { useAppStore } from "./store";
 import { clearUserCache } from "./useSupabaseChat";
 import { useSociaGptStore } from "./sociaGptClient";
@@ -62,6 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const storeLogout        = useAppStore((s) => s.logout);
   const setUser            = useAppStore((s) => s.setUser);
   const setFollowedUserIds = useAppStore((s) => s.setFollowedUserIds);
+
+  /* ── Realtime presence system (15 s heartbeat, AWAY detection) ─────────── */
+  useMyPresence(supabaseUser?.id ?? null);
 
   useEffect(() => {
     if (!isSupabaseReady) {
@@ -173,24 +177,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    /* Mark this tab offline when it goes hidden / closes. Both handlers
-     * gate on the current session so we never fire 401s before the user
-     * is actually signed in. Hard tab-close may drop the request — last_seen
-     * will lag in that case but the realtime channel still updates dots. */
-    const flipIfSignedIn = (online: boolean) => {
-      supabase.auth.getSession().then(({ data }) => {
-        if (data.session?.user) setOnlineStatus(online).catch(() => {});
-      }).catch(() => {});
-    };
-    const handleHidden       = () => flipIfSignedIn(document.visibilityState !== "hidden");
-    const handleBeforeUnload = () => flipIfSignedIn(false);
-    document.addEventListener("visibilitychange", handleHidden);
-    window.addEventListener("beforeunload", handleBeforeUnload);
-
-    /* Heartbeat: keep the online flag fresh every 30 s so it doesn't drift
-     * to false due to missed visibility events (mobile background, etc.) */
-    const heartbeatId = setInterval(() => flipIfSignedIn(true), 30_000);
-
     // Safety net — ensure loading is never permanently stuck
     const safetyTimer = setTimeout(() => {
       setLoading((prev) => {
@@ -205,9 +191,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.unsubscribe();
       clearTimeout(safetyTimer);
-      clearInterval(heartbeatId);
-      document.removeEventListener("visibilitychange", handleHidden);
-      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, []);
 

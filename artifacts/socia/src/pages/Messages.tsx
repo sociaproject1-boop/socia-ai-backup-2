@@ -5,6 +5,7 @@ import { Search, MessageCirclePlus, X, ArrowLeft, User, Bot, Wifi, WifiOff } fro
 import { useAuth } from "@/lib/authContext";
 import { useAppStore } from "@/lib/store";
 import { useConversations, isUserOnline } from "@/lib/useSupabaseChat";
+import { usePresenceStore } from "@/lib/usePresence";
 import { searchUsers, type UserSearchResult } from "@/lib/supabase";
 import { NameBadges } from "@/components/Badges";
 import { useAiAutoReply } from "@/lib/useAiAutoReply";
@@ -24,6 +25,7 @@ export default function Messages() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { conversations, loading } = useConversations(myId);
+  const presences = usePresenceStore((s) => s.presences);
 
   const ai = useAiAutoReply(isOwner);
 
@@ -293,7 +295,7 @@ export default function Messages() {
                   preview={conv.lastText}
                   time={conv.lastAt}
                   unread={conv.unread}
-                  online={isUserOnline(conv.otherLastSeen)}
+                  online={presences[conv.otherId] === "online" || (presences[conv.otherId] === undefined && isUserOnline(conv.otherLastSeen))}
                   isOwner={conv.otherIsOwner}
                   isVerified={conv.otherIsVerified}
                   index={i}

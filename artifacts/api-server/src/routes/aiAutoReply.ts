@@ -8,7 +8,10 @@
  */
 import { Router } from "express";
 import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
-import { ADMIN_EMAIL, aiState, type AiReplyMode } from "../lib/aiAutoReplyState.js";
+import {
+  ADMIN_EMAIL, aiState, type AiReplyMode,
+  setOwnerOnline, isOwnerEffectivelyOnline,
+} from "../lib/aiAutoReplyState.js";
 
 const router = Router();
 
@@ -26,8 +29,9 @@ function requireOwner(req: Parameters<typeof getAuthedUser>[0], res: { status: (
 router.get("/ai-auto-reply/status", requireAuth, (req, res): void => {
   if (!requireOwner(req, res)) return;
   res.json({
-    enabled: aiState.enabled,
-    mode:    aiState.mode,
+    enabled:      aiState.enabled,
+    mode:         aiState.mode,
+    ownerOnline:  isOwnerEffectivelyOnline(),
   });
 });
 

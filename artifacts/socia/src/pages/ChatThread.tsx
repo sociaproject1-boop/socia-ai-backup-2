@@ -25,7 +25,6 @@ import {
   useMessages,
   useReactions,
   useTypingStatus,
-  usePresenceHeartbeat,
   fetchUserById,
   sendMessage,
   editMessage,
@@ -35,12 +34,12 @@ import {
   uploadAudioMessage,
   fetchNickname,
   upsertNickname,
-  isUserOnline,
   getLastSeenText,
   type SupabaseMessage,
   type MessageReaction,
   type ConversationUser,
 } from "@/lib/useSupabaseChat";
+import { usePresenceStatus } from "@/lib/usePresence";
 import { NameBadges } from "@/components/Badges";
 
 /* ════════════════════════════════════════════════════════════════════════ */
@@ -620,7 +619,7 @@ export default function ChatThread() {
 
   const recorder = useVoiceRecorder();
 
-  usePresenceHeartbeat(myId || null);
+  const peerStatus = usePresenceStatus(otherId || null);
   const { messages, loading, error: msgError } = useMessages(myId || null, otherId || null);
 
   const messageIds = messages.map((m) => m.id);
@@ -786,7 +785,9 @@ export default function ChatThread() {
 
   const peerName   = nickname || otherUser?.name || (loading ? "" : "User");
   const peerAvatar = otherUser?.avatar_url || "";
-  const peerOnline = isUserOnline(otherUser?.last_seen);
+  // Realtime presence from Supabase channel; fallback to last_seen for offline display
+  const peerOnline = peerStatus === "online";
+  const peerAway   = peerStatus === "away";
 
   /* Self profile — used to flag MY prompt bubbles with the King treatment
      when the current user is the owner. Lazy single fetch + cache via the
@@ -874,8 +875,8 @@ export default function ChatThread() {
                   <span className="text-[11px] text-purple-300/80">typing…</span>
                 </motion.div>
               ) : (
-                <motion.div key="status" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className={"text-[11px] " + (peerOnline ? "text-emerald-400/80" : "text-white/40")}>
-                  {otherUser ? getLastSeenText(otherUser.last_seen) : ""}
+                <motion.div key="status" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className={"text-[11px] " + (peerOnline ? "text-emerald-400/80" : peerAway ? "text-amber-400/70" : "text-white/40")}>
+                  {peerOnline ? "Online" : peerAway ? "Away" : (otherUser ? getLastSeenText(otherUser.last_seen) : "")}
                 </motion.div>
               )}
             </AnimatePresence>
