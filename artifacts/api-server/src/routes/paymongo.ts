@@ -400,9 +400,8 @@ router.post("/paymongo/webhook", async (req: Request, res: Response) => {
   // partial grant doesn't trigger a webhook retry that would re-flip status.
   // The raw_event jsonb gives admin a full audit trail to reconcile.
   try {
-    const expiresAt = new Date(Date.now() + plan.duration_days * 86_400_000).toISOString();
-
-    // Fetch current credits to compute new balance.
+    // Fetch current credits + current expiry so we can stack on top of
+    // any still-active plan instead of overwriting it.
     const { data: u } = await sb
       .from("users")
       .select("credits, plan_expires_at")
@@ -430,8 +429,6 @@ router.post("/paymongo/webhook", async (req: Request, res: Response) => {
     } else {
       logger.info({ userId: row.user_id, plan: plan.code, credits: plan.credits }, "[paymongo/webhook] payment granted");
     }
-
-    void expiresAt; // unused (we use stackedExpiresAt); kept for clarity
   } catch (err) {
     logger.error({ err, paymentId: row.id }, "[paymongo/webhook] grant crashed — admin reconcile needed");
   }

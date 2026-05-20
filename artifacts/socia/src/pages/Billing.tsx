@@ -125,10 +125,6 @@ export default function Billing() {
                   style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
             Upgrade
           </button>
-          <button onClick={() => navigate("/billing/topup")}
-                  className="rounded-full px-3 py-1.5 text-xs font-bold app-surface app-text border border-white/10">
-            Top up
-          </button>
         </div>
       </div>
 
@@ -184,15 +180,9 @@ export default function Billing() {
         </motion.div>
 
         {/* ── Quick actions ─────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <ActionCard icon={Zap}    title="Upgrade plan"     subtitle="Unlock HD + video" onClick={() => navigate("/billing/upgrade")} />
-          <ActionCard icon={Wallet} title="Top up credits"   subtitle="From ₱350"          onClick={() => navigate("/billing/topup")} />
         </div>
-
-        {/* ── Pending order callout ─────────────────────────────────── */}
-        {orders.find((o) => o.status === "pending") && (
-          <PendingCallout orders={orders} onOpen={(id) => navigate(`/billing/checkout/${id}`)} />
-        )}
 
         {/* ── Payment history ─────────────────────────────────────── */}
         <Section title="Payment history" icon={History}>
@@ -208,7 +198,6 @@ export default function Billing() {
               <OrderRow
                 key={o.id}
                 o={o}
-                onOpen={() => navigate(`/billing/checkout/${o.id}`)}
                 refundStatus={refunds.find((r) => r.order_id === o.id)?.status ?? null}
                 refundedPhp={refunds.find((r) => r.order_id === o.id)?.approved_amount_php ?? null}
                 onRefund={() => {
@@ -373,10 +362,9 @@ function Section({ title, icon: Icon, children }: { title: string; icon: typeof 
 }
 
 function OrderRow({
-  o, onOpen, refundStatus, refundedPhp, onRefund,
+  o, refundStatus, refundedPhp, onRefund,
 }: {
   o: PaymentOrder;
-  onOpen: () => void;
   refundStatus: string | null;
   refundedPhp: number | null;
   onRefund: () => void;
@@ -398,7 +386,7 @@ function OrderRow({
 
   return (
     <li className="flex items-center gap-0 border-b border-white/5 last:border-0">
-      <button onClick={onOpen} className="flex flex-1 items-center gap-3 px-3 py-2.5 text-left hover:bg-white/5 min-w-0">
+      <div className="flex flex-1 items-center gap-3 px-3 py-2.5 text-left min-w-0">
         {StatusIcon}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -419,7 +407,7 @@ function OrderRow({
           )}
         </div>
         <div className="text-sm font-bold app-text shrink-0">₱{o.amount_php}</div>
-      </button>
+      </div>
       {canRefund && (
         <button
           onClick={(e) => { e.stopPropagation(); onRefund(); }}

@@ -1,8 +1,8 @@
 /**
- * Plan picker: Free / 15-day / Monthly. Tapping a paid plan creates a draft
- * order intent (not in DB) and routes to /billing/checkout/new with the
- * plan_code in the URL hash; the receipt-upload step finalises it via
- * submit_payment().
+ * Plan picker: Free / 15-day / Monthly. Tapping a paid plan kicks off a
+ * PayMongo Checkout session via createPaymongoCheckout() and redirects to
+ * the hosted GCash / Maya / Card form. Credits + plan activation happen
+ * automatically when the PayMongo webhook fires — no admin review.
  */
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
