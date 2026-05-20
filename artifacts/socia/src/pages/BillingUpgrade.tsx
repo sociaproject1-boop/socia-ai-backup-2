@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { ArrowLeft, Check, Sparkles, Crown, Shield, Wand2 } from "lucide-react";
-import { fetchPlans, fetchMyBilling, type Plan, type BillingSummary } from "@/lib/billing";
+import { fetchMyBilling, type Plan, type BillingSummary } from "@/lib/billing";
 
 const FALLBACK_PLANS: Plan[] = [
   { code: "free", name: "Free",     price_php: 0,    credits: 0,    duration_days: 0,  hd_enabled: false, watermark: true,  is_active: true, sort: 0 },
@@ -51,9 +51,13 @@ export default function BillingUpgrade() {
     let cancelled = false;
     (async () => {
       try {
-        const [p, b] = await Promise.all([fetchPlans(), fetchMyBilling()]);
+        // Display plans are pinned to FALLBACK_PLANS (Free / 15-Day ₱1200 /
+        // Monthly ₱1700). We still load billing summary so the current-plan
+        // pill renders, but the upstream plans list is intentionally ignored
+        // here to keep the upgrade page UI on the curated catalogue.
+        const b = await fetchMyBilling();
         if (cancelled) return;
-        setPlans(p.length > 0 ? p : FALLBACK_PLANS);
+        setPlans(FALLBACK_PLANS);
         setMe(b);
       } catch {
         if (!cancelled) setPlans(FALLBACK_PLANS);
@@ -84,7 +88,7 @@ export default function BillingUpgrade() {
           <div className="text-center text-sm app-text-muted py-8">Loading plans…</div>
         ) : (
           <div className="space-y-3">
-            {plans.filter((p) => p.code === "free").map((p) => (
+            {plans.map((p) => (
               <PlanCard
                 key={p.code}
                 plan={p}
