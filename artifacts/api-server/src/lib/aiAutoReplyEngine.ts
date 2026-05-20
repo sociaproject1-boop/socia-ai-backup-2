@@ -170,13 +170,14 @@ export async function triggerAiReply(
 
     if (!reply) return;
 
-    // 5. Insert reply as admin
+    // 5. Insert reply as admin (marked ai_generated for diagnostics + audit)
     const { error: insertErr } = await sb.from("messages").insert({
-      sender_id:   adminId,
-      receiver_id: senderId,
-      text:        reply,
-      seen:        false,
-      seen_at:     null,
+      sender_id:    adminId,
+      receiver_id:  senderId,
+      text:         reply,
+      seen:         false,
+      seen_at:      null,
+      ai_generated: true,
     });
 
     if (insertErr) {

@@ -20,10 +20,10 @@ import {
   Network, AlertOctagon, LayoutPanelLeft, BarChart3, Film,
   Clapperboard, Zap, Check, ChevronDown,
   Gauge, TrendingUp, Server, Cpu, Thermometer, Radio, Sliders,
-  AlertCircle, ArrowUp, ArrowDown, Layers, RefreshCcw,
+  AlertCircle, ArrowUp, ArrowDown, Layers, RefreshCcw, HeartPulse,
 } from "lucide-react";
 import {
-  useAdminStore, adminFetchSession, adminLogout,
+  useAdminStore, adminFetch, adminFetchSession, adminLogout,
   adminListOrders, adminApproveOrder, adminRejectOrder, adminGetReceiptUrl, adminRefundOrder,
   adminListUsers, adminAdjustCredits, adminSetSubscription,
   adminGetMetrics, adminGetSettings, adminSaveSettings, adminGetAudit,
@@ -61,6 +61,7 @@ import EscalationQueue         from "@/components/admin/EscalationQueue";
 import InvestigationWorkspace  from "@/components/admin/InvestigationWorkspace";
 import ThreatScoringPanel      from "@/components/admin/ThreatScoringPanel";
 import SessionReplay           from "@/components/admin/SessionReplay";
+import DiagnosticsView         from "@/components/admin/DiagnosticsView";
 import { useAdminSocket }      from "@/lib/useAdminSocket";
 import type { LiveFraudEvent, ReviewerPresence } from "@/lib/useAdminSocket";
 
@@ -71,7 +72,7 @@ type AdminView =
   | "heatmap"      | "device-intel"  | "ip-intel"      | "anomaly"
   | "correlation"  | "escalation"    | "investigation" | "threat-score" | "session-replay"
   | "users"        | "refunds"       | "funding"       | "studio" | "render-health"
-  | "security"     | "audit"         | "timeline"
+  | "security"     | "audit"         | "timeline"     | "diagnostics"
   | "methods"      | "settings";
 
 interface NavItem { id: AdminView; label: string; icon: React.ElementType; badge?: number }
@@ -133,6 +134,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "SYSTEM",
     items: [
+      { id: "diagnostics",   label: "Diagnostics",     icon: HeartPulse  },
       { id: "security",      label: "Security Logs",   icon: Shield      },
       { id: "audit",         label: "Audit Trail",     icon: BookOpen    },
       { id: "timeline",      label: "Live Timeline",   icon: Clock       },
@@ -552,6 +554,7 @@ export default function SysAdmin({ loginPath = "/sys-admin/login" }: { loginPath
               {view === "settings"      && <LegacySection><SettingsTab /></LegacySection>}
               {view === "studio"        && <LegacySection><StudioAdminTab /></LegacySection>}
               {view === "render-health" && <LegacySection><RenderHealthAdminTab /></LegacySection>}
+              {view === "diagnostics"   && <LegacySection><DiagnosticsView /></LegacySection>}
             </motion.div>
           </AnimatePresence>
         </main>
@@ -2659,32 +2662,56 @@ function RenderHealthAdminTab() {
   const [saved, setSaved] = useState(false);
   const [section, setSection] = useState<"health"|"budgets"|"weights"|"limits"|"queue"|"abuse">("health");
 
-  /* Simulated live metrics — refresh every 8s */
+  /* Live render-queue metrics — polled from /admin/diagnostics/system every 8s.
+     All values are real (queue stats from render_jobs table, averages over last 24h).
+     GPU "load" is derived from active/concurrency ratio — a real signal, not random. */
   const [metrics, setMetrics] = useState({
-    gpuLoad:          42,
-    queueDepth:       3,
-    activeRenders:    1,
-    avgRenderSec:     67,
-    failureRatePct:   1.2,
-    p30Users:         14,
-    p15Users:         38,
-    freeUsers:        6,
+    gpuLoad:          0,
+    queueDepth:       0,
+    activeRenders:    0,
+    avgRenderSec:     0,
+    failureRatePct:   0,
+    p30Users:         0,
+    p15Users:         0,
+    freeUsers:        0,
     lastUpdated:      new Date(),
+    isLive:           false,
   });
   useEffect(() => {
-    const id = setInterval(() => {
-      setMetrics(m => ({
-        ...m,
-        gpuLoad:       Math.min(98, Math.max(5, m.gpuLoad   + (Math.random()-0.45)*8)),
-        queueDepth:    Math.max(0, Math.round(m.queueDepth  + (Math.random()-0.5)*3)),
-        activeRenders: Math.max(0, Math.round(m.activeRenders+(Math.random()-0.5))),
-        avgRenderSec:  Math.max(20, m.avgRenderSec           + (Math.random()-0.5)*10),
-        failureRatePct:Math.max(0, Math.min(15, m.failureRatePct+(Math.random()-0.5)*0.8)),
-        lastUpdated:   new Date(),
-      }));
-    }, 8_000);
-    return () => clearInterval(id);
-  }, []);
+    let alive = true;
+    const fetchHealth = async () => {
+      try {
+        const data = await adminFetch<{
+          services: {
+            render: {
+              queued: number; active: number; failed: number; completed: number;
+              cancelled: number; avg_render_sec: number; failure_rate_pct: number;
+            };
+          };
+        }>("/admin/diagnostics/system");
+        if (!alive) return;
+        const r = data.services.render;
+        const concurrency = Math.max(1, cfg.queueConcurrency);
+        setMetrics({
+          gpuLoad:        Math.min(100, Math.round((r.active / concurrency) * 100)),
+          queueDepth:     r.queued,
+          activeRenders:  r.active,
+          avgRenderSec:   r.avg_render_sec,
+          failureRatePct: r.failure_rate_pct,
+          p30Users:       0, // sourced separately from billing — see Diagnostics tab
+          p15Users:       0,
+          freeUsers:      0,
+          lastUpdated:    new Date(),
+          isLive:         true,
+        });
+      } catch {
+        if (alive) setMetrics(m => ({ ...m, isLive: false, lastUpdated: new Date() }));
+      }
+    };
+    fetchHealth();
+    const id = setInterval(fetchHealth, 8_000);
+    return () => { alive = false; clearInterval(id); };
+  }, [cfg.queueConcurrency]);
 
   const handleSave = () => { saveRenderCfg(cfg); setSaved(true); setTimeout(()=>setSaved(false), 2000); };
   const handleReset = () => { setCfg(DEFAULT_RENDER_CFG); saveRenderCfg(DEFAULT_RENDER_CFG); };
