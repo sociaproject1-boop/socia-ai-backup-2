@@ -66,6 +66,10 @@ export interface Policy {
     agree:                  string;
     cancel:                 string;
     proceedingTo:           string;
+    stepIndicator:          string;
+    learnMore:              string;
+    showLess:               string;
+    securing:               string;
   };
   /** Global fair-usage statement shown to every user before checkout. */
   global: {

@@ -127,18 +127,23 @@ export default function BillingUpgrade() {
     setPolicyPlan(code);
   };
 
+  // Awaited by PolicyModal — modal stays mounted (showing its own
+  // "Securing your checkout…" state) until either the redirect lands or
+  // this throws. Throwing surfaces the error inline in the modal; we
+  // intentionally DO NOT close the modal on failure so the user can retry
+  // without losing their language choice or scroll position.
   const proceedToCheckout = async () => {
     const code = policyPlan;
     if (!code) return;
-    setPolicyPlan(null);
     setPayingPlan(code);
     try {
       const { checkout_url } = await createPaymongoCheckout(code as PlanCode);
+      // Navigation happens here — modal will unmount via page change.
       window.location.assign(checkout_url);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Payment failed. Please try again.";
-      setPayError(msg);
       setPayingPlan(null);
+      const msg = e instanceof Error ? e.message : "Payment failed. Please try again.";
+      throw new Error(msg);
     }
   };
 
