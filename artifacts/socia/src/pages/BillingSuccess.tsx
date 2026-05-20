@@ -85,9 +85,11 @@ export default function BillingSuccess() {
             </div>
             <h1 className="text-xl font-black text-gradient">Payment received!</h1>
             <p className="mt-2 text-sm app-text-muted">
-              {payment ? (
-                <>+{payment.credits_added.toLocaleString()} credits added to your account.</>
-              ) : "Your plan is now active."}
+              {payment
+                ? payment.plan_code === "cinematic"
+                  ? <>+{payment.credits_added.toLocaleString()} cinematic scenes added. 4K HDR, voice & camera controls unlocked.</>
+                  : <>+{payment.credits_added.toLocaleString()} messages added to your account.</>
+                : "Your plan is now active."}
             </p>
             <div className="mt-5 flex flex-col gap-2">
               <button

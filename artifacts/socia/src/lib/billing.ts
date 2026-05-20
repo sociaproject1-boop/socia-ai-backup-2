@@ -11,7 +11,7 @@
 import { create } from "zustand";
 import { supabase } from "./supabase";
 
-export type PlanCode = "free" | "p15" | "p30";
+export type PlanCode = "free" | "premium" | "elite" | "super_elite" | "cinematic" | "p15" | "p30";
 
 export interface Plan {
   code:           PlanCode;

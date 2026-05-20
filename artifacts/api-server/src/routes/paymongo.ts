@@ -9,7 +9,7 @@
  *      PayMongo posts payment events here. Signature is HMAC-SHA256 over
  *      `${timestamp}.${rawBody}` with PAYMONGO_WEBHOOK_SECRET. Verified with
  *      crypto.timingSafeEqual. Replay window: 300s. On `checkout_session
- *      .payment.paid` (or `payment.paid`), credits the user atomically:
+ *      .payment.paid` (or `payment.paid`), grants the plan atomically:
  *      UPDATE ... WHERE status <> 'paid' RETURNING — duplicate deliveries
  *      cannot double-grant. processed_event_ids tracks delivered events as
  *      a secondary guard.
@@ -18,17 +18,19 @@
  *      Polled by the success page. Returns the current status of one
  *      paymongo_payments row (scoped to the caller's user_id).
  *
+ * Plan catalogue:
+ *   premium      ₱499  / 4,500 credits  / 30 days   (chat)
+ *   elite        ₱1499 / 9,000 credits  / 30 days   (chat)
+ *   super_elite  ₱3999 / 15,000 credits / 30 days   (chat)
+ *   cinematic    ₱3000 / 10 scenes      / 30 days   (parallel add-on)
+ *
+ * Chat plans grant credits + extend plan_expires_at (stacking on existing
+ * expiry). Cinematic grants scene quota + extends cinematic_expires_at on
+ * a separate parallel track so users can hold both at once.
+ *
  * Env required:
  *   PAYMONGO_SECRET_KEY      (sk_live_... or sk_test_...)
  *   PAYMONGO_WEBHOOK_SECRET  (whsk_...)  — used for HMAC verification only
- *
- * Notes:
- *   - amount fields are sent in centavos (₱1 = 100 centavos).
- *   - We mount express.raw() for /api/paymongo/webhook in app.ts BEFORE
- *     the global express.json(), so req.body is a Buffer here.
- *   - The webhook handler returns 200 even on internal grant errors (after
- *     marking the row paid) so PayMongo doesn't retry forever — admin can
- *     reconcile via the admin panel using the raw_event jsonb.
  */
 
 import { Router, type Request, type Response } from "express";
@@ -40,24 +42,31 @@ import { logger } from "../lib/logger.js";
 const router = Router();
 
 /* ── Plan catalogue — server-side source of truth ─────────────────────── */
-type PlanCode = "p15" | "p30";
+type PlanCode = "premium" | "elite" | "super_elite" | "cinematic";
+type PlanKind = "chat" | "cinematic";
 
 interface PlanDef {
   code: PlanCode;
   name: string;
-  amount_centavos: number; // ₱1200 → 120000, ₱1700 → 170000
-  credits: number;
+  amount_centavos: number;
   duration_days: number;
-  plan_code_db: string;    // matches users.plan_code CHECK constraint
+  kind: PlanKind;
+  /** Chat plans: credits granted. Cinematic: scenes granted. */
+  credits: number;        // chat-plan credit grant (0 for cinematic)
+  scenes: number;         // cinematic scene grant (0 for chat plans)
+  /** users.plan_code value to set (chat plans only). */
+  plan_code_db: string | null;
 }
 
 const PLANS: Record<PlanCode, PlanDef> = {
-  p15: { code: "p15", name: "Socia 15-Day Plan", amount_centavos: 120_000, credits: 1000, duration_days: 15, plan_code_db: "premium" },
-  p30: { code: "p30", name: "Socia Monthly Plan", amount_centavos: 170_000, credits: 2500, duration_days: 30, plan_code_db: "ultra"   },
+  premium:     { code: "premium",     name: "Socia Premium",          amount_centavos:  49_900, duration_days: 30, kind: "chat",      credits:  4_500, scenes:  0, plan_code_db: "premium" },
+  elite:       { code: "elite",       name: "Socia Elite",            amount_centavos: 149_900, duration_days: 30, kind: "chat",      credits:  9_000, scenes:  0, plan_code_db: "elite" },
+  super_elite: { code: "super_elite", name: "Socia Super Elite",      amount_centavos: 399_900, duration_days: 30, kind: "chat",      credits: 15_000, scenes:  0, plan_code_db: "super_elite" },
+  cinematic:   { code: "cinematic",   name: "AI Cinematic Studio",    amount_centavos: 300_000, duration_days: 30, kind: "cinematic", credits:      0, scenes: 10, plan_code_db: null },
 };
 
 function isPlanCode(v: unknown): v is PlanCode {
-  return v === "p15" || v === "p30";
+  return v === "premium" || v === "elite" || v === "super_elite" || v === "cinematic";
 }
 
 /* ── PayMongo HTTP helper ─────────────────────────────────────────────── */
@@ -83,13 +92,10 @@ async function paymongoFetch(path: string, init: RequestInit = {}): ReturnType<t
 
 /* ── Origin helper for success/cancel URLs ────────────────────────────── */
 function appOrigin(req: Request): string {
-  // Prefer the public REPLIT_DOMAINS so PayMongo redirects to the real
-  // deployed URL, not the API server's internal host.
   const domains = (process.env["REPLIT_DOMAINS"] ?? "").split(",").map((d) => d.trim()).filter(Boolean);
   if (domains[0]) return `https://${domains[0]}`;
   const dev = process.env["REPLIT_DEV_DOMAIN"];
   if (dev) return `https://${dev}`;
-  // Fall back to the request's own origin
   const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0] ?? "https";
   const host = req.headers["x-forwarded-host"] ?? req.headers.host;
   return `${proto}://${host}`;
@@ -232,7 +238,6 @@ const REPLAY_WINDOW_SEC = 300; // 5 minutes
 
 function verifyPaymongoSignature(rawBody: Buffer, sigHeader: string | undefined, secret: string): boolean {
   if (!sigHeader) return false;
-  // Format: "t=1700000000,te=<sig>,li=<sig>"
   const parts = sigHeader.split(",").map((p) => p.trim());
   const map: Record<string, string> = {};
   for (const part of parts) {
@@ -251,8 +256,6 @@ function verifyPaymongoSignature(rawBody: Buffer, sigHeader: string | undefined,
     .update(`${ts}.${rawBody.toString("utf8")}`)
     .digest("hex");
 
-  // Compare against whichever variant is present. timingSafeEqual requires
-  // equal-length buffers.
   for (const candidate of [sigLive, sigTest]) {
     if (!candidate) continue;
     const a = Buffer.from(expected, "utf8");
@@ -269,7 +272,6 @@ router.post("/paymongo/webhook", async (req: Request, res: Response) => {
     return res.status(503).json({ code: "WEBHOOK_NOT_CONFIGURED" });
   }
 
-  // req.body is a Buffer because we mounted express.raw() for this path.
   const rawBody: Buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body || {}));
   const sigHeader = req.headers["paymongo-signature"];
   const sigStr = Array.isArray(sigHeader) ? sigHeader[0] : sigHeader;
@@ -278,7 +280,6 @@ router.post("/paymongo/webhook", async (req: Request, res: Response) => {
     return res.status(401).json({ code: "INVALID_SIGNATURE" });
   }
 
-  // Parse the event after signature verification.
   let event: {
     data?: {
       id?: string;
@@ -310,8 +311,6 @@ router.post("/paymongo/webhook", async (req: Request, res: Response) => {
   const refFromMeta = (innerAttrs.metadata?.["ref"] as string | undefined) || innerAttrs.reference_number;
   const paymentId = innerAttrs.payments?.[0]?.id;
 
-  // Only care about successful payment events. Anything else gets a 200 so
-  // PayMongo doesn't retry.
   const isSuccess = eventType === "checkout_session.payment.paid" || eventType === "payment.paid";
   const isFailure = eventType === "payment.failed";
 
@@ -325,9 +324,6 @@ router.post("/paymongo/webhook", async (req: Request, res: Response) => {
     return res.status(503).json({ code: "DB_UNAVAILABLE" });
   }
 
-  // Locate the row by session_id or our internal ref. Webhook payload shape
-  // varies between checkout_session.payment.paid (inner is session) and
-  // payment.paid (inner is payment, with link to session via reference).
   const lookup = sessionId
     ? sb.from("paymongo_payments").select("*").eq("paymongo_session_id", sessionId).maybeSingle()
     : refFromMeta
@@ -349,18 +345,18 @@ router.post("/paymongo/webhook", async (req: Request, res: Response) => {
     return res.json({ ok: true, ignored: "row_not_found" });
   }
 
-  // Secondary replay guard: if we've already processed this exact event id,
-  // skip work entirely.
   if (eventId && Array.isArray(row.processed_event_ids) && row.processed_event_ids.includes(eventId)) {
     return res.json({ ok: true, ignored: "duplicate_event" });
   }
 
   if (isFailure) {
+    // Guard: never downgrade a paid row back to failed (out-of-order events
+    // from PayMongo retries can deliver payment.failed AFTER payment.paid).
     await sb.from("paymongo_payments").update({
       status: "failed",
       raw_event: event,
       processed_event_ids: eventId ? [...(row.processed_event_ids ?? []), eventId] : row.processed_event_ids,
-    }).eq("id", row.id);
+    }).eq("id", row.id).neq("status", "paid");
     return res.json({ ok: true, marked: "failed" });
   }
 
@@ -377,7 +373,7 @@ router.post("/paymongo/webhook", async (req: Request, res: Response) => {
     .update({
       status: "paid",
       paymongo_payment_id: paymentId ?? row.paymongo_payment_id,
-      credits_added: plan.credits,
+      credits_added: plan.kind === "chat" ? plan.credits : plan.scenes,
       paid_at: new Date().toISOString(),
       raw_event: event,
       processed_event_ids: eventId ? [...(row.processed_event_ids ?? []), eventId] : row.processed_event_ids,
@@ -392,42 +388,44 @@ router.post("/paymongo/webhook", async (req: Request, res: Response) => {
     return res.status(500).json({ code: "DB_ERROR" });
   }
   if (!claimed) {
-    // Already paid — another delivery beat us. Idempotent return.
     return res.json({ ok: true, ignored: "already_paid" });
   }
 
-  // Grant credits + extend plan. We swallow individual errors here so a
-  // partial grant doesn't trigger a webhook retry that would re-flip status.
-  // The raw_event jsonb gives admin a full audit trail to reconcile.
+  // Grant: chat plans add credits + extend plan_expires_at; cinematic adds
+  // scenes + extends cinematic_expires_at on a parallel track. The grant is
+  // executed by a SECURITY DEFINER SQL function that does an atomic relative
+  // update (`credits = credits + N`, `expires_at = GREATEST(now, current) +
+  // interval`). This guarantees that two paid webhooks for the same user
+  // processed concurrently (different refs) cannot lose credits/scenes via
+  // interleaved baseline reads — Postgres takes a row lock during UPDATE.
+  //
+  // We swallow grant errors after the status flip so a partial grant does
+  // not trigger a webhook retry that would re-flip the row — raw_event jsonb
+  // gives admin a full audit trail to reconcile manually if needed.
   try {
-    // Fetch current credits + current expiry so we can stack on top of
-    // any still-active plan instead of overwriting it.
-    const { data: u } = await sb
-      .from("users")
-      .select("credits, plan_expires_at")
-      .eq("id", row.user_id)
-      .maybeSingle();
-
-    const currentCredits = Number(u?.credits ?? 0);
-    // If the user already has an active plan that expires later than ours,
-    // stack the duration on top (start from existing expiry instead of now).
-    const currentExpiry = u?.plan_expires_at ? new Date(u.plan_expires_at).getTime() : 0;
-    const baseTime = Math.max(Date.now(), currentExpiry);
-    const stackedExpiresAt = new Date(baseTime + plan.duration_days * 86_400_000).toISOString();
-
-    const { error: grantErr } = await sb
-      .from("users")
-      .update({
-        credits: currentCredits + plan.credits,
-        plan_code: plan.plan_code_db,
-        plan_expires_at: stackedExpiresAt,
-      })
-      .eq("id", row.user_id);
-
-    if (grantErr) {
-      logger.error({ err: grantErr, paymentId: row.id }, "[paymongo/webhook] grant failed — admin reconcile needed");
-    } else {
-      logger.info({ userId: row.user_id, plan: plan.code, credits: plan.credits }, "[paymongo/webhook] payment granted");
+    if (plan.kind === "chat" && plan.plan_code_db) {
+      const { error: grantErr } = await sb.rpc("grant_paymongo_chat_plan", {
+        p_user_id:       row.user_id,
+        p_plan_code:     plan.plan_code_db,
+        p_credits:       plan.credits,
+        p_duration_days: plan.duration_days,
+      });
+      if (grantErr) {
+        logger.error({ err: grantErr, paymentId: row.id }, "[paymongo/webhook] chat grant failed — admin reconcile needed");
+      } else {
+        logger.info({ userId: row.user_id, plan: plan.code, credits: plan.credits }, "[paymongo/webhook] chat plan granted");
+      }
+    } else if (plan.kind === "cinematic") {
+      const { error: grantErr } = await sb.rpc("grant_paymongo_cinematic", {
+        p_user_id:       row.user_id,
+        p_scenes:        plan.scenes,
+        p_duration_days: plan.duration_days,
+      });
+      if (grantErr) {
+        logger.error({ err: grantErr, paymentId: row.id }, "[paymongo/webhook] cinematic grant failed — admin reconcile needed");
+      } else {
+        logger.info({ userId: row.user_id, plan: plan.code, scenes: plan.scenes }, "[paymongo/webhook] cinematic plan granted");
+      }
     }
   } catch (err) {
     logger.error({ err, paymentId: row.id }, "[paymongo/webhook] grant crashed — admin reconcile needed");

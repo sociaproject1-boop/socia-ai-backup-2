@@ -1,61 +1,121 @@
 /**
- * Plan picker: Free / 15-day / Monthly. Tapping a paid plan kicks off a
- * PayMongo Checkout session via createPaymongoCheckout() and redirects to
- * the hosted GCash / Maya / Card form. Credits + plan activation happen
- * automatically when the PayMongo webhook fires — no admin review.
+ * Plan picker. Tapping a paid plan kicks off a PayMongo Checkout session
+ * via createPaymongoCheckout() and redirects to the hosted GCash / Maya /
+ * Card form. Credits + plan activation happen automatically when the
+ * PayMongo webhook fires — no admin review.
+ *
+ * Plans:
+ *   Premium      ₱499/mo  → 4,500 messages (1 msg = 1 credit)
+ *   Elite        ₱1499/mo → 9,000 messages
+ *   Super Elite  ₱3999/mo → 15,000 messages
+ *   AI Cinematic Studio ₱3000/mo → 10 cinematic scenes (parallel add-on)
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { ArrowLeft, Check, Sparkles, Crown, Shield, Wand2 } from "lucide-react";
-import { fetchMyBilling, createPaymongoCheckout, type Plan, type PlanCode, type BillingSummary } from "@/lib/billing";
+import { ArrowLeft, Check, Sparkles, Crown, Shield, Wand2, Film, Zap, Star } from "lucide-react";
+import { fetchMyBilling, createPaymongoCheckout, type PlanCode, type BillingSummary } from "@/lib/billing";
 
-const FALLBACK_PLANS: Plan[] = [
-  { code: "free", name: "Free",     price_php: 0,    credits: 0,    duration_days: 0,  hd_enabled: false, watermark: true,  is_active: true, sort: 0 },
-  { code: "p15",  name: "15-Day",   price_php: 1200, credits: 1000, duration_days: 15, hd_enabled: true,  watermark: false, is_active: true, sort: 1 },
-  { code: "p30",  name: "Monthly",  price_php: 1700, credits: 2500, duration_days: 30, hd_enabled: true,  watermark: false, is_active: true, sort: 2 },
+type UpgradePlanCode = "premium" | "elite" | "super_elite" | "cinematic";
+
+interface UpgradePlan {
+  code:          UpgradePlanCode;
+  name:          string;
+  price_php:     number;
+  /** Headline subtext under the price */
+  subtitle:      string;
+  /** Bullet list of features */
+  features:      string[];
+  /** Visual accent */
+  accent:        "premium" | "elite" | "super_elite" | "cinematic";
+}
+
+const PLANS: UpgradePlan[] = [
+  {
+    code: "premium",
+    name: "Premium",
+    price_php: 499,
+    subtitle: "150 messages/day · Advanced AI",
+    features: [
+      "4,500 messages per month",
+      "Advanced AI model",
+      "3-second cooldown",
+      "Up to 4,000-word messages",
+      "HD images & priority queue",
+    ],
+    accent: "premium",
+  },
+  {
+    code: "elite",
+    name: "Elite",
+    price_php: 1499,
+    subtitle: "300 messages/day · Elite reasoning",
+    features: [
+      "9,000 messages per month",
+      "Elite AI reasoning",
+      "Near-zero cooldown",
+      "Up to 8,000-word messages",
+      "Priority generation queue",
+    ],
+    accent: "elite",
+  },
+  {
+    code: "super_elite",
+    name: "Super Elite",
+    price_php: 3999,
+    subtitle: "500 messages/day · Pro reasoning",
+    features: [
+      "15,000 messages per month",
+      "Pro reasoning model",
+      "Instant responses",
+      "Up to 16,000-word messages",
+      "Top-tier priority queue",
+    ],
+    accent: "super_elite",
+  },
+  {
+    code: "cinematic",
+    name: "AI Cinematic Studio",
+    price_php: 3000,
+    subtitle: "10 cinematic scenes/month · 4K HDR",
+    features: [
+      "Up to 10 cinematic scenes per month",
+      "11 camera moves · 15 directing controls per scene",
+      "4K HDR export",
+      "Character voice acting",
+      "Ambient sound design",
+      "Full render history",
+    ],
+    accent: "cinematic",
+  },
 ];
 
-const FEATURES: Record<string, string[]> = {
-  free: [
-    "3 standard images per day",
-    "Basic Socia GPT (limited)",
-    "Watermarked downloads",
-    "Limited presets",
-  ],
-  p15: [
-    "1,000 credits (~15 days)",
-    "HD images & premium video",
-    "Faster generation queue",
-    "No watermark",
-    "Smart saver auto-protects credits",
-    "Advanced Socia GPT",
-  ],
-  p30: [
-    "2,500 credits (~30 days)",
-    "HD video (5s + 10s)",
-    "Priority queue",
-    "All premium presets",
-    "Multi-frame storyboard videos",
-    "Advanced Socia GPT, no waits",
-  ],
-};
+function planAccentStyle(accent: UpgradePlan["accent"]): { gradient: string; ring: string; icon: ReactNode; badge?: string } {
+  switch (accent) {
+    case "premium":
+      return { gradient: "linear-gradient(135deg,#a855f7,#ec4899)", ring: "rgba(168,85,247,0.5)", icon: <Sparkles className="h-3 w-3" /> };
+    case "elite":
+      return { gradient: "linear-gradient(135deg,#f59e0b,#ec4899)", ring: "rgba(245,158,11,0.5)", icon: <Crown className="h-3 w-3 text-amber-300" />, badge: "Most popular" };
+    case "super_elite":
+      return { gradient: "linear-gradient(135deg,#06b6d4,#a855f7)", ring: "rgba(6,182,212,0.5)", icon: <Star className="h-3 w-3 text-cyan-300" />, badge: "Top tier" };
+    case "cinematic":
+      return { gradient: "linear-gradient(135deg,#ec4899,#f59e0b)", ring: "rgba(236,72,153,0.5)", icon: <Film className="h-3 w-3 text-rose-300" />, badge: "Add-on" };
+  }
+}
 
 export default function BillingUpgrade() {
   const [, navigate] = useLocation();
-  const [plans, setPlans] = useState<Plan[]>(FALLBACK_PLANS);
   const [me, setMe] = useState<BillingSummary | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [payingPlan, setPayingPlan] = useState<PlanCode | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [payingPlan, setPayingPlan] = useState<UpgradePlanCode | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
 
-  const handlePay = async (code: PlanCode) => {
+  const handlePay = async (code: UpgradePlanCode) => {
     if (payingPlan) return;
-    if (code === "free") return;
     setPayError(null);
     setPayingPlan(code);
     try {
-      const { checkout_url } = await createPaymongoCheckout(code);
+      const { checkout_url } = await createPaymongoCheckout(code as PlanCode);
       window.location.assign(checkout_url);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Payment failed. Please try again.";
@@ -68,22 +128,29 @@ export default function BillingUpgrade() {
     let cancelled = false;
     (async () => {
       try {
-        // Display plans are pinned to FALLBACK_PLANS (Free / 15-Day ₱1200 /
-        // Monthly ₱1700). We still load billing summary so the current-plan
-        // pill renders, but the upstream plans list is intentionally ignored
-        // here to keep the upgrade page UI on the curated catalogue.
         const b = await fetchMyBilling();
-        if (cancelled) return;
-        setPlans(FALLBACK_PLANS);
-        setMe(b);
+        if (!cancelled) setMe(b);
       } catch {
-        if (!cancelled) setPlans(FALLBACK_PLANS);
+        /* ignore — page is usable without billing summary */
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
   }, []);
+
+  const isPlanActive = (code: UpgradePlanCode): boolean => {
+    if (!me) return false;
+    const exp = me.plan_expires_at ? new Date(me.plan_expires_at) : null;
+    const active = exp ? exp > new Date() : false;
+    if (!active) return false;
+    // The chat plan currently held lives in me.plan_code; cinematic is tracked
+    // separately and we don't currently surface it in BillingSummary, so we
+    // intentionally never mark cinematic as "current" here — the user can
+    // always re-purchase it (which stacks on the existing expiry).
+    if (code === "cinematic") return false;
+    return me.plan_code === code;
+  };
 
   return (
     <div className="app-bg min-h-[100dvh] pb-24">
@@ -98,7 +165,9 @@ export default function BillingUpgrade() {
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-5">
           <div className="text-[10px] font-bold uppercase tracking-widest app-text-muted">Pick your plan</div>
           <h2 className="mt-1 text-2xl font-black text-gradient">Create more. Pay less.</h2>
-          <p className="mt-1 text-sm app-text-muted">Pay securely with GCash, Maya or Card — credits are added the moment payment clears.</p>
+          <p className="mt-1 text-sm app-text-muted">
+            Pay securely with GCash, Maya or Card — credits unlock the moment payment clears.
+          </p>
           {payError && (
             <div className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
               {payError}
@@ -110,11 +179,11 @@ export default function BillingUpgrade() {
           <div className="text-center text-sm app-text-muted py-8">Loading plans…</div>
         ) : (
           <div className="space-y-3">
-            {plans.map((p) => (
+            {PLANS.map((p) => (
               <PlanCard
                 key={p.code}
                 plan={p}
-                isCurrent={Boolean(me?.plan_code === p.code && (p.code === "free" || (me?.plan_expires_at && new Date(me.plan_expires_at) > new Date())))}
+                isCurrent={isPlanActive(p.code)}
                 isPaying={payingPlan === p.code}
                 disabled={payingPlan !== null && payingPlan !== p.code}
                 onSelect={() => handlePay(p.code)}
@@ -130,8 +199,8 @@ export default function BillingUpgrade() {
           <ol className="list-decimal list-inside space-y-1">
             <li>Pick a plan — tap Pay and choose GCash, Maya, or Card on the next screen.</li>
             <li>Complete payment on PayMongo's secure checkout.</li>
-            <li>Your credits and plan unlock automatically — no waiting on an admin.</li>
-            <li>Free plan stays usable while a paid plan is processing.</li>
+            <li>Your plan unlocks automatically — no admin review.</li>
+            <li>Plans renew monthly. Cinematic Studio can be combined with any chat plan.</li>
           </ol>
         </div>
       </div>
@@ -140,40 +209,40 @@ export default function BillingUpgrade() {
 }
 
 function PlanCard({ plan, isCurrent, isPaying, disabled, onSelect }: {
-  plan: Plan; isCurrent: boolean | null | undefined; isPaying: boolean; disabled: boolean; onSelect: () => void;
+  plan: UpgradePlan; isCurrent: boolean; isPaying: boolean; disabled: boolean; onSelect: () => void;
 }) {
-  const isPro = plan.code === "p30";
-  const isFree = plan.code === "free";
-  const features = FEATURES[plan.code] ?? [];
+  const style = planAccentStyle(plan.accent);
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
       className="card-premium relative overflow-hidden rounded-3xl p-5"
-      style={{ borderColor: isPro ? "rgba(168,85,247,0.5)" : undefined }}
+      style={{ borderColor: style.ring }}
     >
-      {isPro && (
-        <div className="absolute right-3 top-3 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white"
-             style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
-          Best value
+      {style.badge && (
+        <div
+          className="absolute right-3 top-3 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white"
+          style={{ background: style.gradient }}
+        >
+          {style.badge}
         </div>
       )}
+
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider app-text-muted">
-            {isPro ? <Crown className="h-3 w-3 text-amber-400" /> : <Sparkles className="h-3 w-3" />}
+            {style.icon}
             {plan.name}
           </div>
-          {isFree && (
-            <div className="mt-1.5 flex items-baseline gap-1">
-              <span className="text-3xl font-black app-text">₱{plan.price_php.toLocaleString()}</span>
-            </div>
-          )}
-          {!isFree && <div className="text-[11px] app-text-muted">{plan.credits.toLocaleString()} credits • HD enabled</div>}
+          <div className="mt-1.5 flex items-baseline gap-1">
+            <span className="text-3xl font-black app-text">₱{plan.price_php.toLocaleString()}</span>
+            <span className="text-xs app-text-muted">/ month</span>
+          </div>
+          <div className="text-[11px] app-text-muted">{plan.subtitle}</div>
         </div>
       </div>
 
       <ul className="mt-3 space-y-1.5">
-        {features.map((f) => (
+        {plan.features.map((f) => (
           <li key={f} className="flex items-start gap-2 text-sm app-text">
             <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-400" />
             <span>{f}</span>
@@ -183,24 +252,25 @@ function PlanCard({ plan, isCurrent, isPaying, disabled, onSelect }: {
 
       <button
         onClick={onSelect}
-        disabled={isFree || !!isCurrent || disabled || isPaying}
+        disabled={isCurrent || disabled || isPaying}
         className="mt-4 w-full rounded-2xl py-3 text-sm font-bold transition disabled:opacity-50 flex items-center justify-center gap-2"
         style={{
-          background: isFree || isCurrent
-            ? "rgba(255,255,255,0.06)"
-            : "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))",
-          color: isFree || isCurrent ? "var(--s-text-muted)" : "white",
-          boxShadow: !isFree && !isCurrent ? "0 12px 32px -10px rgba(168,85,247,0.45)" : undefined,
+          background: isCurrent ? "rgba(255,255,255,0.06)" : style.gradient,
+          color: isCurrent ? "var(--s-text-muted)" : "white",
+          boxShadow: !isCurrent ? "0 12px 32px -10px rgba(168,85,247,0.45)" : undefined,
         }}
       >
         {isPaying && <Wand2 className="h-4 w-4 animate-spin" />}
         {isCurrent
           ? "Current plan"
-          : isFree
-            ? "Free for everyone"
-            : isPaying
-              ? "Redirecting to PayMongo…"
-              : "Pay via GCash / Maya / Card"}
+          : isPaying
+            ? "Redirecting to PayMongo…"
+            : (
+              <>
+                <Zap className="h-4 w-4" />
+                Pay via GCash / Maya / Card
+              </>
+            )}
       </button>
     </motion.div>
   );
