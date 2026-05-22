@@ -62,7 +62,7 @@ router.get("/funding/recent-supporters", async (req, res): Promise<void> => {
       .select("id, amount_centavos, paid_at, user_id")
       .eq("status", "paid")
       .order("paid_at", { ascending: false })
-      .limit(10);
+      .limit(20);
 
     if (error) {
       req.log.warn({ err: error }, "funding/recent-supporters db error");

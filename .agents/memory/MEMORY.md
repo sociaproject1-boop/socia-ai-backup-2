@@ -1,1 +1,2 @@
 - [Community Support Phase 2](community-support-phase2.md) — atomic RPC (migration 38) is the source of truth for resume/create; two-step approach was replaced in paymongo.ts.
+- [Community Support Phase 3](community-support-phase3.md) — realtime hook, RAF counter with DOM-direct writes, glow pulse, loading skeletons for CommunityFunding.

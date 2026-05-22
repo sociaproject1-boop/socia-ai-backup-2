@@ -21,7 +21,7 @@
  * confirmation happens server-side via the signed webhook + idempotent
  * paymongo_finalize_support() RPC (migration 36).
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
@@ -34,43 +34,14 @@ import {
   detectInitialLocale, saveLocale, LOCALES,
   type LocaleCode, getSupportCopy,
 } from "@/lib/i18n/support";
-
-/* ── Types ──────────────────────────────────────────────────────────── */
-interface FundingProgress {
-  target_amount:    number;
-  current_amount:   number;
-  supporters_count: number;
-  is_goal_reached:  boolean;
-  unlock_phase:     number;
-}
-
-interface RecentSupporter {
-  id:       string;
-  amount:   number;
-  paid_at:  string;
-  username: string;
-}
+import {
+  useFundingRealtime,
+  type FundingProgress,
+  type RecentSupporter,
+} from "@/lib/useFundingRealtime";
 
 /* ── API helpers ────────────────────────────────────────────────────── */
 const BASE = `${import.meta.env.BASE_URL}api`.replace(/\/{2,}/g, "/");
-
-async function fetchProgress(): Promise<FundingProgress | null> {
-  try {
-    const r = await fetch(`${BASE}/funding/progress`);
-    if (!r.ok) return null;
-    const d = await r.json();
-    return d.funding ?? null;
-  } catch { return null; }
-}
-
-async function fetchRecentSupporters(): Promise<RecentSupporter[]> {
-  try {
-    const r = await fetch(`${BASE}/funding/recent-supporters`);
-    if (!r.ok) return [];
-    const d = await r.json();
-    return d.supporters ?? [];
-  } catch { return []; }
-}
 
 interface CheckoutResult { checkout_url: string; ref: string; resumed: boolean; }
 async function createSupportCheckout(amountCentavos: number): Promise<CheckoutResult> {
@@ -188,37 +159,94 @@ const PHASE_LABELS: Record<number, string> = {
   4: "Public Rollout",
 };
 
+/* ── RAF-based counter animation ─────────────────────────────────────
+ * Writes directly to a DOM element ref — React never reconciles
+ * children on a childless <span ref={...} />, so the virtual DOM
+ * stays in sync with zero re-renders during the animation loop.
+ *
+ * Usage:
+ *   const ref = useCountUpRef(value, 700, (n) => `₱${n.toLocaleString()}`);
+ *   <span ref={ref} aria-live="polite" />   // no children in JSX
+ */
+const fmtPhp = (n: number) => `₱${n.toLocaleString()}`;
+const fmtNum = (n: number) => n.toLocaleString();
+
+function useCountUpRef(
+  to: number,
+  duration: number,
+  format: (n: number) => string,
+) {
+  const elemRef    = useRef<HTMLSpanElement | null>(null);
+  const fromRef    = useRef<number | null>(null);
+  const rafRef     = useRef<number | null>(null);
+  const targetRef  = useRef(to);
+
+  // Seed initial text on mount — the span has no children in JSX so React
+  // never sets textContent; we own it entirely after this first write.
+  useEffect(() => {
+    if (elemRef.current) elemRef.current.textContent = format(to);
+    fromRef.current   = to;
+    targetRef.current = to;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    targetRef.current = to;
+    const from = fromRef.current;
+    if (from === null || from === to) {
+      if (elemRef.current) elemRef.current.textContent = format(to);
+      fromRef.current = to;
+      return;
+    }
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t     = Math.min(1, (now - start) / duration);
+      const eased = 1 - (1 - t) ** 3; // easeOutCubic
+      if (elemRef.current) {
+        elemRef.current.textContent = format(Math.round(from + (to - from) * eased));
+      }
+      if (t < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        fromRef.current = to;
+        if (elemRef.current) elemRef.current.textContent = format(to);
+      }
+    };
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+      // Snap to target on cleanup so fromRef is always correct for the next effect
+      fromRef.current = targetRef.current;
+    };
+  }, [to, duration, format]);
+
+  return elemRef;
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    Main exported section
    ══════════════════════════════════════════════════════════════════════ */
 export function CommunityFunding() {
-  const [progress, setProgress]     = useState<FundingProgress | null>(null);
-  const [supporters, setSupporters] = useState<RecentSupporter[]>([]);
-  const [showModal, setShowModal]   = useState(false);
-  const [, navigate]                = useLocation();
-  const [locale, setLocaleState]    = useState<LocaleCode>(() => detectInitialLocale());
+  const { progress, supporters, loading, glowPulse, refresh } = useFundingRealtime();
+  const [showModal, setShowModal] = useState(false);
+  const [, navigate]              = useLocation();
+  const [locale, setLocaleState]  = useState<LocaleCode>(() => detectInitialLocale());
   const copy = useMemo(() => getSupportCopy(locale), [locale]);
-
-  useEffect(() => {
-    fetchProgress().then(setProgress);
-    fetchRecentSupporters().then(setSupporters);
-  }, []);
 
   const pct = progress
     ? Math.min(100, Math.round((progress.current_amount / progress.target_amount) * 100))
     : 0;
-
   const remaining = progress
     ? Math.max(0, progress.target_amount - progress.current_amount)
     : 50000;
 
-  // Optimistic refresh after a contribution lands — called by the modal
-  // when the user returns from a successful checkout (we currently navigate
-  // to /support/success, so this is a defensive refresh path).
-  const refreshAll = () => {
-    fetchProgress().then(setProgress);
-    fetchRecentSupporters().then(setSupporters);
-  };
+  // RAF-based animated counters — write directly to DOM, zero React re-renders
+  const raisedRef = useCountUpRef(Math.floor(progress?.current_amount ?? 0), 700, fmtPhp);
+  const suppRef   = useCountUpRef(progress?.supporters_count ?? 0, 700, fmtNum);
+
+  // Stable ref passed to SupportModal so it can trigger a refresh without
+  // causing the modal's useEffect deps to change.
+  const refreshAll = useCallback(() => void refresh(), [refresh]);
 
   return (
     <section className="mb-6">
@@ -240,10 +268,27 @@ export function CommunityFunding() {
           boxShadow: "0 8px 32px -8px rgba(168,85,247,0.25)",
         }}
       >
+        {/* Ambient glow orbs — pointer-events:none, GPU-safe */}
         <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full opacity-20"
              style={{ background: "radial-gradient(circle, #a855f7, transparent)" }} />
         <div className="pointer-events-none absolute -bottom-6 -left-6 h-24 w-24 rounded-full opacity-15"
              style={{ background: "radial-gradient(circle, #ec4899, transparent)" }} />
+
+        {/* Payment-confirmed glow ring — opacity-only transition, GPU-composited */}
+        <AnimatePresence>
+          {glowPulse > 0 && (
+            <motion.span
+              key={glowPulse}
+              aria-hidden
+              className="pointer-events-none absolute inset-0 rounded-[22px]"
+              style={{ boxShadow: "0 0 0 2px rgba(168,85,247,0.75), 0 0 28px -4px rgba(168,85,247,0.5)" }}
+              initial={{ opacity: 1 }}
+              animate={{ opacity: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 2, ease: "easeOut" }}
+            />
+          )}
+        </AnimatePresence>
 
         <div className="mb-4 relative">
           <div className="flex items-center gap-2 mb-1">
@@ -264,27 +309,55 @@ export function CommunityFunding() {
           </p>
         </div>
 
-        {/* Stats */}
+        {/* Stats — skeletons while loading */}
         <div className="mb-3 grid grid-cols-3 gap-2">
-          <FundStat label={copy.raisedLabel}     value={progress ? `₱${Math.floor(progress.current_amount).toLocaleString()}` : "—"} />
-          <FundStat label={copy.goalLabel}       value={progress ? `₱${Math.floor(progress.target_amount).toLocaleString()}` : "₱50,000"} />
-          <FundStat label={copy.supportersLabel} value={progress ? progress.supporters_count.toLocaleString() : "—"} />
+          {loading ? (
+            <><StatSkeleton /><StatSkeleton /><StatSkeleton /></>
+          ) : (
+            <>
+              <FundStat label={copy.raisedLabel}>
+                {/* Childless span — RAF owns textContent, React never touches it */}
+                <span ref={raisedRef} aria-live="polite" aria-atomic="true" />
+              </FundStat>
+              <FundStat
+                label={copy.goalLabel}
+                staticValue={progress ? `₱${Math.floor(progress.target_amount).toLocaleString()}` : "₱50,000"}
+              />
+              <FundStat label={copy.supportersLabel}>
+                <span ref={suppRef} aria-live="polite" aria-atomic="true" />
+              </FundStat>
+            </>
+          )}
         </div>
 
-        {/* Progress bar */}
-        <div className="mb-1 h-2.5 overflow-hidden rounded-full bg-white/10">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${pct}%` }}
-            transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 }}
-            className="h-full rounded-full"
-            style={{ background: "linear-gradient(90deg,#a855f7,#ec4899)" }}
-          />
-        </div>
-        <div className="mb-4 flex items-center justify-between">
-          <span className="text-[10.5px] font-bold text-purple-300">{pct}% {copy.fundedSuffix}</span>
-          <span className="text-[10px] text-white/40">₱{Math.floor(remaining).toLocaleString()} {copy.remainingSuffix}</span>
-        </div>
+        {/* Progress bar — skeleton while loading */}
+        {loading ? (
+          <div className="mb-4">
+            <div className="mb-1 h-2.5 overflow-hidden rounded-full bg-white/10 animate-pulse" />
+            <div className="flex justify-between">
+              <div className="h-2 w-12 rounded-full bg-white/10 animate-pulse" />
+              <div className="h-2 w-16 rounded-full bg-white/10 animate-pulse" />
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="mb-1 h-2.5 overflow-hidden rounded-full bg-white/10">
+              {/* Re-keyed on glowPulse so the bar re-animates on each new payment */}
+              <motion.div
+                key={`bar-${glowPulse}`}
+                initial={{ width: 0 }}
+                animate={{ width: `${pct}%` }}
+                transition={{ duration: 1.2, ease: "easeOut", delay: 0.1 }}
+                className="h-full rounded-full"
+                style={{ background: "linear-gradient(90deg,#a855f7,#ec4899)" }}
+              />
+            </div>
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-[10.5px] font-bold text-purple-300">{pct}% {copy.fundedSuffix}</span>
+              <span className="text-[10px] text-white/40">₱{Math.floor(remaining).toLocaleString()} {copy.remainingSuffix}</span>
+            </div>
+          </>
+        )}
 
         <motion.button
           whileTap={{ scale: 0.97 }}
@@ -297,29 +370,46 @@ export function CommunityFunding() {
       </motion.div>
 
       {/* ── Recent supporters feed ─────────────────────────────────── */}
-      {supporters.length > 0 && (
+      {(loading || supporters.length > 0) && (
         <div className="mb-4 rounded-[18px] p-4"
              style={{ background: "rgba(168,85,247,0.05)", border: "1px solid rgba(168,85,247,0.12)" }}>
           <p className="mb-3 text-[10.5px] font-semibold uppercase tracking-wider text-purple-400">
             {copy.recentSupporters}
           </p>
-          <div className="space-y-2">
-            {supporters.slice(0, 5).map((s) => (
-              <div key={s.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="grid h-7 w-7 place-items-center rounded-full text-[10px] font-bold text-white"
-                       style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
-                    {(s.username[0] ?? "?").toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="text-[11.5px] font-semibold text-white leading-tight">{s.username}</p>
-                    <p className="text-[10px] text-white/40">{relativeTime(s.paid_at)}</p>
-                  </div>
-                </div>
-                <p className="text-[12px] font-bold text-purple-300">₱{Math.floor(s.amount).toLocaleString()}</p>
-              </div>
-            ))}
-          </div>
+          {loading ? (
+            <div className="space-y-2.5">
+              <SupporterSkeleton /><SupporterSkeleton /><SupporterSkeleton />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <AnimatePresence initial={false}>
+                {supporters.slice(0, 20).map((s) => (
+                  <motion.div
+                    key={s.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                    transition={{ duration: 0.22, ease: "easeOut" }}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[10px] font-bold text-white"
+                           style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
+                        {(s.username[0] ?? "?").toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-[11.5px] font-semibold text-white leading-tight">{s.username}</p>
+                        <p className="text-[10px] text-white/40">{relativeTime(s.paid_at)}</p>
+                      </div>
+                    </div>
+                    <p className="text-[12px] font-bold text-purple-300 shrink-0">
+                      ₱{Math.floor(s.amount).toLocaleString()}
+                    </p>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
         </div>
       )}
 
@@ -387,11 +477,39 @@ export function CommunityFunding() {
   );
 }
 
-function FundStat({ label, value }: { label: string; value: string }) {
+function FundStat({
+  label, children, staticValue,
+}: {
+  label: string; children?: React.ReactNode; staticValue?: string;
+}) {
   return (
     <div className="rounded-xl p-2.5 text-center" style={{ background: "rgba(255,255,255,0.05)" }}>
       <div className="text-[10px] font-semibold uppercase tracking-wider text-white/45">{label}</div>
-      <div className="mt-0.5 text-[14px] font-extrabold text-white leading-tight">{value}</div>
+      <div className="mt-0.5 text-[14px] font-extrabold text-white leading-tight">
+        {children ?? staticValue ?? "—"}
+      </div>
+    </div>
+  );
+}
+
+function StatSkeleton() {
+  return (
+    <div className="rounded-xl p-2.5 text-center" style={{ background: "rgba(255,255,255,0.05)" }}>
+      <div className="mx-auto mb-1.5 h-2 w-10 rounded-full bg-white/10 animate-pulse" />
+      <div className="mx-auto h-3.5 w-14 rounded-full bg-white/15 animate-pulse" />
+    </div>
+  );
+}
+
+function SupporterSkeleton() {
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className="h-7 w-7 shrink-0 rounded-full bg-white/10 animate-pulse" />
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <div className="h-2.5 w-20 rounded-full bg-white/10 animate-pulse" />
+        <div className="h-2 w-12 rounded-full bg-white/[0.08] animate-pulse" />
+      </div>
+      <div className="h-2.5 w-10 shrink-0 rounded-full bg-white/10 animate-pulse" />
     </div>
   );
 }
