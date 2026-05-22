@@ -22,8 +22,9 @@ interface SupportPayment {
 }
 
 const BASE = `${import.meta.env.BASE_URL}api`.replace(/\/{2,}/g, "/");
-const MAX_TRIES = 40;
-const POLL_MS   = 1500;
+const MAX_TRIES   = 40;
+const POLL_MS     = 1500;
+const SKIP_TRIES  = 8;   // show skip button after ~12 s of polling
 
 type Phase = "polling" | "paid" | "stuck" | "failed";
 
@@ -31,8 +32,10 @@ export default function SupportSuccess() {
   const [, navigate] = useLocation();
   const [phase, setPhase] = useState<Phase>("polling");
   const [payment, setPayment] = useState<SupportPayment | null>(null);
+  const [showSkip, setShowSkip] = useState(false);
   const triesRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const locale = useMemo(() => detectInitialLocale(), []);
   const copy = useMemo(() => getSupportCopy(locale), [locale]);
 
@@ -60,15 +63,21 @@ export default function SupportSuccess() {
       } catch { /* keep polling */ }
       triesRef.current += 1;
       if (triesRef.current >= MAX_TRIES) { setPhase("stuck"); return; }
+      if (triesRef.current >= SKIP_TRIES && !showSkip) setShowSkip(true);
       timerRef.current = setTimeout(tick, POLL_MS);
     };
+
+    // Surface the skip button after a delay so users are never trapped on
+    // this page if the webhook is slow or the payment was abandoned.
+    skipTimerRef.current = setTimeout(() => setShowSkip(true), SKIP_TRIES * POLL_MS);
 
     tick();
     return () => {
       cancelled = true;
       if (timerRef.current) clearTimeout(timerRef.current);
+      if (skipTimerRef.current) clearTimeout(skipTimerRef.current);
     };
-  }, [ref]);
+  }, [ref]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const amountPhp = payment ? payment.amount_centavos / 100 : 0;
 
@@ -97,6 +106,18 @@ export default function SupportSuccess() {
             <p className="mt-2 text-[12px] leading-relaxed text-white/55">
               Confirming your contribution with PayMongo. This usually takes a few seconds.
             </p>
+            {showSkip && (
+              <motion.button
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => navigate("/")}
+                className="mt-5 w-full rounded-2xl py-2.5 text-[12.5px] font-semibold text-white/55"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.09)" }}
+              >
+                {copy.thanksCta}
+              </motion.button>
+            )}
           </>
         )}
 

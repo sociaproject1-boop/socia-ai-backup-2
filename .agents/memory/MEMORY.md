@@ -1,0 +1,1 @@
+- [Community Support Phase 2](community-support-phase2.md) — atomic RPC (migration 38) is the source of truth for resume/create; two-step approach was replaced in paymongo.ts.

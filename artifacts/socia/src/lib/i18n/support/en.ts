@@ -14,6 +14,7 @@ const en: SupportCopy = {
   back:               "Back",
   securing:           "Preparing secure checkout…",
   securingStage2:     "Securing encrypted payment…",
+  securingStage3:     "Almost there — finalizing your checkout…",
   resumeTitle:        "Resume your contribution",
   resumeBody:         "You have an unfinished checkout. Tap to continue where you left off.",
   resumeCta:          "Resume checkout",

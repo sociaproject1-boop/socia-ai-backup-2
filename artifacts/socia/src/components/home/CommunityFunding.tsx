@@ -93,6 +93,7 @@ async function createSupportCheckout(amountCentavos: number): Promise<CheckoutRe
     if (code === "AMOUNT_BELOW_MIN")     throw new Error("Minimum contribution is ₱50.");
     if (code === "AMOUNT_ABOVE_MAX")     throw new Error("Maximum contribution per transaction is ₱10,000.");
     if (code === "PAYMONGO_NOT_CONFIGURED") throw new Error("Payments aren't configured yet. Please contact support.");
+    if (code === "CHECKOUT_IN_PROGRESS") throw new Error("A checkout is already starting. Please wait a moment and try again.");
     throw new Error("We couldn't start your contribution. Please try again.");
   }
   return {
@@ -431,10 +432,9 @@ function SupportModal({
   const [method, setMethod]       = useState<Method>("gcash");
   const [busy, setBusy]           = useState(false);
   const [err, setErr]             = useState<string | null>(null);
-  // Sequential loading copy: stage 1 ("Preparing secure checkout…") flips to
-  // stage 2 ("Securing encrypted payment…") after 1.5s so the user has a
-  // sense of forward progress while we hit PayMongo + the browser redirects.
-  const [loadingStage, setLoadingStage]   = useState<1 | 2>(1);
+  // Sequential loading copy: stage 1 → 2 → 3 so the user has a sense of
+  // forward progress while we hit PayMongo + the browser redirects.
+  const [loadingStage, setLoadingStage]   = useState<1 | 2 | 3>(1);
   // Resume banner: surfaced when the user has an in-flight pending row
   // (closed the tab during a previous checkout). Fetched on open.
   const [resumable, setResumable]         = useState<PendingCheckout | null>(null);
@@ -465,11 +465,12 @@ function SupportModal({
     }
   }, [open]);
 
-  // Sequential loading copy timer — switches to stage 2 after 1.5s while busy.
+  // Sequential loading copy timer — stage 1 → 2 at 1.5s → 3 at 3.5s.
   useEffect(() => {
     if (!busy) { setLoadingStage(1); return; }
-    const t = setTimeout(() => setLoadingStage(2), 1500);
-    return () => clearTimeout(t);
+    const t2 = setTimeout(() => setLoadingStage(2), 1500);
+    const t3 = setTimeout(() => setLoadingStage(3), 3500);
+    return () => { clearTimeout(t2); clearTimeout(t3); };
   }, [busy]);
 
   // Lazy-load history the first time the user expands it. Cheap (≤50 rows)
@@ -523,15 +524,16 @@ function SupportModal({
     return () => { prevFocusRef.current?.focus?.(); };
   }, [open]);
 
-  // ESC to close (when not submitting).
+  // ESC to close — always allowed once the fallback link is visible, so
+  // the user is never permanently trapped even inside an in-app browser.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) onClose();
+      if (e.key === "Escape" && (!busy || fallbackUrl)) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, busy, onClose]);
+  }, [open, busy, fallbackUrl, onClose]);
 
   // Refresh stats when the user comes back to the tab — they may have just
   // paid in another tab/window. Defensive only; SupportSuccess is the
@@ -605,7 +607,7 @@ function SupportModal({
           backdropFilter: "blur(10px)",
           WebkitBackdropFilter: "blur(10px)",
         }}
-        onClick={() => { if (!busy) onClose(); }}
+        onClick={() => { if (!busy || fallbackUrl) onClose(); }}
       >
         <motion.div
           key="sheet"
@@ -644,7 +646,7 @@ function SupportModal({
             </div>
             <button
               onClick={onClose}
-              disabled={busy}
+              disabled={busy && !fallbackUrl}
               className="grid h-8 w-8 place-items-center rounded-full bg-white/8 text-white/60 disabled:opacity-40"
               aria-label="Close"
             >
@@ -822,7 +824,7 @@ function SupportModal({
                 {busy ? (
                   <span className="flex items-center justify-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    {loadingStage === 1 ? copy.securing : copy.securingStage2}
+                    {loadingStage === 1 ? copy.securing : loadingStage === 2 ? copy.securingStage2 : copy.securingStage3}
                   </span>
                 ) : (
                   <>{copy.cta} · ₱{(finalAmount || 0).toLocaleString()}</>
@@ -830,7 +832,7 @@ function SupportModal({
               </motion.button>
               <button
                 onClick={onClose}
-                disabled={busy}
+                disabled={busy && !fallbackUrl}
                 className="w-full rounded-2xl py-2.5 text-[12.5px] font-semibold text-white/60 disabled:opacity-40"
               >
                 {copy.back}

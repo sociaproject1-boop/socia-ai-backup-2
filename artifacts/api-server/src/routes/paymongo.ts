@@ -269,117 +269,56 @@ router.post("/paymongo/support-checkout", requireAuth, async (req: Request, res:
     "[paymongo/support] creating checkout session",
   );
 
-  // 0. Idempotent re-tap recovery.
-  //    If the user already has an in-flight pending row for the SAME amount,
-  //    created in the last 25 minutes (PayMongo checkout sessions expire at
-  //    ~30min by default), and we already have a checkout_url for it,
-  //    return that URL instead of spinning up a fresh session. This makes
-  //    rapid re-taps + "back button then continue" flows safe without
-  //    inflating the rate-limit counter or creating duplicate sessions.
-  //    Different amount → falls through and creates a new session.
-  {
-    const sinceIso = new Date(Date.now() - 25 * 60 * 1000).toISOString();
-    const { data: existing } = await sb
-      .from("community_support")
-      .select("id, paymongo_session_id, raw_session")
-      .eq("user_id", user.id)
-      .eq("status", "pending")
-      .eq("amount_centavos", amountCentavos)
-      .gte("created_at", sinceIso)
-      .not("paymongo_session_id", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  // Single atomic RPC (migration 38): resolve resume-or-create under one
+  // per-user advisory lock. Eliminates the TOCTOU race the previous two-step
+  // approach (re-tap check then separate INSERT RPC) was vulnerable to.
+  //
+  // create_or_resume_pending_community_support does in one transaction:
+  //   1. Expire THIS user's stale pending rows (>30 min)
+  //   2. Return any fully-armed resumable row (same amount, <25 min, has session)
+  //   3. Detect a racing-twin row (same amount, <90 s, no session yet)
+  //   4. Enforce sliding-window rate limit (3/60 s) then INSERT a new row
+  //
+  // Returns TABLE: { support_id uuid, was_created bool, armed bool }
+  //   was_created=true,  armed=false → new row → proceed to PayMongo
+  //   was_created=false, armed=true  → resume existing → return URL
+  //   was_created=false, armed=false → race/mid-flight → 409
+  // Throws RAISE EXCEPTION: RATE_LIMIT_EXCEEDED | INVALID_AMOUNT | USER_ID_REQUIRED
+  const { data: rpcRows, error: rpcErr } = await sb.rpc(
+    "create_or_resume_pending_community_support",
+    { p_user_id: user.id, p_amount_centavos: amountCentavos },
+  );
 
-    const cachedUrl =
-      (existing?.raw_session as { data?: { attributes?: { checkout_url?: string } } } | null)
-        ?.data?.attributes?.checkout_url;
-    if (existing && cachedUrl) {
-      logger.info(
-        { userId: user.id, ref: existing.id, sessionId: existing.paymongo_session_id },
-        "[paymongo/support] idempotent re-tap — returning existing checkout url",
-      );
-      return res.json({ ok: true, ref: existing.id, checkout_url: cachedUrl, resumed: true });
-    }
-  }
+  if (rpcErr) {
+    const pgMsg  = (rpcErr as { message?: string }).message ?? "";
+    const pgCode = (rpcErr as { code?: string }).code    ?? "";
+    logger.error({ err: rpcErr, pgCode, pgMsg, userId: user.id, amountCentavos },
+      "[paymongo/support] atomic rpc error");
 
-  // 1. Atomic create-pending RPC. This is a single transaction on Postgres
-  //    that:
-  //      • takes a per-user advisory lock (no cross-user blocking)
-  //      • expires THIS user's stale pending rows (>30 min)
-  //      • enforces the sliding-window anti-spam cap (3 / 60s)
-  //      • inserts the new pending row
-  //    The lock+count+insert in one TX makes the rate limit immune to the
-  //    classic TOCTOU race a separate count→insert is vulnerable to.
-  //    Any RPC-level error (network, function missing, etc.) is FAIL-CLOSED:
-  //    we treat it as if the insert failed and return the mapped error code.
-  // Rate-limit window + cap are hardcoded inside the SQL function so a
-  // caller cannot relax them by passing larger values.
-  const { data: rpcData, error: rpcErr } = await sb.rpc("create_pending_community_support", {
-    p_user_id:         user.id,
-    p_amount_centavos: amountCentavos,
-  });
-
-  // RPC returned an application-level rejection (rate limit / amount bound).
-  // Note `rpcData` is jsonb — supabase-js delivers it as the raw object.
-  const rpcResult = rpcData as { ok?: boolean; id?: string; code?: string } | null;
-  if (!rpcErr && rpcResult && rpcResult.ok === false) {
-    if (rpcResult.code === "TOO_MANY_REQUESTS") {
+    if (/RATE_LIMIT_EXCEEDED/i.test(pgMsg)) {
       logger.warn({ userId: user.id }, "[paymongo/support] rate limited (atomic)");
       return res.status(429).json({
         code:    "TOO_MANY_REQUESTS",
         message: "You're starting checkouts too quickly. Please wait a moment and try again.",
       });
     }
-    if (rpcResult.code === "AMOUNT_BELOW_MIN") {
+    if (/INVALID_AMOUNT/i.test(pgMsg)) {
       return res.status(400).json({ code: "AMOUNT_BELOW_MIN", message: "Minimum contribution is ₱50." });
     }
-    if (rpcResult.code === "AMOUNT_ABOVE_MAX") {
-      return res.status(400).json({ code: "AMOUNT_ABOVE_MAX", message: "Maximum contribution per transaction is ₱10,000." });
-    }
-    // Unknown application code — fail-closed.
-    logger.error({ rpcResult, userId: user.id }, "[paymongo/support] unexpected rpc rejection");
-    return res.status(500).json({ code: "SUPPORT_INSERT_FAILED", message: "We couldn't start your contribution. Please try again." });
-  }
-
-  // Shim the RPC result into the same shape the downstream code already
-  // expects ({ id } row + supabase-style error).
-  const row    = rpcResult?.ok && rpcResult.id ? { id: rpcResult.id } : null;
-  const insErr = rpcErr;
-
-  if (insErr || !row) {
-    // Map common Supabase error shapes to actionable user-facing codes so the
-    // modal can show a clean toast instead of a generic 500. We include the
-    // PostgREST error code + message in the server log for diagnostics.
-    const pgCode = (insErr as { code?: string } | null)?.code ?? "";
-    const pgMsg  = (insErr as { message?: string } | null)?.message ?? "";
-    logger.error(
-      { err: insErr, pgCode, pgMsg, userId: user.id, amountCentavos },
-      "[paymongo/support] failed to insert pending row",
-    );
-
-    // PGRST205 = "Could not find the table 'public.community_support' in the
-    // schema cache" — migration 36 has not been applied to this Supabase
-    // project yet. Surface this clearly so the user knows what to do.
-    if (pgCode === "PGRST205" || /community_support/i.test(pgMsg) && /not find|schema cache/i.test(pgMsg)) {
+    if (pgCode === "PGRST205" || (/community_support/i.test(pgMsg) && /not find|schema cache/i.test(pgMsg))) {
       return res.status(503).json({
         code:    "SUPPORT_NOT_READY",
         message: "Community support is being set up. Please try again in a moment.",
       });
     }
-    // 23503 = foreign-key violation (user_id not in auth.users)
     if (pgCode === "23503") {
       return res.status(401).json({
         code:    "SESSION_EXPIRED",
         message: "Your session has expired. Please sign in again to continue.",
       });
     }
-    // 23514 = check constraint (amount below floor, even though we already validated)
     if (pgCode === "23514") {
-      return res.status(400).json({
-        code:    "AMOUNT_BELOW_MIN",
-        message: "Minimum contribution is ₱50.",
-      });
+      return res.status(400).json({ code: "AMOUNT_BELOW_MIN", message: "Minimum contribution is ₱50." });
     }
     return res.status(500).json({
       code:    "SUPPORT_INSERT_FAILED",
@@ -387,7 +326,54 @@ router.post("/paymongo/support-checkout", requireAuth, async (req: Request, res:
     });
   }
 
-  const ref = row.id as string;
+  const rpcRow = (Array.isArray(rpcRows) ? rpcRows[0] : rpcRows) as
+    { support_id: string; was_created: boolean; armed: boolean } | null;
+
+  if (!rpcRow?.support_id) {
+    logger.error({ rpcRows, userId: user.id }, "[paymongo/support] atomic rpc returned no row");
+    return res.status(500).json({
+      code:    "SUPPORT_INSERT_FAILED",
+      message: "We couldn't start your contribution. Please try again.",
+    });
+  }
+
+  const ref        = rpcRow.support_id;
+  const wasCreated = rpcRow.was_created;
+  const isArmed    = rpcRow.armed;
+
+  // Racing-twin: another concurrent request from this user is mid-flight.
+  // Row exists but PayMongo session not yet attached. The first request will
+  // arm it within seconds — ask the client to retry.
+  if (!wasCreated && !isArmed) {
+    logger.info({ userId: user.id, ref }, "[paymongo/support] racing-twin — checkout already starting");
+    return res.status(409).json({
+      code:    "CHECKOUT_IN_PROGRESS",
+      message: "A checkout is already in progress. Please wait a moment and try again.",
+    });
+  }
+
+  // Resumable: existing armed row — extract and reuse the existing checkout URL.
+  if (!wasCreated && isArmed) {
+    const { data: armRow } = await sb
+      .from("community_support")
+      .select("paymongo_session_id, raw_session")
+      .eq("id", ref)
+      .maybeSingle();
+    const existingUrl =
+      (armRow?.raw_session as { data?: { attributes?: { checkout_url?: string } } } | null)
+        ?.data?.attributes?.checkout_url;
+    if (existingUrl) {
+      logger.info({ userId: user.id, ref, sessionId: armRow?.paymongo_session_id },
+        "[paymongo/support] atomic resume — returning existing checkout url");
+      return res.json({ ok: true, ref, checkout_url: existingUrl, resumed: true });
+    }
+    // armed=true but checkout_url missing (data inconsistency) — fall through
+    // and attach a fresh PayMongo session to the existing row.
+    logger.warn({ userId: user.id, ref }, "[paymongo/support] armed=true but no checkout_url — re-arming");
+  }
+
+  // wasCreated=true (new row) OR armed=true but URL was lost: proceed to
+  // create a PayMongo session and attach it to `ref`.
   const origin = appOrigin(req);
   const successUrl = `${origin}/support/success?ref=${encodeURIComponent(ref)}`;
   const cancelUrl  = `${origin}/support/cancelled?ref=${encodeURIComponent(ref)}`;

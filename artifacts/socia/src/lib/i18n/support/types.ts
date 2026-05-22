@@ -12,6 +12,7 @@ export interface SupportCopy {
   back:               string;
   securing:           string;
   securingStage2:     string;
+  securingStage3:     string;
   resumeTitle:        string;
   resumeBody:         string;
   resumeCta:          string;

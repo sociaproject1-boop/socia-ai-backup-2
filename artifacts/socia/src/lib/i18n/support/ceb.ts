@@ -14,6 +14,7 @@ const ceb: SupportCopy = {
   back:               "Balik",
   securing:           "Giandam ang secure checkout…",
   securingStage2:     "Gi-secure ang encrypted payment…",
+  securingStage3:     "Hapit na — gi-finalize ang imong checkout…",
   resumeTitle:        "Padayuna ang imong contribution",
   resumeBody:         "Naa kay wala pa nahuman nga checkout. I-tap para magpadayon.",
   resumeCta:          "Padayuna ang checkout",

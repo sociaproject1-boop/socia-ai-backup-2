@@ -14,6 +14,7 @@ const tl: SupportCopy = {
   back:               "Bumalik",
   securing:           "Hinahanda ang secure checkout…",
   securingStage2:     "Ineensure ang encrypted payment…",
+  securingStage3:     "Halos na — ini-finalize ang iyong checkout…",
   resumeTitle:        "Ipagpatuloy ang iyong contribution",
   resumeBody:         "May hindi pa tapos na checkout ka. I-tap para magpatuloy.",
   resumeCta:          "Ipagpatuloy ang checkout",
