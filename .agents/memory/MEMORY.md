@@ -1,2 +1,3 @@
 - [Community Support Phase 2](community-support-phase2.md) — atomic RPC (migration 38) is the source of truth for resume/create; two-step approach was replaced in paymongo.ts.
 - [Community Support Phase 3](community-support-phase3.md) — realtime hook, RAF counter with DOM-direct writes, glow pulse, loading skeletons for CommunityFunding.
+- [Socia-trailer design system](socia-trailer-design.md) — CS tokens (--cs-*), 14 UI primitives in src/components/ui/, 6-component workspace shell; Tailwind v4 @theme inline pattern; ?preview=1 for bare trailer embed mode.

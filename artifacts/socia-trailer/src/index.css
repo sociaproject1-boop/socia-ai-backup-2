@@ -1,26 +1,101 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════════════════
+   AI CINEMATIC STUDIO — Design System Tokens
+   ═══════════════════════════════════════════════════════════════════════
+   Naming convention: --cs-* (cinematic studio)
+   ═══════════════════════════════════════════════════════════════════════ */
 :root {
+  /* Legacy tokens kept for backward compatibility */
   --color-primary: #7C3AED;
   --color-secondary: #EC4899;
   --color-accent: #06B6D4;
-
   --color-bg-light: #0a0a0f;
   --color-bg-dark: #0a0a0f;
   --color-bg-muted: #0d0d1a;
-
   --color-text-primary: #ffffff;
   --color-text-secondary: #a0a0b0;
   --color-text-muted: #6b7280;
   --color-text-inverse: #0a0a0f;
-
   --color-success: #10B981;
   --color-warning: #F59E0B;
   --color-error: #EF4444;
-
   --font-display: 'Space Grotesk', sans-serif;
   --font-body: 'DM Sans', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
+
+  /* ── Canvas / backgrounds ─────────────────────────────────────────── */
+  --cs-canvas:       #07070f;   /* deepest layer — page background */
+  --cs-bg:           #0b0b16;   /* primary panel backgrounds */
+  --cs-bg-elevated:  #111120;   /* card/section backgrounds */
+  --cs-bg-hover:     #17172a;   /* hover state on interactive surfaces */
+  --cs-bg-active:    #1c1c33;   /* pressed / selected state */
+  --cs-bg-overlay:   rgba(7,7,15,0.88); /* modal scrim */
+
+  /* ── Sidebar ──────────────────────────────────────────────────────── */
+  --cs-sidebar-bg:   #090912;
+  --cs-sidebar-w:    52px;       /* collapsed icon rail width */
+
+  /* ── Borders ──────────────────────────────────────────────────────── */
+  --cs-border-faint:  rgba(255,255,255,0.05);
+  --cs-border:        rgba(255,255,255,0.09);
+  --cs-border-medium: rgba(255,255,255,0.15);
+  --cs-border-strong: rgba(255,255,255,0.24);
+
+  /* ── Primary (purple) ─────────────────────────────────────────────── */
+  --cs-primary:       #7C3AED;
+  --cs-primary-hover: #6D28D9;
+  --cs-primary-dim:   rgba(124,58,237,0.18);
+  --cs-primary-glow:  rgba(124,58,237,0.35);
+
+  /* ── Secondary (pink) ─────────────────────────────────────────────── */
+  --cs-secondary:     #EC4899;
+  --cs-secondary-dim: rgba(236,72,153,0.18);
+
+  /* ── Accent (cyan) ────────────────────────────────────────────────── */
+  --cs-accent:        #06B6D4;
+  --cs-accent-dim:    rgba(6,182,212,0.18);
+
+  /* ── Semantic ─────────────────────────────────────────────────────── */
+  --cs-success:       #10B981;
+  --cs-success-dim:   rgba(16,185,129,0.18);
+  --cs-warning:       #F59E0B;
+  --cs-warning-dim:   rgba(245,158,11,0.18);
+  --cs-error:         #EF4444;
+  --cs-error-dim:     rgba(239,68,68,0.18);
+
+  /* ── Typography ───────────────────────────────────────────────────── */
+  --cs-text:          #ffffff;
+  --cs-text-secondary: rgba(255,255,255,0.60);
+  --cs-text-muted:    rgba(255,255,255,0.38);
+  --cs-text-disabled: rgba(255,255,255,0.22);
+
+  /* ── Shadows / glows ──────────────────────────────────────────────── */
+  --cs-shadow-sm:     0 1px 3px rgba(0,0,0,0.5);
+  --cs-shadow-md:     0 4px 16px rgba(0,0,0,0.6);
+  --cs-shadow-lg:     0 12px 40px rgba(0,0,0,0.7);
+  --cs-shadow-primary: 0 4px 20px rgba(124,58,237,0.4);
+  --cs-shadow-glow:   0 0 24px rgba(124,58,237,0.5);
+
+  /* ── Radii ────────────────────────────────────────────────────────── */
+  --cs-radius-xs:  6px;
+  --cs-radius-sm:  8px;
+  --cs-radius-md:  12px;
+  --cs-radius-lg:  16px;
+  --cs-radius-xl:  20px;
+  --cs-radius-2xl: 24px;
+
+  /* ── Transitions ──────────────────────────────────────────────────── */
+  --cs-ease:   cubic-bezier(0.16, 1, 0.3, 1);
+  --cs-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --cs-duration-fast: 120ms;
+  --cs-duration: 200ms;
+  --cs-duration-slow: 350ms;
+
+  /* ── Sizes ────────────────────────────────────────────────────────── */
+  --cs-topbar-h:    52px;
+  --cs-generate-h:  64px;
+  --cs-timeline-h:  104px;
 }
 
 @theme inline {
@@ -42,10 +117,78 @@
   --font-mono: var(--font-mono);
 }
 
+/* ── Global base ────────────────────────────────────────────────────── */
 body {
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #0a0a0f;
+  background: var(--cs-canvas);
   overflow: hidden;
+}
+
+/* ── Scrollbar styling ──────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+
+/* ── Hide scrollbar utility ─────────────────────────────────────────── */
+.cs-no-scrollbar::-webkit-scrollbar { display: none; }
+.cs-no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ── GPU-composited animation helpers ───────────────────────────────── */
+.cs-will-transform { will-change: transform; transform: translateZ(0); }
+
+/* ── Cinematic scan lines overlay ───────────────────────────────────── */
+.cs-scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+  pointer-events: none;
+}
+
+/* ── Subtle glass surface ────────────────────────────────────────────── */
+.cs-glass {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--cs-border-faint);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ── Primary gradient text ───────────────────────────────────────────── */
+.cs-gradient-text {
+  background: linear-gradient(135deg, #a78bfa, #ec4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Pulse glow animation for active states ─────────────────────────── */
+@keyframes cs-pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 var(--cs-primary-glow); }
+  50%       { box-shadow: 0 0 0 6px transparent; }
+}
+.cs-pulse-glow { animation: cs-pulse-glow 2s ease-in-out infinite; }
+
+/* ── Shimmer skeleton animation ─────────────────────────────────────── */
+@keyframes cs-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+.cs-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.10) 50%,
+    rgba(255,255,255,0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: cs-shimmer 1.6s ease-in-out infinite;
 }
