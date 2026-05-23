@@ -34,23 +34,35 @@ import { supabase } from "@/lib/supabase";
 import { VideoPlayerModal } from "@/components/ui/VideoPlayerModal";
 import { useBillingStore } from "@/lib/billing";
 import { VerticalStoryboard } from "@/components/studio/VerticalStoryboard";
-import { ModelSelector } from "@/components/models/ModelSelector";
+import { ModelSelectorModal } from "@/components/models/ModelSelectorModal";
 import { useStudioModelStore, type StudioModelId } from "@/store/modelStore";
+import type { AiModelId } from "@/data/aiModels";
 import klingOmniCover from "@assets/image-8_1779541488524.jpg";
+import runwayCover    from "@assets/model-covers/runway-gen4.png";
+import veoCover       from "@assets/model-covers/veo.png";
+import pikaCover      from "@assets/model-covers/pika.png";
+import lumaCover      from "@assets/model-covers/luma.png";
 
-/* Cover images per model id (null = use gradient fallback) */
+/* Cover images per model id (null = use gradient fallback).
+   These also power the model pill in the studio header. */
 const MODEL_COVERS: Partial<Record<RenderEngineId, string>> = {
   "kling-3-omni": klingOmniCover,
+  "runway-gen4":  runwayCover,
+  "veo-ultra":    veoCover,
+  "pika":         pikaCover,
+  "luma":         lumaCover,
 };
 /* Per-model badges shown on each cinematic card */
 const MODEL_BADGES: Partial<Record<RenderEngineId, string[]>> = {
-  "kling-3-omni": ["Cinema Grade", "Lip Sync", "Multi-Shot", "Pro Storytelling"],
-  "kling-cinematic": ["Smooth Motion", "Film Look"],
-  "kling-standard":  ["Fast", "Balanced"],
-  "runway-gen4":     ["Hollywood", "Commercial"],
-  "veo-ultra":       ["Ultra HD", "Art Cinema"],
-  "anime-motion":    ["Anime", "Stylized"],
-  "hyper-real":      ["Editorial", "Photoreal"],
+  "kling-3-omni":   ["Cinema Grade", "Lip Sync", "Multi-Shot", "Pro Storytelling"],
+  "kling-cinematic":["Smooth Motion", "Film Look"],
+  "kling-standard": ["Fast", "Balanced"],
+  "runway-gen4":    ["Hollywood", "Commercial"],
+  "veo-ultra":      ["Ultra HD", "Art Cinema"],
+  "pika":           ["Fast", "Stylized", "Social"],
+  "luma":           ["Smooth Motion", "Immersive"],
+  "anime-motion":   ["Anime", "Stylized"],
+  "hyper-real":     ["Editorial", "Photoreal"],
 };
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -71,7 +83,7 @@ const GLOW_GOLD   = "rgba(245,158,11,0.5)";
 /* ═══════════════════════════════════════════════════════════════════
    TYPES
 ═══════════════════════════════════════════════════════════════════ */
-type RenderEngineId  = "kling-3-omni"|"kling-standard"|"kling-cinematic"|"runway-gen4"|"veo-ultra"|"anime-motion"|"hyper-real";
+type RenderEngineId  = "kling-3-omni"|"kling-standard"|"kling-cinematic"|"runway-gen4"|"veo-ultra"|"pika"|"luma"|"anime-motion"|"hyper-real";
 type TransitionType  = "fade"|"dissolve"|"zoom"|"flash"|"warp"|"slide-left"|"slide-right"|"cinematic-blur"|"glitch"|"anime-cut"|"film-burn"|"speed-ramp";
 type CameraMove      = "static"|"dolly-in"|"dolly-out"|"orbit"|"pan-left"|"pan-right"|"tilt-up"|"tilt-down"|"handheld"|"drone-shot"|"cinematic-push"|"crash-zoom"|"tracking-shot"|"shoulder-cam";
 type MotionStrength  = "subtle"|"balanced"|"strong"|"extreme";
@@ -162,9 +174,11 @@ const ENGINES: RenderEngine[] = [
   { id:"kling-3-omni",    name:"Kling 3.0 Omni",  tagline:"Cinema Grade AI · Perfect Lip Sync · Pro Storytelling", quality:"Cinema", speed:"Medium",speedScore:70, creditsPerSeg:40, creditLabel:"High", bestFor:"Cinematic Films · Lip Sync · Multi-Shot", available:true,  gradient:"linear-gradient(135deg,#b026ff,#ec4899)", glow:"rgba(176,38,255,0.6)",  cinematicRating:10,gpuIntensity:"Heavy",   realism:95 },
   { id:"kling-standard",  name:"Kling Standard",  tagline:"Fast, balanced. Reels & TikTok ready.",    quality:"Balanced", speed:"Fast",      speedScore:85, creditsPerSeg:20, creditLabel:"Low",     bestFor:"Reels · TikTok · Stories", available:true,  gradient:"linear-gradient(135deg,#3b82f6,#6366f1)", glow:"rgba(99,102,241,0.5)",  cinematicRating:7, gpuIntensity:"Light",   realism:72 },
   { id:"kling-cinematic", name:"Kling Cinematic", tagline:"Smooth camera physics. Film-like motion.",  quality:"High",     speed:"Medium",    speedScore:65, creditsPerSeg:30, creditLabel:"Medium",  bestFor:"Music · Brand Films",      available:true,  gradient:"linear-gradient(135deg,#6366f1,#a855f7)", glow:"rgba(168,85,247,0.5)",  cinematicRating:9, gpuIntensity:"Medium",  realism:86 },
-  { id:"runway-gen4",     name:"Runway Gen-4",    tagline:"Hollywood-grade. Commercial realism.",      quality:"Premium",  speed:"Slow",      speedScore:45, creditsPerSeg:50, creditLabel:"High",    bestFor:"Ads · Product Films",      available:false, gradient:"linear-gradient(135deg,#ec4899,#f43f5e)", glow:"rgba(236,72,153,0.5)",  cinematicRating:9, gpuIntensity:"Heavy",   realism:92 },
-  { id:"veo-ultra",       name:"Veo Ultra",        tagline:"Movie-level quality. Highest fidelity.",   quality:"Ultra",    speed:"Very Slow", speedScore:25, creditsPerSeg:80, creditLabel:"Extreme", bestFor:"Short Films · Art Cinema",  available:false, gradient:"linear-gradient(135deg,#f59e0b,#ef4444)", glow:"rgba(245,158,11,0.5)",  cinematicRating:10,gpuIntensity:"Extreme",  realism:97 },
-  { id:"anime-motion",    name:"Anime Motion",    tagline:"Stylized anime & manga movement.",          quality:"Stylized", speed:"Medium",    speedScore:60, creditsPerSeg:25, creditLabel:"Medium",  bestFor:"Anime · Webtoon · Manga",  available:false, gradient:"linear-gradient(135deg,#06b6d4,#3b82f6)", glow:"rgba(6,182,212,0.5)",   cinematicRating:8, gpuIntensity:"Medium",  realism:65 },
+  { id:"runway-gen4",     name:"Runway Gen-4",    tagline:"Hollywood-grade. Commercial realism.",      quality:"Premium",  speed:"Slow",      speedScore:45, creditsPerSeg:50, creditLabel:"High",    bestFor:"Ads · Product Films",      available:true,  gradient:"linear-gradient(135deg,#ec4899,#f43f5e)", glow:"rgba(236,72,153,0.5)",  cinematicRating:9, gpuIntensity:"Heavy",   realism:92 },
+  { id:"veo-ultra",       name:"Veo",              tagline:"Ultra-realistic motion. Cinematic camera control.", quality:"Ultra", speed:"Very Slow", speedScore:25, creditsPerSeg:80, creditLabel:"Extreme", bestFor:"Short Films · Art Cinema", available:true,  gradient:"linear-gradient(135deg,#06b6d4,#3b82f6)", glow:"rgba(6,182,212,0.55)",  cinematicRating:10,gpuIntensity:"Extreme",  realism:97 },
+  { id:"pika",            name:"Pika",            tagline:"Fast stylized AI video. Social-ready.",     quality:"Stylized", speed:"Fast",      speedScore:90, creditsPerSeg:18, creditLabel:"Low",     bestFor:"Reels · TikTok · Shorts",  available:true,  gradient:"linear-gradient(135deg,#a855f7,#ec4899)", glow:"rgba(168,85,247,0.55)", cinematicRating:8, gpuIntensity:"Light",   realism:74 },
+  { id:"luma",            name:"Luma",            tagline:"Smooth cinematic motion. Immersive transitions.",   quality:"High", speed:"Medium",    speedScore:68, creditsPerSeg:32, creditLabel:"Medium",  bestFor:"Music · Dreamlike · 3D",   available:true,  gradient:"linear-gradient(135deg,#8b5cf6,#06b6d4)", glow:"rgba(139,92,246,0.55)", cinematicRating:9, gpuIntensity:"Medium",  realism:86 },
+  { id:"anime-motion",    name:"Anime Motion",    tagline:"Stylized anime & manga movement.",          quality:"Stylized", speed:"Medium",    speedScore:60, creditsPerSeg:25, creditLabel:"Medium",  bestFor:"Anime · Webtoon · Manga",  available:false, gradient:"linear-gradient(135deg,#22d3ee,#3b82f6)", glow:"rgba(6,182,212,0.5)",   cinematicRating:8, gpuIntensity:"Medium",  realism:65 },
   { id:"hyper-real",      name:"Hyper Real",      tagline:"Ultra-realistic humans, skin, fashion.",    quality:"Editorial",speed:"Slow",      speedScore:40, creditsPerSeg:45, creditLabel:"High",    bestFor:"Fashion · Portrait · Beauty",available:false, gradient:"linear-gradient(135deg,#10b981,#06b6d4)", glow:"rgba(16,185,129,0.5)",  cinematicRating:8, gpuIntensity:"Heavy",   realism:94 },
 ];
 const PIPELINE_STAGES: {label:string;icon:typeof Upload;weight:number;detail:string}[] = [
@@ -4011,22 +4025,16 @@ export default function CreateMultiFrame() {
           open={videoOpen} onClose={() => setVideoOpen(false)}/>
       )}
 
-      {/* ── AI Model Selector bottom sheet (Cinematic Studio scope only) ── */}
-      <ModelSelector
+      {/* ── AI Models Orchestrator — fullscreen cinematic modal (Studio scope only).
+           Selection flows: ModelSelectorModal → useStudioModelStore (persisted)
+           → onSelect callback below → cfg.renderEngine → render pipeline. ── */}
+      <ModelSelectorModal
         open={modelSelectorOpen}
         onClose={() => setModelSelectorOpen(false)}
-        selectedId={cfg.renderEngine}
-        models={ENGINES.map(e => ({
-          id: e.id,
-          name: e.name,
-          subtitle: e.tagline,
-          cover: MODEL_COVERS[e.id] ?? null,
-          gradient: e.gradient,
-          glow: e.glow,
-          available: e.available,
-          badges: MODEL_BADGES[e.id] ?? [],
-        }))}
-        onSelect={(id) => {
+        onSelect={(id: AiModelId) => {
+          /* The orchestrator and the render pipeline share the same id
+             namespace, so we can route the chosen model straight into
+             cfg.renderEngine. */
           const next = id as RenderEngineId;
           updateCfg({ renderEngine: next });
           setStudioSelectedModelId(next as StudioModelId);

@@ -16,6 +16,8 @@ export type StudioModelId =
   | "kling-cinematic"
   | "runway-gen4"
   | "veo-ultra"
+  | "pika"
+  | "luma"
   | "anime-motion"
   | "hyper-real";
 

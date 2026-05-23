@@ -60,3 +60,27 @@ id = "1wvF2c0haf-tlVDNIjYmo"
 uri = "file://attached_assets/preset-covers/flat-lay.png"
 type = "image"
 title = "generated_image"
+
+[[generated]]
+id = "9JPy3Ny9tC2DYWNKHH6XA"
+uri = "file://attached_assets/model-covers/runway-gen4.png"
+type = "image"
+title = "runway gen4 model cover"
+
+[[generated]]
+id = "n61vxG06B42VKWqTNBUxD"
+uri = "file://attached_assets/model-covers/veo.png"
+type = "image"
+title = "veo ultra model cover"
+
+[[generated]]
+id = "50iDdle52IzZVDm5W4kwg"
+uri = "file://attached_assets/model-covers/pika.png"
+type = "image"
+title = "pika model cover"
+
+[[generated]]
+id = "Q9NLQZp3cw4qT0VT_aIWI"
+uri = "file://attached_assets/model-covers/luma.png"
+type = "image"
+title = "luma model cover"
