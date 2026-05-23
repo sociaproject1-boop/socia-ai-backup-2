@@ -7,6 +7,8 @@ import { useAppStore } from "@/lib/store";
 import { AuthProvider, useAuth } from "@/lib/authContext";
 import { PreferencesProvider } from "@/lib/PreferencesContext";
 import UpdateGate from "@/components/UpdateGate";
+import { GlobalLoaderProvider } from "@/components/loader/GlobalLoaderProvider";
+import { CinematicLoadingOverlay } from "@/components/loader/CinematicLoadingOverlay";
 
 // ── Critical path (eager) ────────────────────────────────────────────────────
 // Auth is the unauthenticated landing page — must be available without delay.
@@ -107,17 +109,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated, loading, location, navigate]);
 
   if (loading) {
+    /* Auth bootstrap blocks the tree, so the GlobalLoaderProvider isn't
+       mounted yet — render the cinematic overlay directly so the splash
+       still uses the unified loading visual. */
     return (
-      <div className="app-bg flex h-[100dvh] items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div
-            className="grid h-12 w-12 place-items-center rounded-2xl"
-            style={{ background: "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))" }}
-          >
-            <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-          </div>
-          <p className="text-sm" style={{ color: "var(--s-text-muted)" }}>Loading Socia…</p>
-        </div>
+      <div className="app-bg" style={{ position: "fixed", inset: 0 }}>
+        <CinematicLoadingOverlay open message="Loading Socia…" subtitle="Preparing your studio" />
       </div>
     );
   }
@@ -191,18 +188,23 @@ function App() {
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
             <AuthProvider>
-              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-                <AuthGuard>
-                  <AppShell>
-                    {/* Suspense catches lazy-page loading. Fallback renders
-                        inside AppShell so the top bar and bottom nav stay
-                        visible while the chunk downloads. */}
-                    <Suspense fallback={<PageSkeleton />}>
-                      <Router />
-                    </Suspense>
-                  </AppShell>
-                </AuthGuard>
-              </WouterRouter>
+              {/* GlobalLoaderProvider mounts ONE cinematic loading overlay
+                  at the app root so every page can call useGlobalLoader()
+                  for a unified, on-brand loading experience. */}
+              <GlobalLoaderProvider>
+                <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                  <AuthGuard>
+                    <AppShell>
+                      {/* Suspense catches lazy-page loading. Fallback renders
+                          inside AppShell so the top bar and bottom nav stay
+                          visible while the chunk downloads. */}
+                      <Suspense fallback={<PageSkeleton />}>
+                        <Router />
+                      </Suspense>
+                    </AppShell>
+                  </AuthGuard>
+                </WouterRouter>
+              </GlobalLoaderProvider>
             </AuthProvider>
           </TooltipProvider>
         </QueryClientProvider>
