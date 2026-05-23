@@ -1,0 +1,62 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "PqGHvn8pgQja5Js_7RhQe"
+uri = "file://attached_assets/preset-covers/tiktok-white-bg.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "7MyVMyPJObWgBAsgSTUmx"
+uri = "file://attached_assets/preset-covers/luxury-product.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "fT4tihMVFdP9NGbHkzQu_"
+uri = "file://attached_assets/preset-covers/beauty-influencer.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "rNolmkpkmcvi1quGFILcX"
+uri = "file://attached_assets/preset-covers/fashion-editorial.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "5gHZSBzj-tJpFyEqkoZ40"
+uri = "file://attached_assets/preset-covers/floating-product.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "fTNvgSZ9i952nrqU4_dH7"
+uri = "file://attached_assets/preset-covers/food-commercial.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "BAOo5N8gstzPRwIWuw2fk"
+uri = "file://attached_assets/preset-covers/jewelry-macro.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "gIGOD5MX9GOk9MqytVmA_"
+uri = "file://attached_assets/preset-covers/apple-commercial.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "4gsGw8Pyn3Ap0uaXTRDEs"
+uri = "file://attached_assets/preset-covers/neon-cyberpunk.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "1wvF2c0haf-tlVDNIjYmo"
+uri = "file://attached_assets/preset-covers/flat-lay.png"
+type = "image"
+title = "generated_image"

@@ -31,24 +31,24 @@ import {
 
 // ── Camera motion presets ──────────────────────────────────────────────────────
 const CAMERA_MOTIONS = [
-  { id: "slow-push", label: "Slow Push-In", emoji: "🎯", value: "slow cinematic push-in dolly toward the subject" },
-  { id: "orbit", label: "Orbit Shot", emoji: "🔄", value: "smooth 360 orbit rotation around the subject" },
-  { id: "handheld", label: "Handheld", emoji: "📱", value: "subtle authentic handheld creator vlog camera movement" },
-  { id: "dramatic-reveal", label: "Dramatic Reveal", emoji: "🎭", value: "dramatic reveal starting from extreme close-up and pulling back wide" },
-  { id: "drone", label: "Drone Flyover", emoji: "🚁", value: "smooth aerial drone flyover with rising motion" },
-  { id: "macro-sweep", label: "Macro Sweep", emoji: "🔍", value: "ultra-close macro sweep revealing fine surface details slowly" },
-  { id: "luxury-rotate", label: "Luxury Rotation", emoji: "💎", value: "slow elegant luxury product rotation with perfect reflections" },
-  { id: "parallax", label: "Parallax", emoji: "✨", value: "subtle parallax depth motion with layered foreground elements shifting" },
+  { id: "slow-push", label: "Slow Push-In", value: "slow cinematic push-in dolly toward the subject" },
+  { id: "orbit", label: "Orbit Shot", value: "smooth 360 orbit rotation around the subject" },
+  { id: "handheld", label: "Handheld", value: "subtle authentic handheld creator vlog camera movement" },
+  { id: "dramatic-reveal", label: "Dramatic Reveal", value: "dramatic reveal starting from extreme close-up and pulling back wide" },
+  { id: "drone", label: "Drone Flyover", value: "smooth aerial drone flyover with rising motion" },
+  { id: "macro-sweep", label: "Macro Sweep", value: "ultra-close macro sweep revealing fine surface details slowly" },
+  { id: "luxury-rotate", label: "Luxury Rotation", value: "slow elegant luxury product rotation with perfect reflections" },
+  { id: "parallax", label: "Parallax", value: "subtle parallax depth motion with layered foreground elements shifting" },
 ];
 
 // ── Lighting style presets ────────────────────────────────────────────────────
 const LIGHTING_STYLES = [
-  { id: "studio", label: "Studio", emoji: "💡", value: "professional studio three-point lighting setup" },
-  { id: "golden-hour", label: "Golden Hour", emoji: "🌅", value: "warm golden hour sun backlight at sunset with soft orange haze" },
-  { id: "dramatic", label: "Dramatic", emoji: "🎭", value: "dramatic single key light from camera-left creating deep shadows" },
-  { id: "natural", label: "Natural", emoji: "☀️", value: "soft natural diffused daylight streaming from a window" },
-  { id: "neon", label: "Neon Glow", emoji: "🌃", value: "vibrant neon accent lights with colorful reflections and atmosphere" },
-  { id: "soft-beauty", label: "Soft Beauty", emoji: "✨", value: "large beauty softbox with minimal shadows and even even illumination" },
+  { id: "studio", label: "Studio", value: "professional studio three-point lighting setup" },
+  { id: "golden-hour", label: "Golden Hour", value: "warm golden hour sun backlight at sunset with soft orange haze" },
+  { id: "dramatic", label: "Dramatic", value: "dramatic single key light from camera-left creating deep shadows" },
+  { id: "natural", label: "Natural", value: "soft natural diffused daylight streaming from a window" },
+  { id: "neon", label: "Neon Glow", value: "vibrant neon accent lights with colorful reflections and atmosphere" },
+  { id: "soft-beauty", label: "Soft Beauty", value: "large beauty softbox with minimal shadows and even even illumination" },
 ];
 
 // ── Simple client-side prompt enhancer ───────────────────────────────────────
@@ -313,7 +313,7 @@ function ChipGroup<T extends string>({
   onSelect,
 }: {
   label: string;
-  options: { id: string; label: string; emoji: string; value: T }[];
+  options: { id: string; label: string; value: T }[];
   selected: string | null;
   onSelect: (id: string | null, value: T | null) => void;
 }) {
@@ -343,7 +343,7 @@ function ChipGroup<T extends string>({
                     }
               }
             >
-              {opt.emoji} {opt.label}
+              {opt.label}
             </motion.button>
           );
         })}
@@ -563,9 +563,9 @@ export default function StudioPreset() {
           className="mb-4 flex items-center gap-2 rounded-xl p-2.5"
           style={{ background: `linear-gradient(135deg, ${preset.thumb.from}22, ${preset.thumb.to}15)`, border: "1px solid rgba(255,255,255,0.08)" }}
         >
-          <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-base"
-            style={{ background: `linear-gradient(135deg, ${preset.thumb.from}88, ${preset.thumb.to}88)` }}>
-            {preset.thumb.emoji}
+          <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg"
+            style={{ background: `linear-gradient(135deg, ${preset.thumb.from}, ${preset.thumb.to})` }}>
+            <Sparkles className="h-3.5 w-3.5 text-white" />
           </div>
           <p className="text-[11.5px] text-white/65 leading-snug">
             AI preset handles <span className="text-white/85 font-medium">lighting, camera, mood & style</span> automatically.
@@ -665,7 +665,7 @@ export default function StudioPreset() {
         {/* Camera motion (video only) */}
         {preset.kind === "video" && (
           <ChipGroup
-            label="📹 Camera Motion"
+            label="Camera Motion"
             options={CAMERA_MOTIONS}
             selected={cameraMotionId}
             onSelect={(id, val) => { setCameraMotionId(id); setCameraMotionValue(val); }}
@@ -674,7 +674,7 @@ export default function StudioPreset() {
 
         {/* Lighting style */}
         <ChipGroup
-          label="💡 Lighting Style"
+          label="Lighting Style"
           options={LIGHTING_STYLES}
           selected={lightingId}
           onSelect={(id, val) => { setLightingId(id); setLightingValue(val); }}
@@ -683,7 +683,7 @@ export default function StudioPreset() {
         {/* Duration selector (video) */}
         {preset.kind === "video" && (
           <div className="mb-4">
-            <p className="mb-2 text-[12px] font-medium text-white/60">⏱ Duration</p>
+            <p className="mb-2 text-[12px] font-medium text-white/60">Duration</p>
             <div className="flex gap-2">
               {([5, 10] as const).map((d) => {
                 const active = (durationOverride ?? preset.durationSec ?? 5) === d;
