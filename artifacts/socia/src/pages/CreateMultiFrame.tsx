@@ -2978,6 +2978,8 @@ export default function CreateMultiFrame() {
   const [mobileView, setMobileView] = useState<MobileView>("scenes");
   const [showLeftPanel, setShowLeftPanel] = useState(false);
   const [showHistory, setShowHistory]     = useState(false);
+  const [rightPanelTab, setRightPanelTab] = useState<"settings"|"scene">("settings");
+  const [navTool, setNavTool]             = useState<string>("scenes");
 
   /* Beginner / Pro mode — persisted in localStorage */
   const [beginnerMode, setBeginnerMode]   = useState<boolean>(() =>
@@ -3493,103 +3495,106 @@ export default function CreateMultiFrame() {
     </div>
   );
 
-  /* ── GENERATE BAR ── */
+  /* ── GENERATE BAR (compact 3-part action row) ── */
+  const estMinutes = segmentCount > 0 ? Math.max(1, Math.ceil(segmentCount * 0.5)) : 0;
   const GenerateBar = (
-    <div className="relative z-10 shrink-0 border-t px-4 pt-3"
-      style={{background:"#000000",borderColor:BORDER,paddingBottom:`calc(env(safe-area-inset-bottom,0px) + 14px)`}}>
-      {/* Credit info row */}
-      <div className="mb-2.5 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Zap className="h-3.5 w-3.5 text-purple-400" fill="currentColor"/>
-          {summary?.credits !== undefined ? (
-            <span className="text-[11px] font-bold text-purple-200">{summary.credits.toLocaleString()} available</span>
-          ) : (
-            <span className="text-[11px] text-white/40">{engine.name}</span>
-          )}
-          {segmentCount > 0 && (
-            <>
-              <span className="text-white/20">·</span>
-              <span className="text-[11px] font-bold" style={{color:CREDIT_COLOR[engine.creditLabel]}}>~{credits} needed</span>
-              {summary?.credits !== undefined && summary.credits < credits && (
-                <span className="rounded-full border px-1.5 py-px text-[9px] font-bold text-yellow-400"
-                  style={{background:"rgba(245,158,11,0.1)",borderColor:"rgba(245,158,11,0.3)"}}>
-                  ⚠ Low
-                </span>
-              )}
-            </>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5 rounded-full border px-2.5 py-1"
-          style={{background:GLASS,borderColor:BORDER}}>
-          <FileVideo className="h-3 w-3 text-white/30"/>
-          <span className="text-[10px] font-semibold text-white/40">{cfg.exportQuality.toUpperCase()} · {cfg.exportFormat.toUpperCase()} · {cfg.aspect}</span>
-        </div>
-      </div>
+    <div className="relative z-10 shrink-0 border-t"
+      style={{background:"rgba(5,0,15,0.98)",borderColor:BORDER,paddingBottom:`calc(env(safe-area-inset-bottom,0px) + 0px)`}}>
 
-      {/* Error banner */}
+      {/* Error banner — compact inline */}
       <AnimatePresence>
         {genError && (
-          <motion.div initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} exit={{opacity:0}}
-            className={"mb-2.5 flex gap-3 rounded-2xl border p-3 "+(isQuota?"border-yellow-500/30 bg-yellow-500/08":"border-red-500/30 bg-red-500/08")}>
-            {isQuota ? <Crown className="mt-0.5 h-4 w-4 shrink-0 text-yellow-400"/> : <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400"/>}
-            <p className="flex-1 text-xs leading-relaxed text-white/80">{genError}</p>
-            <button onClick={() => setGenError(null)} className="shrink-0 text-white/30"><X className="h-3.5 w-3.5"/></button>
+          <motion.div initial={{opacity:0,height:0}} animate={{opacity:1,height:"auto"}} exit={{opacity:0,height:0}}
+            className="overflow-hidden border-b"
+            style={{borderColor:isQuota?"rgba(245,158,11,0.2)":"rgba(239,68,68,0.2)"}}>
+            <div className="flex items-center gap-2 px-4 py-2">
+              {isQuota ? <Crown className="h-3.5 w-3.5 shrink-0 text-yellow-400"/> : <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400"/>}
+              <p className="flex-1 text-[11px] leading-snug text-white/70">{genError}</p>
+              <button onClick={() => setGenError(null)} className="shrink-0 text-white/25 hover:text-white/50"><X className="h-3 w-3"/></button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Frame hint */}
-      {filledFrames.length < MIN_FRAMES && (
-        <p className="mb-2 text-center text-[11px] text-white/35">
-          Upload {MIN_FRAMES - filledFrames.length} more scene{MIN_FRAMES-filledFrames.length!==1?"s":""} to generate
-        </p>
-      )}
+      {/* Main action row */}
+      <div className="flex items-center gap-3 px-4 py-3">
 
-      {/* Priority badge */}
-      <div className="mb-2 flex items-center justify-between px-1">
-        <div className="flex items-center gap-1.5 text-[10px]">
-          <span className="h-1.5 w-1.5 rounded-full" style={{background:priority.color}}/>
-          <span className="font-bold text-white/40">{priority.label}</span>
+        {/* Left: time estimate or hint */}
+        <div className="flex w-[76px] shrink-0 flex-col gap-0.5">
+          {segmentCount > 0 ? (
+            <>
+              <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-white/20">Est. time</span>
+              <div className="flex items-center gap-1">
+                <Clock className="h-3 w-3 text-white/30"/>
+                <span className="text-[12px] font-bold text-white/55">~{estMinutes}m</span>
+              </div>
+            </>
+          ) : (
+            <span className="text-[10px] leading-snug text-white/25">
+              {filledFrames.length < MIN_FRAMES
+                ? `Add ${MIN_FRAMES - filledFrames.length} more scene${MIN_FRAMES - filledFrames.length !== 1 ? "s" : ""}`
+                : "Ready"}
+            </span>
+          )}
+          {cooldownSec > 0 && (
+            <div className="flex items-center gap-1 text-[10px] font-bold text-orange-400">
+              <Clock className="h-3 w-3"/>
+              {cooldownSec}s
+            </div>
+          )}
         </div>
-        {cooldownSec > 0 && (
-          <div className="flex items-center gap-1 text-[10px] font-bold text-orange-400/80">
-            <Clock className="h-3 w-3"/>
-            Cooldown {cooldownSec}s
-          </div>
-        )}
-      </div>
 
-      {/* Generate button */}
-      <motion.button whileTap={{scale:canGenerate?0.98:1}} disabled={!canGenerate||generating} onClick={generate}
-        className="relative flex h-16 w-full items-center justify-center gap-3 overflow-hidden rounded-2xl font-display text-[16px] font-black text-white disabled:cursor-not-allowed"
-        style={{
-          background: cooldownSec > 0
-            ? "rgba(255,255,255,0.06)"
-            : canGenerate ? engine.gradient : "rgba(255,255,255,0.08)",
-          boxShadow: canGenerate && !cooldownSec ? `0 10px 40px -8px ${engine.glow}` : "none",
-          opacity: generating ? 0.5 : cooldownSec > 0 ? 0.7 : 1,
-        }}>
-        {/* Shimmer */}
-        {canGenerate && (
-          <motion.div className="absolute inset-0 pointer-events-none"
-            style={{background:"linear-gradient(105deg,transparent 35%,rgba(255,255,255,0.15) 50%,transparent 65%)"}}
-            animate={{x:["-100%","100%"]}} transition={{duration:2.5,repeat:Infinity,ease:"easeInOut",repeatDelay:1}}/>
-        )}
-        {/* Cooldown fill bar */}
-        {cooldownSec > 0 && planCooldownMs > 0 && (
-          <motion.div className="absolute inset-0 left-0 h-full rounded-2xl"
-            style={{background:priority.color,opacity:0.15,
-              width:`${((planCooldownMs/1000 - cooldownSec) / (planCooldownMs/1000)) * 100}%`}}/>
-        )}
-        <Clapperboard className="h-6 w-6 relative"/>
-        <span className="relative">
-          {cooldownSec > 0
-            ? `Cooldown · ${cooldownSec}s`
-            : generating
-            ? `Rendering with ${engine.name}…`
-            : `Generate Film · ${segmentCount} segment${segmentCount!==1?"s":""}`}
-        </span>
-      </motion.button>
+        {/* Center: generate button — compact pill */}
+        <motion.button
+          whileTap={{scale:canGenerate ? 0.98 : 1}}
+          disabled={!canGenerate || generating}
+          onClick={generate}
+          className="relative flex flex-1 h-11 items-center justify-center gap-2 overflow-hidden rounded-xl font-bold text-[13px] text-white transition disabled:cursor-not-allowed"
+          style={{
+            background: cooldownSec > 0
+              ? "rgba(255,255,255,0.06)"
+              : canGenerate ? engine.gradient : "rgba(255,255,255,0.08)",
+            boxShadow: canGenerate && !cooldownSec ? `0 6px 20px -4px ${engine.glow}` : "none",
+            opacity: generating ? 0.65 : cooldownSec > 0 ? 0.75 : 1,
+          }}>
+          {/* Shimmer */}
+          {canGenerate && !generating && (
+            <motion.div className="absolute inset-0 pointer-events-none"
+              style={{background:"linear-gradient(105deg,transparent 35%,rgba(255,255,255,0.12) 50%,transparent 65%)"}}
+              animate={{x:["-100%","100%"]}} transition={{duration:2.5,repeat:Infinity,ease:"easeInOut",repeatDelay:1.5}}/>
+          )}
+          {/* Cooldown fill */}
+          {cooldownSec > 0 && planCooldownMs > 0 && (
+            <motion.div className="absolute left-0 top-0 h-full rounded-xl"
+              style={{background:priority.color,opacity:0.2,
+                width:`${((planCooldownMs/1000 - cooldownSec) / (planCooldownMs/1000)) * 100}%`}}/>
+          )}
+          <Clapperboard className="relative h-4 w-4"/>
+          <span className="relative">
+            {cooldownSec > 0
+              ? `Cooldown · ${cooldownSec}s`
+              : generating
+              ? "Rendering…"
+              : "Generate Film"}
+          </span>
+        </motion.button>
+
+        {/* Right: cost */}
+        <div className="flex w-[76px] shrink-0 flex-col items-end gap-0.5">
+          {segmentCount > 0 && (
+            <>
+              <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-white/20">Credits</span>
+              <div className="flex items-center gap-1">
+                <span className="text-[12px] font-bold" style={{color:CREDIT_COLOR[engine.creditLabel]}}>-{credits}</span>
+                <Zap className="h-3 w-3 text-purple-400" fill="currentColor"/>
+              </div>
+              {summary?.credits !== undefined && summary.credits < credits && (
+                <span className="text-[8px] font-bold text-yellow-400">⚠ Low balance</span>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 
@@ -3623,12 +3628,6 @@ export default function CreateMultiFrame() {
           </div>
         </div>
 
-        {/* Left panel toggle (desktop) */}
-        <button onClick={() => setShowLeftPanel(s => !s)}
-          className={"hidden lg:grid h-9 w-9 shrink-0 place-items-center rounded-full transition "+(showLeftPanel?"text-white":"text-white/40 hover:text-white/70")}
-          style={{background:GLASS,border:`1px solid ${BORDER}`}}>
-          <PanelLeft className="h-4 w-4"/>
-        </button>
 
         {/* Project title */}
         <div className="flex min-w-0 flex-1 flex-col items-center">
@@ -3696,6 +3695,16 @@ export default function CreateMultiFrame() {
           {beginnerMode ? "Beginner" : "Pro Mode"}
         </button>
 
+        {/* Export button */}
+        {result?.videoUrl && (
+          <button onClick={() => saveToDevice(result.videoUrl ?? "", {kind:"video",filename:`${projectTitle.replace(/\s+/g,"-").toLowerCase()}-${cfg.exportQuality}`})}
+            className="hidden sm:flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold text-white transition active:scale-95"
+            style={{background:"rgba(124,58,237,0.15)",borderColor:"rgba(124,58,237,0.4)"}}>
+            <Download className="h-3.5 w-3.5"/>
+            Export
+          </button>
+        )}
+
         {/* History */}
         <button onClick={() => setShowHistory(true)}
           className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full transition hover:text-white/80"
@@ -3727,39 +3736,76 @@ export default function CreateMultiFrame() {
           )}
         </AnimatePresence>
 
-        {/* ── LEFT PANEL (desktop sidebar / mobile settings overlay) ── */}
-        <AnimatePresence>
-          {showLeftPanel && (
-            <motion.div key="left-panel"
-              initial={{width:0,opacity:0}} animate={{width:264,opacity:1}} exit={{width:0,opacity:0}}
-              transition={{type:"spring",stiffness:380,damping:34}}
-              className="hidden lg:flex h-full flex-col overflow-hidden border-r shrink-0"
-              style={{borderColor:BORDER,background:"rgba(4,0,14,0.97)"}}>
-              <div className="flex-1 overflow-y-auto">
-                <GlobalSettingsPanel cfg={cfg} frames={frames} onChange={updateCfg} beginnerMode={beginnerMode}
-                  onApplyAll={() => setFrames(p => p.map(f => ({...f,durationSec:cfg.defaultDuration})))}/>
-                <ProjectRecoveryPanel
-                  frameCount={frames.length}
-                  filledCount={filledFrames.length}
-                  projectId={projectIdRef.current}
-                  onReset={resetProject}
-                  onClearCache={clearCorruptedState}
-                  onForceSync={forceSyncProject}/>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* ── LEFT NAV SIDEBAR (desktop, always visible, icon-only) ── */}
+        <div className="hidden lg:flex h-full w-[52px] shrink-0 flex-col items-center border-r py-2 gap-0.5"
+          style={{borderColor:BORDER,background:"rgba(4,0,14,0.98)"}}>
+          {([
+            {id:"scenes",      label:"Scenes",      icon:Layers},
+            {id:"media",       label:"Media",       icon:ImageIcon},
+            {id:"transitions", label:"Transitions", icon:Film},
+            {id:"filters",     label:"Filters",     icon:Sliders},
+          ] as {id:string;label:string;icon:typeof Layers}[]).map(({id,label,icon:Icon}) => (
+            <button key={id}
+              title={label}
+              onClick={() => setNavTool(id)}
+              className="group relative flex h-11 w-11 flex-col items-center justify-center rounded-xl transition-all"
+              style={navTool===id
+                ? {background:"rgba(124,58,237,0.18)",color:"#c4b5fd"}
+                : {color:"rgba(255,255,255,0.28)"}}>
+              <Icon className="h-4.5 w-4.5"/>
+              {navTool===id && (
+                <motion.div layoutId="nav-indicator"
+                  className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r-full"
+                  style={{background:"#8b5cf6"}}/>
+              )}
+            </button>
+          ))}
+          <div className="flex-1"/>
+          {/* Settings at bottom */}
+          <button
+            title="Settings"
+            onClick={() => { setNavTool("settings"); setRightPanelTab("settings"); }}
+            className="flex h-11 w-11 flex-col items-center justify-center rounded-xl transition-all"
+            style={navTool==="settings"
+              ? {background:"rgba(124,58,237,0.18)",color:"#c4b5fd"}
+              : {color:"rgba(255,255,255,0.28)"}}>
+            <Settings2 className="h-4.5 w-4.5"/>
+          </button>
+          {/* Plan badge */}
+          <div className="mb-1 flex h-8 w-8 items-center justify-center rounded-full"
+            style={{background:isPaid ? "rgba(245,158,11,0.1)" : "rgba(255,255,255,0.04)"}}>
+            {isPaid ? <Crown className="h-3.5 w-3.5 text-yellow-400"/> : <Lock className="h-3.5 w-3.5 text-white/20"/>}
+          </div>
+        </div>
 
         {/* ── CENTER COLUMN ── */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 
-          {/* DESKTOP: Preview player (top) + Timeline (bottom) */}
+          {/* DESKTOP: Preview → Stats → Timeline */}
           <div className="hidden lg:flex lg:flex-col lg:flex-1 lg:overflow-hidden">
-            {/* Preview */}
-            <div className="flex-1 overflow-hidden">
+            {/* Preview — hero section */}
+            <div className="min-h-0 flex-1 overflow-hidden">
               <LivePreviewPlayer frames={frames} cfg={cfg}
                 selectedId={selectedId} onSelectId={id => setSelectedId(id)}/>
             </div>
+
+            {/* Stats bar */}
+            <div className="flex shrink-0 items-center gap-6 border-t px-5 py-2.5"
+              style={{borderColor:BORDER,background:"rgba(5,0,15,0.6)"}}>
+              {[
+                {label:"Duration",   value: filledFrames.length > 0 ? fmtTime(totalRuntime(filledFrames)) : "—"},
+                {label:"Scenes",     value: String(filledFrames.length || "—")},
+                {label:"Resolution", value: cfg.exportQuality},
+                {label:"Frame Rate", value: `${cfg.fps} fps`},
+                {label:"Engine",     value: engine.name},
+              ].map(({label,value}) => (
+                <div key={label} className="flex flex-col gap-0.5">
+                  <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-white/20">{label}</span>
+                  <span className="text-[11px] font-bold text-white/55">{value}</span>
+                </div>
+              ))}
+            </div>
+
             {/* Timeline */}
             <div className="shrink-0" style={{borderTop:`1px solid ${BORDER}`}}>
               {TimelineStrip}
@@ -3896,75 +3942,120 @@ export default function CreateMultiFrame() {
           </div>
         </div>
 
-        {/* ── RIGHT PANEL (desktop: scene director or storyboard) ── */}
-        <div className="hidden lg:flex h-full w-[300px] shrink-0 flex-col border-l xl:w-[320px]"
-          style={{borderColor:BORDER,background:"rgba(4,0,14,0.97)"}}>
-          {selectedFrame ? (
-            <>
-              {/* Scene header */}
-              <div className="flex items-center gap-3 px-4 py-3 shrink-0" style={{borderBottom:`1px solid ${BORDER}`}}>
-                <div className="flex-1 min-w-0">
-                  <p className="truncate text-[13px] font-black text-white">{selectedFrame.title || `Scene ${frames.findIndex(f=>f.id===selectedId)+1}`}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] text-white/35">{selectedFrame.durationSec}s</span>
-                    <div className="h-1.5 w-1.5 rounded-full" style={{background:BEATS.find(b=>b.v===selectedFrame.beatType)?.color}}/>
-                    <span className="text-[10px] text-white/35">{BEATS.find(b=>b.v===selectedFrame.beatType)?.label}</span>
-                    <span className="text-[12px]">{EMOTIONS.find(e=>e.v===selectedFrame.emotion)?.emoji}</span>
+        {/* ── RIGHT PANEL (desktop: tabbed Settings / Scene Director) ── */}
+        <div className="hidden lg:flex h-full w-[272px] xl:w-[292px] shrink-0 flex-col border-l"
+          style={{borderColor:BORDER,background:"rgba(4,0,14,0.98)"}}>
+
+          {/* Tab header */}
+          <div className="flex shrink-0 items-center border-b" style={{borderColor:BORDER}}>
+            <button
+              onClick={() => setRightPanelTab("settings")}
+              className="flex-1 py-2.5 text-[11px] font-bold transition"
+              style={rightPanelTab==="settings"
+                ? {color:"#c4b5fd",borderBottom:"1.5px solid #8b5cf6"}
+                : {color:"rgba(255,255,255,0.3)"}}>
+              Settings
+            </button>
+            <button
+              onClick={() => setRightPanelTab("scene")}
+              disabled={!selectedFrame}
+              className="flex-1 py-2.5 text-[11px] font-bold transition disabled:opacity-25"
+              style={rightPanelTab==="scene" && selectedFrame
+                ? {color:"#c4b5fd",borderBottom:"1.5px solid #8b5cf6"}
+                : {color:"rgba(255,255,255,0.3)"}}>
+              {selectedFrame
+                ? `Scene ${frames.findIndex(f=>f.id===selectedId)+1}`
+                : "Scene"}
+            </button>
+          </div>
+
+          {/* Tab content */}
+          <div className="flex-1 overflow-hidden">
+            <AnimatePresence mode="wait">
+              {(rightPanelTab === "settings" || !selectedFrame) && (
+                <motion.div key="settings-panel" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+                  className="h-full overflow-y-auto">
+                  {/* Mode toggle */}
+                  <div className="flex items-center justify-between border-b px-4 py-2.5" style={{borderColor:BORDER}}>
+                    <div>
+                      <p className="text-[11px] font-bold text-white/70">{beginnerMode ? "Beginner Mode" : "Pro Mode"}</p>
+                      <p className="text-[9px] text-white/30">{beginnerMode ? "Simplified controls" : "Full controls"}</p>
+                    </div>
+                    <button onClick={toggleMode}
+                      className="rounded-full border px-2.5 py-1 text-[9px] font-bold transition"
+                      style={beginnerMode
+                        ? {background:"rgba(139,92,246,0.1)",borderColor:"rgba(139,92,246,0.3)",color:"#c4b5fd"}
+                        : {background:GLASS,borderColor:BORDER,color:"rgba(255,255,255,0.4)"}}>
+                      {beginnerMode ? "Pro" : "Beginner"}
+                    </button>
                   </div>
-                </div>
-                {selectedFrame.imageUrl && (
-                  <div className="h-14 w-10 overflow-hidden rounded-xl shrink-0" style={{border:`1px solid ${BORDER}`}}>
-                    <img src={selectedFrame.imageUrl} alt="" className="h-full w-full object-cover"/>
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <SceneDirectorContent
-                  frame={selectedFrame}
-                  onUpdate={p => updateFrame(selectedFrame.id, p)}/>
-              </div>
-            </>
-          ) : (
-            /* Storyboard summary when no scene selected */
-            <div className="flex-1 overflow-y-auto px-4 py-5">
-              <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.12em] text-white/30">Storyboard</p>
-              {filledFrames.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-                  <Crosshair className="h-10 w-10 text-white/10"/>
-                  <p className="text-sm text-white/25">Select a scene to direct it</p>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {frames.map((f,i) => {
-                    const beat = BEATS.find(b=>b.v===f.beatType)!;
-                    const emo  = EMOTIONS.find(e=>e.v===f.emotion)!;
-                    return (
-                      <button key={f.id} onClick={() => setSelectedId(selectedId===f.id?null:f.id)}
-                        className={"flex items-center gap-3 rounded-2xl border p-3 text-left transition "+(
-                          selectedId===f.id ? "border-purple-500/40 bg-purple-500/10" : "border-white/[0.06] bg-white/[0.02] hover:border-white/12"
-                        )}>
-                        <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded-xl" style={{border:`1px solid ${BORDER}`}}>
-                          {f.imageUrl
-                            ? <img src={f.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy"/>
-                            : <div className="absolute inset-0 flex items-center justify-center text-white/15 text-xs">{i+1}</div>}
-                          <div className="absolute inset-x-0 top-0 h-1" style={{background:beat.color}}/>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="truncate text-[12px] font-bold text-white">{f.title || `Scene ${i+1}`}</p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-[9px] font-semibold text-white/30">{f.durationSec}s</span>
-                            <span className="text-[10px]">{emo.emoji}</span>
-                            <span className="text-[9px] text-white/25">{CAMERAS.find(c=>c.v===f.cameraMove)?.label}</span>
-                          </div>
-                          {f.directorInstructions && (
-                            <p className="mt-0.5 truncate text-[10px] text-white/25">"{f.directorInstructions}"</p>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                  <GlobalSettingsPanel cfg={cfg} frames={frames} onChange={updateCfg} beginnerMode={beginnerMode}
+                    onApplyAll={() => setFrames(p => p.map(f => ({...f,durationSec:cfg.defaultDuration})))}/>
+                  <ProjectRecoveryPanel
+                    frameCount={frames.length}
+                    filledCount={filledFrames.length}
+                    projectId={projectIdRef.current}
+                    onReset={resetProject}
+                    onClearCache={clearCorruptedState}
+                    onForceSync={forceSyncProject}/>
+                </motion.div>
               )}
+              {rightPanelTab === "scene" && selectedFrame && (
+                <motion.div key="scene-panel" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
+                  className="flex h-full flex-col overflow-hidden">
+                  {/* Scene header */}
+                  <div className="flex shrink-0 items-center gap-3 border-b px-4 py-3" style={{borderColor:BORDER}}>
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-[13px] font-black text-white">
+                        {selectedFrame.title || `Scene ${frames.findIndex(f=>f.id===selectedId)+1}`}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-white/35">{selectedFrame.durationSec}s</span>
+                        <div className="h-1.5 w-1.5 rounded-full"
+                          style={{background:BEATS.find(b=>b.v===selectedFrame.beatType)?.color}}/>
+                        <span className="text-[10px] text-white/35">{BEATS.find(b=>b.v===selectedFrame.beatType)?.label}</span>
+                        <span className="text-[12px]">{EMOTIONS.find(e=>e.v===selectedFrame.emotion)?.emoji}</span>
+                      </div>
+                    </div>
+                    {selectedFrame.imageUrl && (
+                      <div className="h-14 w-10 overflow-hidden rounded-xl shrink-0" style={{border:`1px solid ${BORDER}`}}>
+                        <img src={selectedFrame.imageUrl} alt="" className="h-full w-full object-cover"/>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <SceneDirectorContent
+                      frame={selectedFrame}
+                      onUpdate={p => updateFrame(selectedFrame.id, p)}/>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Storyboard summary — shown in Settings tab when scenes exist */}
+          {rightPanelTab === "settings" && filledFrames.length > 0 && (
+            <div className="shrink-0 border-t px-3 py-3" style={{borderColor:BORDER}}>
+              <p className="mb-2 text-[8px] font-bold uppercase tracking-[0.12em] text-white/25">
+                {filledFrames.length} of {MAX_FRAMES} scenes
+              </p>
+              <div className="flex gap-1.5 overflow-x-auto pb-1">
+                {frames.map((f,i) => (
+                  <button key={f.id}
+                    onClick={() => { setSelectedId(f.id); setRightPanelTab("scene"); }}
+                    className="relative h-10 w-7 shrink-0 overflow-hidden rounded-lg transition"
+                    style={{
+                      border:`1.5px solid ${selectedId===f.id ? "rgba(124,58,237,0.7)" : BORDER}`,
+                      boxShadow: selectedId===f.id ? "0 0 8px rgba(124,58,237,0.4)" : "none",
+                    }}>
+                    {f.imageUrl
+                      ? <img src={f.imageUrl} alt="" className="h-full w-full object-cover"/>
+                      : <div className="flex h-full w-full items-center justify-center text-[8px] text-white/20">{i+1}</div>}
+                    <div className="absolute inset-x-0 bottom-0 h-0.5"
+                      style={{background:BEATS.find(b=>b.v===f.beatType)?.color}}/>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
