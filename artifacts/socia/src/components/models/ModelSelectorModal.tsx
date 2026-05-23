@@ -9,10 +9,17 @@
  * Selection flows through `useSelectedModel` → `useStudioModelStore`
  * → `cfg.renderEngine` in CreateMultiFrame, which drives the actual
  * render pipeline (credits, prompt enrichment, motion settings).
+ *
+ * UX contract:
+ *  - The CURRENTLY SELECTED model is always promoted to the hero slot
+ *    at the top — tapping any row swaps the hero with a crossfade.
+ *  - The header softly fades + translates with scroll for native feel.
+ *  - Cards are React.memo'd and use CSS containment/will-change so the
+ *    scroll stays 120 Hz on mobile.
  */
 
-import { useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
 import {
   X, Cpu, Check, Coins,
   Sparkles, Film, ChevronRight,
@@ -21,6 +28,16 @@ import { useSelectedModel } from "@/hooks/useSelectedModel";
 import type { AiModel, AiModelId } from "@/data/aiModels";
 
 const PUR = "#B026FF";
+
+/* ────────────────────────────────────────────────────────────────
+   Shared GPU-friendly style tokens. Using will-change + contain
+   keeps the scroller off the main-thread paint path so the gallery
+   stays buttery on mid-range Android. */
+const GPU: React.CSSProperties = {
+  willChange: "transform, opacity",
+  transform: "translateZ(0)",
+  backfaceVisibility: "hidden",
+};
 
 export function ModelSelectorModal({
   open,
@@ -34,6 +51,14 @@ export function ModelSelectorModal({
   onSelect?: (id: AiModelId) => void;
 }) {
   const { model: active, models, setModel } = useSelectedModel();
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  /* Track scroll inside the modal so the header can softly fade + drift,
+     giving the screen a native-feeling parallax instead of a frozen bar. */
+  const { scrollY } = useScroll({ container: scrollerRef });
+  const headerOpacity = useTransform(scrollY, [0, 60, 120], [1, 0.92, 0.78]);
+  const headerY       = useTransform(scrollY, [0, 120], [0, -4]);
+  const headerBlur    = useTransform(scrollY, [0, 80], [0, 14]);
 
   /* Lock body scroll while open (mobile-first modal). */
   useEffect(() => {
@@ -51,10 +76,29 @@ export function ModelSelectorModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  function handleSelect(id: AiModelId) {
+  /* Memoized so the row's onClick identity is stable across renders — lets
+     React.memo on ModelRow short-circuit the diff for non-selected rows. */
+  const handleSelect = useCallback((id: AiModelId) => {
     setModel(id);
     onSelect?.(id);
-  }
+    /* Soft scroll to top so users see the new hero immediately. */
+    scrollerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [setModel, onSelect]);
+
+  /* The selected model is ALWAYS the hero. Everything else flows below
+     as the catalog list. Memoized so changing selection doesn't rebuild
+     the list arrays on every parent re-render. */
+  const others = useMemo(
+    () => models.filter((m) => m.id !== active.id),
+    [models, active.id],
+  );
+
+  /* Stable callback identity for the hero so React.memo on FlagshipCard
+     short-circuits parent re-renders (architect feedback). */
+  const onHeroSelect = useCallback(
+    () => handleSelect(active.id),
+    [handleSelect, active.id],
+  );
 
   return (
     <AnimatePresence>
@@ -94,28 +138,43 @@ export function ModelSelectorModal({
               paddingTop: "env(safe-area-inset-top, 0px)",
               paddingBottom: "env(safe-area-inset-bottom, 0px)",
               color: "white",
+              ...GPU,
             }}
           >
-            <Header onClose={onClose} />
+            <Header
+              onClose={onClose}
+              opacity={headerOpacity}
+              y={headerY}
+              blur={headerBlur}
+            />
 
             <div
+              ref={scrollerRef}
               style={{
                 flex: 1,
                 overflowY: "auto",
                 overflowX: "hidden",
                 WebkitOverflowScrolling: "touch",
+                overscrollBehavior: "contain",
+                scrollbarWidth: "none",
                 paddingBottom: 32,
+                /* CSS containment isolates scroll layout/paint from the
+                   rest of the modal — a major Android-jank win. */
+                contain: "layout paint",
+                ...GPU,
               }}
             >
-              {/* Featured / flagship card spotlight */}
-              {models.filter(m => m.featured).map((m) => (
+              {/* HERO — the currently selected model. Crossfades cleanly
+                  when the user picks a different engine from the list.
+                  mode="popLayout" lets the old hero exit while the new
+                  one enters in the same DOM slot — no snap. */}
+              <AnimatePresence mode="popLayout" initial={false}>
                 <FlagshipCard
-                  key={m.id}
-                  model={m}
-                  selected={m.id === active.id}
-                  onSelect={() => handleSelect(m.id)}
+                  key={active.id}
+                  model={active}
+                  onSelect={onHeroSelect}
                 />
-              ))}
+              </AnimatePresence>
 
               {/* All other models — vertical gallery */}
               <div style={{ padding: "8px 16px 0", display: "flex", alignItems: "center", gap: 8 }}>
@@ -128,16 +187,20 @@ export function ModelSelectorModal({
                 </p>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "12px 16px 0" }}>
-                {models.filter(m => !m.featured).map((m) => (
-                  <ModelRow
-                    key={m.id}
-                    model={m}
-                    selected={m.id === active.id}
-                    onSelect={() => handleSelect(m.id)}
-                  />
-                ))}
-              </div>
+              <motion.div
+                layout
+                style={{ display: "flex", flexDirection: "column", gap: 12, padding: "12px 16px 0" }}
+              >
+                <AnimatePresence initial={false}>
+                  {others.map((m) => (
+                    <ModelRow
+                      key={m.id}
+                      model={m}
+                      onSelect={handleSelect}
+                    />
+                  ))}
+                </AnimatePresence>
+              </motion.div>
 
               {/* Footer disclaimer */}
               <p style={{
@@ -160,13 +223,31 @@ export function ModelSelectorModal({
 
 /* ────────────────────────────────────────────────────────────── */
 
-function Header({ onClose }: { onClose: () => void }) {
+interface HeaderProps {
+  onClose: () => void;
+  opacity: ReturnType<typeof useTransform<number, number>>;
+  y:       ReturnType<typeof useTransform<number, number>>;
+  blur:    ReturnType<typeof useTransform<number, number>>;
+}
+
+/* Header — uses motion values driven by scroll so it softly drifts and
+   fades as the user scrolls. The X button shares the parent opacity so
+   it floats naturally instead of feeling glued in place. */
+function Header({ onClose, opacity, y, blur }: HeaderProps) {
+  const backdrop = useTransform(blur, (v) => `blur(${v}px)`);
   return (
-    <div style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "14px 16px 12px",
-      borderBottom: "1px solid rgba(255,255,255,0.05)",
-    }}>
+    <motion.div
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "14px 16px 12px",
+        borderBottom: "1px solid rgba(255,255,255,0.05)",
+        opacity,
+        y,
+        backdropFilter: backdrop,
+        WebkitBackdropFilter: backdrop,
+        ...GPU,
+      }}
+    >
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{
           width: 38, height: 38, borderRadius: 12,
@@ -189,8 +270,11 @@ function Header({ onClose }: { onClose: () => void }) {
           </h2>
         </div>
       </div>
-      <button
+      <motion.button
         onClick={onClose}
+        whileTap={{ scale: 0.92 }}
+        whileHover={{ scale: 1.05, backgroundColor: "rgba(255,255,255,0.10)" }}
+        transition={{ type: "spring", stiffness: 420, damping: 24 }}
         aria-label="Close model selector"
         style={{
           width: 36, height: 36, borderRadius: 12,
@@ -202,8 +286,8 @@ function Header({ onClose }: { onClose: () => void }) {
         }}
       >
         <X style={{ width: 16, height: 16 }} />
-      </button>
-    </div>
+      </motion.button>
+    </motion.div>
   );
 }
 
@@ -228,68 +312,125 @@ function AmbientOrbs() {
 
 /* ── Flagship hero card ───────────────────────────────────────── */
 
-function FlagshipCard({
-  model, selected, onSelect,
+/* React.memo with explicit comparator — the hero only needs to re-render
+   when its model id changes (selected state is implicit: this card always
+   represents the active model). Keeps the scroller cheap. */
+const FlagshipCard = memo(function FlagshipCard({
+  model,
+  onSelect,
 }: {
-  model: AiModel; selected: boolean; onSelect: () => void;
+  model: AiModel;
+  onSelect: () => void;
 }) {
   return (
     <motion.button
-      onClick={onSelect}
-      whileTap={{ scale: 0.985 }}
-      animate={selected ? {
+      key={model.id}
+      initial={{ opacity: 0, y: 14, scale: 0.98 }}
+      animate={{
+        opacity: 1, y: 0, scale: 1,
         boxShadow: [
-          `0 0 0px ${model.glow}`,
-          `0 0 36px ${model.glow}, 0 0 72px rgba(176,38,255,0.32)`,
-          `0 0 0px ${model.glow}`,
+          `0 12px 32px rgba(0,0,0,0.55), 0 0 0px ${model.glow}`,
+          `0 12px 32px rgba(0,0,0,0.55), 0 0 40px ${model.glow}, 0 0 80px rgba(176,38,255,0.32)`,
+          `0 12px 32px rgba(0,0,0,0.55), 0 0 0px ${model.glow}`,
         ],
-      } : { boxShadow: "0 12px 32px rgba(0,0,0,0.55)" }}
-      transition={selected ? { duration: 2.6, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 }}
+      }}
+      exit={{ opacity: 0, y: -8, scale: 0.985 }}
+      whileTap={{ scale: 0.985 }}
+      transition={{
+        opacity:   { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
+        y:         { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
+        scale:     { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
+        boxShadow: { duration: 2.6, repeat: Infinity, ease: "easeInOut" },
+      }}
+      onClick={onSelect}
       style={{
         position: "relative",
         margin: "14px 16px 18px",
         height: 280,
         borderRadius: 26,
         overflow: "hidden",
-        border: `1.5px solid ${selected ? "rgba(176,38,255,0.55)" : "rgba(255,255,255,0.08)"}`,
+        border: `1.5px solid rgba(176,38,255,0.55)`,
         background: "#0a0510",
         cursor: "pointer",
         textAlign: "left",
         padding: 0,
         width: "calc(100% - 32px)",
+        contain: "layout paint",
+        ...GPU,
       }}
     >
       <motion.img
         src={model.cover}
         alt={model.name}
         draggable={false}
-        loading="lazy"
+        loading="eager"
         decoding="async"
-        animate={selected ? { scale: 1.06 } : { scale: 1 }}
-        transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        fetchPriority="high"
+        initial={{ scale: 1.04 }}
+        animate={{ scale: 1.06 }}
+        transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
         style={{
           position: "absolute", inset: 0,
           width: "100%", height: "100%",
           objectFit: "cover",
         }}
       />
+
+      {/* DUAL gradient stack — kills any baked-in text on the cover image
+          (e.g. KLING 3.0 OMNI rendered into the source artwork) so it
+          cannot overlap the foreground typography. The bottom 65 % is
+          painted nearly black + a side spotlight, then the readable
+          foreground text sits on top with a strong shadow. */}
       <div style={{
         position: "absolute", inset: 0,
-        background: "linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.1) 75%, rgba(0,0,0,0.35) 100%)",
+        background:
+          "linear-gradient(to top, rgba(0,0,0,0.96) 0%, rgba(0,0,0,0.75) 30%, rgba(0,0,0,0.25) 62%, rgba(0,0,0,0.55) 100%)",
+        pointerEvents: "none",
+      }} />
+      <div style={{
+        position: "absolute", inset: 0,
+        background:
+          "radial-gradient(ellipse at 0% 100%, rgba(176,38,255,0.18) 0%, transparent 55%)",
+        pointerEvents: "none",
       }} />
 
-      {selected && (
-        <div style={{
-          position: "absolute", inset: 0, borderRadius: 26,
-          boxShadow: `inset 0 0 0 1.5px ${PUR}, inset 0 0 40px rgba(176,38,255,0.25)`,
-          pointerEvents: "none",
-        }} />
-      )}
+      {/* Selected glow ring — always on, since hero == selected model. */}
+      <div style={{
+        position: "absolute", inset: 0, borderRadius: 26,
+        boxShadow: `inset 0 0 0 1.5px ${PUR}, inset 0 0 40px rgba(176,38,255,0.25)`,
+        pointerEvents: "none",
+      }} />
+
+      {/* GIANT WATERMARK — model name as masked background typography sitting
+          BEHIND the readable foreground title. The mask + low opacity stops
+          it from ever competing with the real title, while still giving the
+          hero the cinematic Krea/Runway "engine signature" feel. */}
+      <div style={{
+        position: "absolute",
+        left: -8, right: -8, bottom: 84,
+        fontSize: 64,
+        fontWeight: 900,
+        letterSpacing: "-0.04em",
+        lineHeight: 0.9,
+        textTransform: "uppercase",
+        color: "rgba(255,255,255,0.045)",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        pointerEvents: "none",
+        WebkitMaskImage:
+          "linear-gradient(to right, transparent 0%, black 18%, black 78%, transparent 100%)",
+        maskImage:
+          "linear-gradient(to right, transparent 0%, black 18%, black 78%, transparent 100%)",
+        zIndex: 1,
+      }}>
+        {model.name}
+      </div>
 
       {/* Top pills */}
       <div style={{
         position: "absolute", top: 14, left: 14, right: 14,
         display: "flex", justifyContent: "space-between", alignItems: "flex-start",
+        zIndex: 3,
       }}>
         <div style={{
           display: "flex", alignItems: "center", gap: 5,
@@ -302,41 +443,40 @@ function FlagshipCard({
           <span style={{
             fontSize: 9, fontWeight: 800, letterSpacing: "0.1em",
             textTransform: "uppercase", color: "#f0d4ff",
-          }}>Flagship</span>
+          }}>Active Engine</span>
         </div>
 
-        {selected ? (
-          <motion.div
-            initial={{ scale: 0 }} animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 420, damping: 20 }}
-            style={{
-              width: 30, height: 30, borderRadius: "50%",
-              background: `linear-gradient(135deg, ${PUR}, #ec4899)`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: `0 0 16px ${PUR}`,
-            }}
-          >
-            <Check style={{ width: 16, height: 16, color: "white" }} strokeWidth={3} />
-          </motion.div>
-        ) : null}
+        <motion.div
+          initial={{ scale: 0 }} animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 420, damping: 20 }}
+          style={{
+            width: 30, height: 30, borderRadius: "50%",
+            background: `linear-gradient(135deg, ${PUR}, #ec4899)`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            boxShadow: `0 0 16px ${PUR}`,
+          }}
+        >
+          <Check style={{ width: 16, height: 16, color: "white" }} strokeWidth={3} />
+        </motion.div>
       </div>
 
-      {/* Bottom content */}
+      {/* Bottom content — sits on top of the watermark thanks to z-index. */}
       <div style={{
         position: "absolute", left: 0, right: 0, bottom: 0,
         padding: "16px 18px 18px",
+        zIndex: 3,
       }}>
         <h3 style={{
           fontSize: 26, fontWeight: 900, color: "white",
           letterSpacing: "-0.025em", lineHeight: 1.05,
           marginBottom: 6,
-          textShadow: "0 2px 14px rgba(0,0,0,0.9)",
+          textShadow: "0 2px 14px rgba(0,0,0,0.95), 0 1px 2px rgba(0,0,0,1)",
         }}>{model.name}</h3>
         <p style={{
           fontSize: 12, fontWeight: 500,
-          color: "rgba(255,255,255,0.82)",
+          color: "rgba(255,255,255,0.88)",
           lineHeight: 1.45, marginBottom: 12,
-          textShadow: "0 1px 6px rgba(0,0,0,0.85)",
+          textShadow: "0 1px 6px rgba(0,0,0,0.95)",
         }}>{model.tagline}</p>
 
         <SpecRow model={model} compact={false} />
@@ -357,18 +497,36 @@ function FlagshipCard({
       </div>
     </motion.button>
   );
-}
+});
 
 /* ── Compact row card for the rest of the catalog ─────────────── */
 
-function ModelRow({
-  model, selected, onSelect,
+/* Memoized — row only re-renders when its own model or its onSelect
+   identity changes. `onSelect` is stable thanks to useCallback above. */
+const ModelRow = memo(function ModelRow({
+  model,
+  onSelect,
 }: {
-  model: AiModel; selected: boolean; onSelect: () => void;
+  model: AiModel;
+  onSelect: (id: AiModelId) => void;
 }) {
+  /* Localised hover state so the row reacts instantly without forcing the
+     parent scroller to re-render. */
+  const [hovered, setHovered] = useState(false);
+  const handleClick = useCallback(() => {
+    if (model.available) onSelect(model.id);
+  }, [model.available, model.id, onSelect]);
+
   return (
     <motion.button
-      onClick={model.available ? onSelect : undefined}
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -6, scale: 0.985 }}
+      transition={{ type: "spring", stiffness: 360, damping: 30, mass: 0.6 }}
+      onClick={handleClick}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
       whileTap={model.available ? { scale: 0.98 } : undefined}
       disabled={!model.available}
       style={{
@@ -376,20 +534,18 @@ function ModelRow({
         display: "flex", gap: 14,
         padding: 10,
         borderRadius: 20,
-        border: `1.5px solid ${selected ? "rgba(176,38,255,0.5)" : "rgba(255,255,255,0.07)"}`,
-        background: selected
-          ? "linear-gradient(135deg, rgba(176,38,255,0.10), rgba(236,72,153,0.06))"
-          : "rgba(255,255,255,0.03)",
-        backdropFilter: "blur(14px)",
-        WebkitBackdropFilter: "blur(14px)",
+        border: `1.5px solid ${hovered && model.available ? "rgba(176,38,255,0.32)" : "rgba(255,255,255,0.07)"}`,
+        background: "rgba(255,255,255,0.03)",
         cursor: model.available ? "pointer" : "not-allowed",
         opacity: model.available ? 1 : 0.55,
         textAlign: "left",
         width: "100%",
-        boxShadow: selected
-          ? `0 0 24px ${model.glow}, inset 0 1px 0 rgba(255,255,255,0.04)`
+        boxShadow: hovered && model.available
+          ? `0 6px 20px rgba(0,0,0,0.45), 0 0 14px ${model.glow}`
           : "0 4px 14px rgba(0,0,0,0.35)",
-        transition: "border 0.2s, background 0.2s, box-shadow 0.3s",
+        transition: "border 0.2s, box-shadow 0.25s",
+        contain: "layout paint",
+        ...GPU,
       }}
     >
       {/* Cover thumb */}
@@ -414,22 +570,6 @@ function ModelRow({
             objectFit: "cover",
           }}
         />
-        {selected && (
-          <div style={{
-            position: "absolute", inset: 0,
-            background: "rgba(176,38,255,0.18)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <div style={{
-              width: 26, height: 26, borderRadius: "50%",
-              background: `linear-gradient(135deg, ${PUR}, #ec4899)`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: `0 0 14px ${PUR}`,
-            }}>
-              <Check style={{ width: 14, height: 14, color: "white" }} strokeWidth={3} />
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Right side */}
@@ -467,9 +607,9 @@ function ModelRow({
               fontSize: 8, fontWeight: 700,
               letterSpacing: "0.05em", textTransform: "uppercase",
               padding: "2.5px 6.5px", borderRadius: 5,
-              background: selected ? "rgba(176,38,255,0.18)" : "rgba(255,255,255,0.06)",
-              border: `1px solid ${selected ? "rgba(176,38,255,0.3)" : "rgba(255,255,255,0.1)"}`,
-              color: selected ? "#f0d4ff" : "rgba(255,255,255,0.7)",
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: "rgba(255,255,255,0.7)",
             }}>{t}</span>
           ))}
         </div>
@@ -483,7 +623,7 @@ function ModelRow({
       }} />
     </motion.button>
   );
-}
+});
 
 /* ── Quality / Speed / Credits row ────────────────────────────── */
 
@@ -552,4 +692,3 @@ function Bar({
     </div>
   );
 }
-
