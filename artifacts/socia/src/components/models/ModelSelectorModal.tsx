@@ -81,9 +81,22 @@ export function ModelSelectorModal({
   const handleSelect = useCallback((id: AiModelId) => {
     setModel(id);
     onSelect?.(id);
-    /* Soft scroll to top so users see the new hero immediately. */
-    scrollerRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    /* Instant scroll-to-top — `smooth` adds 250-400ms of perceived lag
+       that competes with the hero crossfade and makes selection feel slow. */
+    scrollerRef.current?.scrollTo({ top: 0, behavior: "auto" });
   }, [setModel, onSelect]);
+
+  /* Preload EVERY model thumbnail the first time the modal opens so hero
+     swaps never wait on a network round-trip. Browsers dedupe so subsequent
+     opens are free. */
+  useEffect(() => {
+    if (!open) return;
+    for (const m of models) {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = m.cover;
+    }
+  }, [open, models]);
 
   /* The selected model is ALWAYS the hero. Everything else flows below
      as the catalog list. Memoized so changing selection doesn't rebuild
@@ -168,7 +181,10 @@ export function ModelSelectorModal({
                   when the user picks a different engine from the list.
                   mode="popLayout" lets the old hero exit while the new
                   one enters in the same DOM slot — no snap. */}
-              <AnimatePresence mode="popLayout" initial={false}>
+              {/* `mode="wait"` keeps a single hero slot — the old hero
+                  finishes its 220ms fade-out before the new one fades in,
+                  preventing a stacked-card paint storm on selection. */}
+              <AnimatePresence mode="wait" initial={false}>
                 <FlagshipCard
                   key={active.id}
                   model={active}
@@ -325,23 +341,15 @@ const FlagshipCard = memo(function FlagshipCard({
   return (
     <motion.button
       key={model.id}
-      initial={{ opacity: 0, y: 14, scale: 0.98 }}
-      animate={{
-        opacity: 1, y: 0, scale: 1,
-        boxShadow: [
-          `0 12px 32px rgba(0,0,0,0.55), 0 0 0px ${model.glow}`,
-          `0 12px 32px rgba(0,0,0,0.55), 0 0 40px ${model.glow}, 0 0 80px rgba(176,38,255,0.32)`,
-          `0 12px 32px rgba(0,0,0,0.55), 0 0 0px ${model.glow}`,
-        ],
-      }}
-      exit={{ opacity: 0, y: -8, scale: 0.985 }}
+      /* Snappy 200ms tween — buttery on 144 Hz, instant on tap.
+         Springs/long durations made the swap feel laggy; we now use a
+         single transform+opacity transition with no infinite paint
+         animation (the glow is a static box-shadow, no longer animated). */
+      initial={{ opacity: 0, scale: 0.985 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.99 }}
       whileTap={{ scale: 0.985 }}
-      transition={{
-        opacity:   { duration: 0.4, ease: [0.22, 1, 0.36, 1] },
-        y:         { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
-        scale:     { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
-        boxShadow: { duration: 2.6, repeat: Infinity, ease: "easeInOut" },
-      }}
+      transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
       onClick={onSelect}
       style={{
         position: "relative",
@@ -355,36 +363,37 @@ const FlagshipCard = memo(function FlagshipCard({
         textAlign: "left",
         padding: 0,
         width: "calc(100% - 32px)",
+        /* Static cinematic glow — paint-cheap (no per-frame box-shadow). */
+        boxShadow: `0 12px 32px rgba(0,0,0,0.55), 0 0 36px ${model.glow}, 0 0 72px rgba(176,38,255,0.22)`,
         contain: "layout paint",
         ...GPU,
       }}
     >
-      <motion.img
+      <img
         src={model.cover}
         alt={model.name}
         draggable={false}
         loading="eager"
         decoding="async"
         fetchPriority="high"
-        initial={{ scale: 1.04 }}
-        animate={{ scale: 1.06 }}
-        transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
         style={{
           position: "absolute", inset: 0,
           width: "100%", height: "100%",
           objectFit: "cover",
+          /* Mild static zoom for cinematic depth — no animation churn. */
+          transform: "scale(1.05)",
         }}
       />
 
       {/* DUAL gradient stack — kills any baked-in text on the cover image
           (e.g. KLING 3.0 OMNI rendered into the source artwork) so it
-          cannot overlap the foreground typography. The bottom 65 % is
-          painted nearly black + a side spotlight, then the readable
-          foreground text sits on top with a strong shadow. */}
+          cannot overlap the foreground typography. The bottom 70% is now
+          almost fully opaque black so even high-contrast baked text
+          disappears completely before the foreground title sits on top. */}
       <div style={{
         position: "absolute", inset: 0,
         background:
-          "linear-gradient(to top, rgba(0,0,0,0.96) 0%, rgba(0,0,0,0.75) 30%, rgba(0,0,0,0.25) 62%, rgba(0,0,0,0.55) 100%)",
+          "linear-gradient(to top, rgba(0,0,0,0.99) 0%, rgba(0,0,0,0.92) 38%, rgba(0,0,0,0.55) 68%, rgba(0,0,0,0.35) 100%)",
         pointerEvents: "none",
       }} />
       <div style={{
@@ -401,26 +410,28 @@ const FlagshipCard = memo(function FlagshipCard({
         pointerEvents: "none",
       }} />
 
-      {/* GIANT WATERMARK — model name as masked background typography sitting
-          BEHIND the readable foreground title. The mask + low opacity stops
-          it from ever competing with the real title, while still giving the
-          hero the cinematic Krea/Runway "engine signature" feel. */}
+      {/* GIANT WATERMARK — model name as masked background typography
+          pinned to the UPPER half of the hero so it can never collide
+          with the foreground title block at the bottom. Smaller, even
+          fainter, fully masked left/right + bottom. */}
       <div style={{
         position: "absolute",
-        left: -8, right: -8, bottom: 84,
-        fontSize: 64,
+        left: -8, right: -8, top: 56,
+        fontSize: 44,
         fontWeight: 900,
         letterSpacing: "-0.04em",
         lineHeight: 0.9,
         textTransform: "uppercase",
-        color: "rgba(255,255,255,0.045)",
+        color: "rgba(255,255,255,0.035)",
         whiteSpace: "nowrap",
         overflow: "hidden",
         pointerEvents: "none",
         WebkitMaskImage:
-          "linear-gradient(to right, transparent 0%, black 18%, black 78%, transparent 100%)",
+          "linear-gradient(to bottom, black 0%, black 60%, transparent 100%), linear-gradient(to right, transparent 0%, black 18%, black 78%, transparent 100%)",
+        WebkitMaskComposite: "source-in",
         maskImage:
-          "linear-gradient(to right, transparent 0%, black 18%, black 78%, transparent 100%)",
+          "linear-gradient(to bottom, black 0%, black 60%, transparent 100%), linear-gradient(to right, transparent 0%, black 18%, black 78%, transparent 100%)",
+        maskComposite: "intersect",
         zIndex: 1,
       }}>
         {model.name}
