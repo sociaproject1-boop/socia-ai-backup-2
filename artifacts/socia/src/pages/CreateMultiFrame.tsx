@@ -3500,12 +3500,22 @@ export default function CreateMultiFrame() {
       {/* Credit info row */}
       <div className="mb-2.5 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <Coins className="h-3.5 w-3.5 text-white/25"/>
-          <span className="text-[11px] text-white/40">{engine.name}</span>
+          <Zap className="h-3.5 w-3.5 text-purple-400" fill="currentColor"/>
+          {summary?.credits !== undefined ? (
+            <span className="text-[11px] font-bold text-purple-200">{summary.credits.toLocaleString()} available</span>
+          ) : (
+            <span className="text-[11px] text-white/40">{engine.name}</span>
+          )}
           {segmentCount > 0 && (
             <>
               <span className="text-white/20">·</span>
-              <span className="text-[11px] font-bold" style={{color:CREDIT_COLOR[engine.creditLabel]}}>~{credits} credits</span>
+              <span className="text-[11px] font-bold" style={{color:CREDIT_COLOR[engine.creditLabel]}}>~{credits} needed</span>
+              {summary?.credits !== undefined && summary.credits < credits && (
+                <span className="rounded-full border px-1.5 py-px text-[9px] font-bold text-yellow-400"
+                  style={{background:"rgba(245,158,11,0.1)",borderColor:"rgba(245,158,11,0.3)"}}>
+                  ⚠ Low
+                </span>
+              )}
             </>
           )}
         </div>
@@ -3601,6 +3611,18 @@ export default function CreateMultiFrame() {
           <ArrowLeft className="h-4 w-4 text-white"/>
         </button>
 
+        {/* Studio logo — desktop only */}
+        <div className="hidden lg:flex shrink-0 items-center gap-2">
+          <div className="grid h-8 w-8 place-items-center rounded-xl"
+            style={{background:"linear-gradient(135deg,#7c3aed,#ec4899)"}}>
+            <Clapperboard className="h-4 w-4 text-white"/>
+          </div>
+          <div className="flex flex-col leading-none">
+            <span className="text-[11px] font-black uppercase tracking-[0.12em] text-white">AI Cinematic</span>
+            <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/35">Studio</span>
+          </div>
+        </div>
+
         {/* Left panel toggle (desktop) */}
         <button onClick={() => setShowLeftPanel(s => !s)}
           className={"hidden lg:grid h-9 w-9 shrink-0 place-items-center rounded-full transition "+(showLeftPanel?"text-white":"text-white/40 hover:text-white/70")}
@@ -3634,13 +3656,16 @@ export default function CreateMultiFrame() {
           </div>
         </div>
 
-        {/* Credit badge */}
-        {segmentCount > 0 && (
-          <div className="hidden sm:flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 shrink-0"
-            style={{background:GLASS,borderColor:BORDER}}>
-            <Coins className="h-3 w-3 text-white/30"/>
-            <span className="text-[11px] font-bold" style={{color:CREDIT_COLOR[engine.creditLabel]}}>~{credits}</span>
-          </div>
+        {/* Real account credits */}
+        {summary?.credits !== undefined && (
+          <button onClick={() => navigate("/billing")}
+            className="flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 shrink-0 transition active:scale-95"
+            style={{background:"rgba(124,58,237,0.08)",borderColor:"rgba(124,58,237,0.25)"}}>
+            <Zap className="h-3 w-3 text-purple-400" fill="currentColor"/>
+            <span className="text-[11px] font-bold text-purple-200">
+              {summary.credits.toLocaleString()}
+            </span>
+          </button>
         )}
 
         {/* Background render badge */}
