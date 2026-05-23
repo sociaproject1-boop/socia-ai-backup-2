@@ -53,16 +53,17 @@ export interface VSProps {
 }
 
 /* ─── Constant option arrays ─────────────────────────────────────── */
+/* Monochrome glyphs only — no emoji icons. */
 const TRANS_OPTIONS = [
   {v:"fade",           l:"Fade",       i:"◑"},
   {v:"dissolve",       l:"Dissolve",   i:"⬡"},
   {v:"zoom",           l:"Zoom",       i:"⊕"},
-  {v:"flash",          l:"Flash",      i:"⚡"},
+  {v:"flash",          l:"Flash",      i:"◈"},
   {v:"warp",           l:"Warp",       i:"⟐"},
   {v:"cinematic-blur", l:"Cine Blur",  i:"◎"},
   {v:"glitch",         l:"Glitch",     i:"▤"},
-  {v:"film-burn",      l:"Film Burn",  i:"🔥"},
-  {v:"speed-ramp",     l:"Spd Ramp",  i:"⚡"},
+  {v:"film-burn",      l:"Film Burn",  i:"◆"},
+  {v:"speed-ramp",     l:"Spd Ramp",   i:"⇉"},
   {v:"slide-left",     l:"Slide ←",   i:"←"},
 ];
 const CAM_OPTIONS = [
@@ -85,13 +86,15 @@ const MOTION_OPTIONS = [
   {v:"strong",  l:"Strong",   c:"rgba(236,72,153,0.8)"},
   {v:"extreme", l:"Extreme",  c:"rgba(239,68,68,0.8)"},
 ];
+/* Emotion chips — emoji removed. `e` left empty for backward-compat
+   with any JSX that interpolates it directly. */
 const EMOTION_OPTIONS = [
-  {v:"calm",l:"Calm",e:"😌"},{v:"romantic",l:"Romantic",e:"💕"},
-  {v:"sad",l:"Sad",e:"😢"},{v:"tense",l:"Tense",e:"😰"},
-  {v:"inspirational",l:"Inspire",e:"✨"},{v:"mysterious",l:"Mystery",e:"🌑"},
-  {v:"happy",l:"Happy",e:"😊"},{v:"angry",l:"Angry",e:"😡"},
-  {v:"fear",l:"Fear",e:"😨"},{v:"emotional",l:"Emotional",e:"🥺"},
-  {v:"serious",l:"Serious",e:"😤"},{v:"aggressive",l:"Aggress",e:"⚔️"},
+  {v:"calm",l:"Calm",e:""},{v:"romantic",l:"Romantic",e:""},
+  {v:"sad",l:"Sad",e:""},{v:"tense",l:"Tense",e:""},
+  {v:"inspirational",l:"Inspire",e:""},{v:"mysterious",l:"Mystery",e:""},
+  {v:"happy",l:"Happy",e:""},{v:"angry",l:"Angry",e:""},
+  {v:"fear",l:"Fear",e:""},{v:"emotional",l:"Emotional",e:""},
+  {v:"serious",l:"Serious",e:""},{v:"aggressive",l:"Aggress",e:""},
 ];
 const BEAT_OPTIONS = [
   {v:"establish",l:"Establish"},{v:"action",l:"Action"},
@@ -99,15 +102,16 @@ const BEAT_OPTIONS = [
   {v:"climax",l:"Climax"},{v:"pause",l:"Pause"},
   {v:"dream",l:"Dream"},{v:"flashback",l:"Flashback"},
 ];
+/* Voice chips — emoji removed, typography-first. */
 const VOICE_OPTIONS = [
-  {v:"cinematic-male",l:"Cinematic Male",i:"🎬"},
-  {v:"soft-female",l:"Soft Female",i:"🌸"},
-  {v:"emotional-female",l:"Emotional",i:"💔"},
-  {v:"deep-narrator",l:"Narrator",i:"📖"},
-  {v:"documentary",l:"Documentary",i:"📽"},
-  {v:"anime-girl",l:"Anime Girl",i:"✨"},
-  {v:"villain",l:"Villain",i:"😈"},
-  {v:"dramatic-trailer",l:"Trailer",i:"📣"},
+  {v:"cinematic-male",l:"Cinematic Male",i:""},
+  {v:"soft-female",l:"Soft Female",i:""},
+  {v:"emotional-female",l:"Emotional",i:""},
+  {v:"deep-narrator",l:"Narrator",i:""},
+  {v:"documentary",l:"Documentary",i:""},
+  {v:"anime-girl",l:"Anime Girl",i:""},
+  {v:"villain",l:"Villain",i:""},
+  {v:"dramatic-trailer",l:"Trailer",i:""},
 ];
 
 /* ─── Sub-components: Glass panels ──────────────────────────────── */

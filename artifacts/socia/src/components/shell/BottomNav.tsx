@@ -69,10 +69,14 @@ export function BottomNav() {
                       width: 22,
                       height: 22,
                       color: active ? "#ffffff" : "rgba(255,255,255,0.42)",
-                      strokeWidth: active ? 2.1 : 1.7,
+                      strokeWidth: active ? 2 : 1.7,
                       transition: "color 0.2s ease, stroke-width 0.2s ease",
+                      /* Subtle monochrome lift — no chunky purple halo.
+                         Apple/Linear/Arc keep the active state typographic,
+                         not glowing. A faint white drop-shadow gives just
+                         enough depth without painting the whole icon purple. */
                       filter: active
-                        ? "drop-shadow(0 0 6px rgba(176,38,255,0.55)) drop-shadow(0 0 12px rgba(176,38,255,0.28))"
+                        ? "drop-shadow(0 1px 6px rgba(255,255,255,0.18))"
                         : "none",
                     }}
                   />
@@ -117,9 +121,11 @@ export function BottomNav() {
                       transition={{ type: "spring", stiffness: 520, damping: 30 }}
                       className="absolute -bottom-0.5 h-1 w-1 rounded-full"
                       style={{
-                        background: "#B026FF",
-                        boxShadow:
-                          "0 0 6px rgba(176,38,255,0.9), 0 0 12px rgba(176,38,255,0.5)",
+                        /* Single muted accent dot — soft purple at low
+                           opacity so it reads as "active" without
+                           dominating the dock. */
+                        background: "rgba(176,38,255,0.85)",
+                        boxShadow: "0 0 4px rgba(176,38,255,0.45)",
                       }}
                     />
                   )}

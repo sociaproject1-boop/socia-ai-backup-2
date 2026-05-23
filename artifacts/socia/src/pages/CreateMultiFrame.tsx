@@ -312,22 +312,23 @@ const FACIAL_BEHAVIORS: {v:FacialBehavior;label:string;icon:string}[] = [
   {v:"smile",       label:"Smile",        icon:"◡"},
   {v:"cry",         label:"Cry",          icon:"◠"},
   {v:"shock",       label:"Shock",        icon:"◇"},
-  {v:"laugh",       label:"Laugh",        icon:"😄"},
-  {v:"whisper",     label:"Whisper",      icon:"🤫"},
-  {v:"yell",        label:"Yell",         icon:"😤"},
-  {v:"nodding",     label:"Nodding",      icon:"🫡"},
+  {v:"laugh",       label:"Laugh",        icon:"◠"},
+  {v:"whisper",     label:"Whisper",      icon:"⋯"},
+  {v:"yell",        label:"Yell",         icon:"◢"},
+  {v:"nodding",     label:"Nodding",      icon:"↕"},
 ];
+/* Beat effects — monochrome geometric glyphs, no emoji. */
 const BEAT_EFFECTS: {v:BeatEffect;label:string;icon:string;color:string}[] = [
   {v:"none",         label:"None",         icon:"○", color:"#6b7280"},
   {v:"camera-shake", label:"Shake",        icon:"〜", color:"#ef4444"},
   {v:"zoom-punch",   label:"Zoom Punch",   icon:"⊕", color:"#f59e0b"},
-  {v:"flash",        label:"Flash",        icon:"⚡", color:"#fbbf24"},
+  {v:"flash",        label:"Flash",        icon:"◈", color:"#fbbf24"},
   {v:"vignette",     label:"Vignette",     icon:"◎", color:"#6366f1"},
   {v:"blur",         label:"Blur",         icon:"◌", color:"#06b6d4"},
   {v:"chromatic",    label:"Chromatic",    icon:"⬛", color:"#ec4899"},
-  {v:"slow-mo",      label:"Slow Mo",      icon:"⏱", color:"#3b82f6"},
-  {v:"speed-ramp",   label:"Speed Ramp",   icon:"⚡", color:"#f43f5e"},
-  {v:"film-burn",    label:"Film Burn",    icon:"🔥", color:"#f97316"},
+  {v:"slow-mo",      label:"Slow Mo",      icon:"◷", color:"#3b82f6"},
+  {v:"speed-ramp",   label:"Speed Ramp",   icon:"⇉", color:"#f43f5e"},
+  {v:"film-burn",    label:"Film Burn",    icon:"◆", color:"#f97316"},
   {v:"glitch",       label:"Glitch",       icon:"▤", color:"#a855f7"},
   {v:"lens-flare",   label:"Lens Flare",   icon:"✦", color:"#fde68a"},
 ];
@@ -340,12 +341,12 @@ const ASPECTS: {v:AspectRatio;label:string;sub:string;wr:number;hr:number}[] = [
   {v:"21:9", label:"21:9",  sub:"Ultrawide",  wr:21, hr:9},
 ];
 const STYLES: {v:GlobalStyle;label:string;emoji:string;desc:string}[] = [
-  {v:"cinematic",   label:"Cinematic",    emoji:"🎬", desc:"Anamorphic film look"},
-  {v:"hyperreal",   label:"Hyperreal",    emoji:"⚡", desc:"8K photorealistic"},
-  {v:"anime",       label:"Anime",        emoji:"🌸", desc:"Vibrant animated"},
-  {v:"documentary", label:"Documentary",  emoji:"📽", desc:"Authentic realism"},
-  {v:"noir",        label:"Noir",         emoji:"🌑", desc:"Moody shadows"},
-  {v:"dreamlike",   label:"Dreamlike",    emoji:"🌙", desc:"Ethereal atmosphere"},
+  {v:"cinematic",   label:"Cinematic",    emoji:"", desc:"Anamorphic film look"},
+  {v:"hyperreal",   label:"Hyperreal",    emoji:"", desc:"8K photorealistic"},
+  {v:"anime",       label:"Anime",        emoji:"", desc:"Vibrant animated"},
+  {v:"documentary", label:"Documentary",  emoji:"", desc:"Authentic realism"},
+  {v:"noir",        label:"Noir",         emoji:"", desc:"Moody shadows"},
+  {v:"dreamlike",   label:"Dreamlike",    emoji:"", desc:"Ethereal atmosphere"},
 ];
 const EXPORT_QUALITIES: {v:ExportQuality;label:string;desc:string}[] = [
   {v:"720p",  label:"720p",  desc:"HD"},
@@ -533,7 +534,7 @@ function CinematicPaywall() {
         <motion.p initial={{opacity:0}} animate={{opacity:1}} transition={{delay:0.1}}
           className="mb-2 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest"
           style={{color:"rgba(245,158,11,0.8)",borderColor:"rgba(245,158,11,0.25)",background:"rgba(245,158,11,0.07)"}}>
-          🎬 Unlock AI Cinematic Studio
+          Unlock AI Cinematic Studio
         </motion.p>
 
         <motion.h1 initial={{opacity:0,y:16}} animate={{opacity:1,y:0}} transition={{delay:0.15}}
@@ -1107,7 +1108,7 @@ function SceneBeatTimeline({
 
             {/* Motion strength */}
             <div>
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-white/35">⚡ Motion Strength</p>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-white/35">Motion Strength</p>
               <div className="flex flex-col gap-1.5">
                 {MOTION_LEVELS.map(({v,label,desc,color}) => (
                   <button key={v} onClick={() => updateBeat(selectedBeat.id, {motionStrength:v})}
@@ -1395,7 +1396,7 @@ function SceneDirectorContent({
         {section === "camera" && (
           <>
             <div>
-              <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-white/35">🎥 Camera Movement</p>
+              <p className="mb-3 text-[10px] font-bold uppercase tracking-wider text-white/35">Camera Movement</p>
               <div className="flex flex-col gap-1.5">
                 {CAMERAS.map(({v,label,icon,preview}) => (
                   <button key={v} onClick={() => onUpdate({cameraMove:v})}
@@ -1434,7 +1435,7 @@ function SceneDirectorContent({
               <div className="mb-3 flex items-center gap-1.5">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-white/35">AI Continuity System</p>
                 <span className="rounded-full px-1.5 py-px text-[8px] font-bold text-purple-400"
-                  style={{background:"rgba(124,58,237,0.15)",border:"1px solid rgba(124,58,237,0.25)"}}>🧬</span>
+                  style={{background:"rgba(124,58,237,0.15)",border:"1px solid rgba(124,58,237,0.25)"}}>◈</span>
               </div>
               <div className="grid grid-cols-2 gap-1.5">
                 {([
@@ -1501,7 +1502,7 @@ function SceneDirectorContent({
             <div className="rounded-2xl border overflow-hidden" style={{borderColor:"rgba(139,92,246,0.3)",background:"rgba(139,92,246,0.06)"}}>
               <div className="flex items-center gap-2 border-b px-4 py-2.5" style={{borderColor:"rgba(139,92,246,0.2)"}}>
                 <Clapperboard className="h-4 w-4 text-purple-400"/>
-                <span className="text-[11px] font-black uppercase tracking-wider text-purple-300">🎬 Director Instructions</span>
+                <span className="text-[11px] font-black uppercase tracking-wider text-purple-300">Director Instructions</span>
                 <span className="ml-auto text-[9px] text-purple-400/50">Influences motion · camera · atmosphere · realism</span>
               </div>
               <div className="px-4 pt-2 pb-3">
@@ -1532,7 +1533,7 @@ function SceneDirectorContent({
             <div className="rounded-2xl border overflow-hidden" style={{borderColor:"rgba(6,182,212,0.3)",background:"rgba(6,182,212,0.05)"}}>
               <div className="flex items-center gap-2 border-b px-4 py-2.5" style={{borderColor:"rgba(6,182,212,0.2)"}}>
                 <Mic className="h-4 w-4 text-cyan-400"/>
-                <span className="text-[11px] font-black uppercase tracking-wider text-cyan-300">🎙 Dialogue</span>
+                <span className="text-[11px] font-black uppercase tracking-wider text-cyan-300">Dialogue</span>
                 <span className="ml-auto text-[9px] text-cyan-400/50">Narration · speech · voice-over</span>
               </div>
               <textarea
@@ -1568,7 +1569,7 @@ function SceneDirectorContent({
             <div>
               <div className="mb-3 flex items-center gap-2">
                 <Volume2 className="h-4 w-4 text-white/40"/>
-                <span className="text-[11px] font-black uppercase tracking-wider text-white/40">🎤 Character Voice</span>
+                <span className="text-[11px] font-black uppercase tracking-wider text-white/40">Character Voice</span>
               </div>
               <div className="flex flex-col gap-2">
                 {VOICES.map(({v,label,icon,tone,style,langs}) => {
@@ -1649,9 +1650,9 @@ function SceneDirectorContent({
             <div className="rounded-2xl border p-4 space-y-4" style={{background:GLASS_HEAVY,borderColor:BORDER}}>
               <p className="text-[10px] font-black uppercase tracking-wider text-white/35">Scene Audio Mixer</p>
               {([
-                {label:"Dialogue",   key:"dialogueVolume"   as const, color:"#06b6d4", icon:"🎙"},
-                {label:"Soundtrack", key:"soundtrackVolume" as const, color:"#a855f7", icon:"🎼"},
-                {label:"Ambient",    key:"ambientVolume"    as const, color:"#10b981", icon:"🌊"},
+                {label:"Dialogue",   key:"dialogueVolume"   as const, color:"#06b6d4", icon:""},
+                {label:"Soundtrack", key:"soundtrackVolume" as const, color:"#a855f7", icon:""},
+                {label:"Ambient",    key:"ambientVolume"    as const, color:"#10b981", icon:""},
               ]).map(({label,key,color,icon}) => (
                 <div key={key}>
                   <div className="mb-1.5 flex items-center justify-between">
@@ -3966,12 +3967,16 @@ export default function CreateMultiFrame() {
         </div>
       </div>
 
-      {/* ══ MOBILE BOTTOM TAB BAR ══ */}
+      {/* ══ MOBILE BOTTOM TAB BAR ══
+          Premium dark cinematic dock — neutral hairline border, deep
+          near-black surface, no purple tint. Active indicator is a single
+          1px white bar (see below) instead of a gradient pill. */}
       <div className="relative z-20 flex shrink-0 items-center border-t lg:hidden"
         style={{
-          borderColor:"rgba(176,38,255,0.12)",
-          background:"rgba(8,4,18,0.97)",
-          backdropFilter:"blur(20px)",
+          borderColor:"rgba(255,255,255,0.06)",
+          background:"rgba(10,10,14,0.96)",
+          backdropFilter:"blur(20px) saturate(140%)",
+          WebkitBackdropFilter:"blur(20px) saturate(140%)",
           paddingBottom:"env(safe-area-inset-bottom,0px)",
         }}>
         {/* Scenes + Preview tabs */}
@@ -3985,8 +3990,9 @@ export default function CreateMultiFrame() {
             <Icon className={`h-5 w-5 transition ${mobileView===id ? "text-white" : "text-white/30"}`}/>
             <span className={`text-[9px] font-semibold transition ${mobileView===id ? "text-white/80" : "text-white/25"}`}>{label}</span>
             {mobileView===id && (
-              <motion.div layoutId="mobile-tab-indicator" className="absolute bottom-0 h-0.5 w-8 rounded-t-full"
-                style={{background:"linear-gradient(90deg,#B026FF,#ec4899)"}}/>
+              /* Minimal white hairline indicator — Linear/Arc style. */
+              <motion.div layoutId="mobile-tab-indicator" className="absolute bottom-0 h-[2px] w-6 rounded-full"
+                style={{background:"rgba(255,255,255,0.85)"}}/>
             )}
           </button>
         ))}
@@ -3997,11 +4003,19 @@ export default function CreateMultiFrame() {
             style={{opacity: generating ? 0.55 : canGenerate ? 1 : 0.35}}>
             <div className="flex h-9 w-9 items-center justify-center rounded-2xl"
               style={{
+                /* Softer render pill — quiet glass with a faint purple
+                   accent ring instead of a saturated gradient fill. Keeps
+                   the action discoverable without competing with the rest
+                   of the dock. */
                 background: canGenerate
-                  ? `linear-gradient(135deg, #B026FF, #ec4899)`
-                  : "rgba(255,255,255,0.07)",
-                boxShadow: canGenerate ? "0 0 16px rgba(176,38,255,0.6)" : "none",
-                border: canGenerate ? "none" : "1px solid rgba(255,255,255,0.1)",
+                  ? "linear-gradient(135deg, rgba(176,38,255,0.22), rgba(236,72,153,0.18))"
+                  : "rgba(255,255,255,0.05)",
+                border: canGenerate
+                  ? "1px solid rgba(176,38,255,0.45)"
+                  : "1px solid rgba(255,255,255,0.08)",
+                boxShadow: canGenerate
+                  ? "inset 0 0 0 1px rgba(255,255,255,0.04), 0 0 10px rgba(176,38,255,0.25)"
+                  : "none",
               }}>
               <Clapperboard className="h-4 w-4 text-white"/>
             </div>
