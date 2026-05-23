@@ -12,7 +12,19 @@ interface Props { children: ReactNode }
 
 const HIDE_CHROME    = [/^\/auth/, /^\/sys-admin/, /^\/admin/];
 const HIDE_TOPBAR    = [/^\/messages\/[^/]+$/, /^\/post\//, /^\/create\/[^/]+$/, /^\/profile\/settings/, /^\/profile\/.+/, /^\/billing/, /^\/topup/, /^\/subscription/, /^\/admin/, /^\/socia-gpt/, /^\/studio/];
-const HIDE_BOTTOMNAV = [/^\/messages\/[^/]+$/, /^\/post\//, /^\/create\/[^/]+$/, /^\/socia-gpt/, /^\/studio/];
+
+/* Bottom tab bar is a ROOT-ONLY navigator: it appears only on the four
+   primary tab roots (Home / Create / Inbox / Me) and is automatically
+   hidden on every pushed/stack subpage (Settings, Upgrade, Billing,
+   Subscription, preset detail, render, export, threads, post detail,
+   creator subpages, legal pages, etc.). Using an allowlist instead of a
+   hide-list guarantees new subroutes don't accidentally show the tab bar. */
+const ROOT_TAB_PATHS = new Set(["/", "/create", "/messages", "/profile"]);
+const isRootTab = (loc: string) => {
+  /* Normalize trailing slash so /create/ matches /create. Keep "/" as-is. */
+  const normalized = loc.length > 1 && loc.endsWith("/") ? loc.slice(0, -1) : loc;
+  return ROOT_TAB_PATHS.has(normalized);
+};
 
 function tabRank(loc: string) {
   if (loc.startsWith("/profile"))  return 3;
@@ -74,7 +86,7 @@ export function AppShell({ children }: Props) {
 
   const hideAll       = HIDE_CHROME.some((r) => r.test(location));
   const hideTopBar    = hideAll || HIDE_TOPBAR.some((r) => r.test(location));
-  const hideBottomNav = hideAll || HIDE_BOTTOMNAV.some((r) => r.test(location));
+  const hideBottomNav = hideAll || !isRootTab(location);
   const isModal       = /^\/(post|create\/[^/]+|messages\/[^/]+|profile\/settings)/.test(location);
 
   /*
