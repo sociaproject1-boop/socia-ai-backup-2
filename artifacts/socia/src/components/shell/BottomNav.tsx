@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import { Home, Sparkles, MessageCircle, User } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 
 const TABS = [
@@ -18,28 +18,31 @@ export function BottomNav() {
     <nav
       style={{
         position: "fixed",
-bottom: 0,
-left: 0,
-right: 0,
-paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)",
-paddingTop: "10px",
-paddingLeft: "16px",
-paddingRight: "16px",
-background: "transparent",
-zIndex: 50,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)",
+        paddingTop: "10px",
+        paddingLeft: "16px",
+        paddingRight: "16px",
+        background: "transparent",
+        zIndex: 50,
       }}
     >
+      {/* Floating glass dock — lighter, more premium, no chunky fill */}
       <ul
-  className="grid grid-cols-4"
-  style={{
-    background: "#0a0a0a",
-    border: "1px solid rgba(255,255,255,0.05)",
-    borderRadius: "32px",
-    boxShadow: "0 8px 30px rgba(0,0,0,0.55)",
-    overflow: "hidden",
-    padding: "8px 6px",
-  }}
->
+        className="grid grid-cols-4"
+        style={{
+          background: "rgba(12,12,14,0.72)",
+          backdropFilter: "blur(24px) saturate(140%)",
+          WebkitBackdropFilter: "blur(24px) saturate(140%)",
+          border: "1px solid rgba(255,255,255,0.06)",
+          borderRadius: "28px",
+          boxShadow:
+            "0 10px 32px -8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04)",
+          padding: "6px 6px",
+        }}
+      >
         {TABS.map((tab) => {
           const active  = tab.match(location);
           const isInbox = tab.path === "/messages";
@@ -48,27 +51,28 @@ zIndex: 50,
           return (
             <li key={tab.path} className="flex justify-center">
               <motion.button
-                whileTap={{ scale: 0.86 }}
+                whileTap={{ scale: 0.9 }}
                 transition={{ type: "spring", stiffness: 600, damping: 26 }}
                 onClick={() => navigate(tab.path)}
+                aria-label={tab.label}
+                aria-current={active ? "page" : undefined}
                 className="relative flex w-full flex-col items-center justify-center gap-1 py-2 select-none"
               >
-                {/* Active glow pill background */}
-                <AnimatedActiveBg active={active} />
-
-                {/* Icon + badge */}
-                <span className="relative z-10">
+                {/* Icon + badge — subtle scale + neon glow on active, no filled background */}
+                <motion.span
+                  className="relative"
+                  animate={{ scale: active ? 1.06 : 1, y: active ? -1 : 0 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 28 }}
+                >
                   <Icon
                     style={{
                       width: 22,
                       height: 22,
-                      color: active
-                        ? "#fff"
-                        : "rgba(255,255,255,0.38)",
-                      strokeWidth: active ? 2.2 : 1.6,
-                      transition: "color 0.18s, stroke-width 0.18s",
+                      color: active ? "#ffffff" : "rgba(255,255,255,0.42)",
+                      strokeWidth: active ? 2.1 : 1.7,
+                      transition: "color 0.2s ease, stroke-width 0.2s ease",
                       filter: active
-                        ? "drop-shadow(0 0 6px rgba(192,38,211,0.7))"
+                        ? "drop-shadow(0 0 6px rgba(176,38,255,0.55)) drop-shadow(0 0 12px rgba(176,38,255,0.28))"
                         : "none",
                     }}
                   />
@@ -87,38 +91,44 @@ zIndex: 50,
                       {unreadCount > 99 ? "99+" : unreadCount}
                     </motion.span>
                   )}
-                </span>
+                </motion.span>
 
                 {/* Label */}
                 <span
-                  className="relative z-10 text-[10px] font-semibold tracking-wide transition-all duration-200"
+                  className="text-[10px] font-semibold tracking-wide"
                   style={{
-                    color: active ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.3)",
+                    color: active ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.36)",
                     letterSpacing: active ? "0.03em" : "0.02em",
+                    transition: "color 0.2s ease, letter-spacing 0.2s ease",
                   }}
                 >
                   {tab.label}
                 </span>
+
+                {/* Tiny glow dot under active tab — the only active "indicator" */}
+                <AnimatePresence>
+                  {active && (
+                    <motion.span
+                      key="active-dot"
+                      layoutId="navActiveDot"
+                      initial={{ opacity: 0, scale: 0.4 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.4 }}
+                      transition={{ type: "spring", stiffness: 520, damping: 30 }}
+                      className="absolute -bottom-0.5 h-1 w-1 rounded-full"
+                      style={{
+                        background: "#B026FF",
+                        boxShadow:
+                          "0 0 6px rgba(176,38,255,0.9), 0 0 12px rgba(176,38,255,0.5)",
+                      }}
+                    />
+                  )}
+                </AnimatePresence>
               </motion.button>
             </li>
           );
         })}
       </ul>
     </nav>
-  );
-}
-
-function AnimatedActiveBg({ active }: { active: boolean }) {
-  if (!active) return null;
-  return (
-    <motion.span
-      layoutId="navActiveBg"
-      className="absolute inset-x-1.5 inset-y-1 rounded-xl"
-      style={{
-        background: "linear-gradient(135deg, rgba(168,85,247,0.22), rgba(236,72,153,0.18))",
-        boxShadow: "0 0 16px rgba(168,85,247,0.25)",
-      }}
-      transition={{ type: "spring", stiffness: 420, damping: 32 }}
-    />
   );
 }
