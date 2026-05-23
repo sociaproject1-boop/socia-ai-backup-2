@@ -1,15 +1,16 @@
 /**
  * VerticalStoryboard — Premium cinematic vertical storyboard editor
- * Scenes → Scene Prompt → Transition → Cinematic Mood
+ * Scene strip → tap-to-upload thumbnail → 5 stacked control panels:
+ *   Scene Prompt → Voice → Transition → Camera Motion → Cinematic Mood
  * Wired 100% to real CreateMultiFrame data — zero fake values.
+ * Render trigger lives in the page's bottom tab bar, NOT inside this component.
  */
 
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Plus, Trash2, Copy, Upload, Play, Film,
-  Sparkles, ChevronDown, Layers,
-  Wand2, Clapperboard, Zap,
+  Plus, Trash2, Copy, Upload, Play, Mic, Film,
+  Camera, Sparkles, ChevronDown, Wand2,
 } from "lucide-react";
 
 /* ─── Design Tokens ─────────────────────────────────────────────── */
@@ -30,8 +31,12 @@ export interface VSFrame {
   title: string;
   durationSec: number;
   directorInstructions: string;
+  dialogue: string;
+  characterVoice: string;
   emotion: string;
   beatType: string;
+  cameraMove: string;
+  motionStrength: string;
   transition: string;
   transDuration: number;
 }
@@ -45,13 +50,6 @@ export interface VSProps {
   onRemoveFrame: (id: string) => void;
   onDuplicateFrame: (id: string) => void;
   onTriggerUpload: (id: string) => void;
-  canGenerate: boolean;
-  onGenerate: () => void;
-  generating: boolean;
-  cooldownSec: number;
-  engineGradient: string;
-  engineGlow: string;
-  credits: number;
 }
 
 /* ─── Constant option arrays ─────────────────────────────────────── */
@@ -67,6 +65,26 @@ const TRANS_OPTIONS = [
   {v:"speed-ramp",     l:"Spd Ramp",  i:"⚡"},
   {v:"slide-left",     l:"Slide ←",   i:"←"},
 ];
+const CAM_OPTIONS = [
+  {v:"static",         l:"Static"},
+  {v:"dolly-in",       l:"Dolly In"},
+  {v:"dolly-out",      l:"Dolly Out"},
+  {v:"orbit",          l:"Orbit"},
+  {v:"pan-left",       l:"Pan ←"},
+  {v:"pan-right",      l:"Pan →"},
+  {v:"handheld",       l:"Handheld"},
+  {v:"drone-shot",     l:"Drone"},
+  {v:"cinematic-push", l:"Cine Push"},
+  {v:"crash-zoom",     l:"Crash Zoom"},
+  {v:"tracking-shot",  l:"Tracking"},
+  {v:"shoulder-cam",   l:"Shoulder"},
+];
+const MOTION_OPTIONS = [
+  {v:"subtle",  l:"Subtle",   c:"rgba(99,102,241,0.8)"},
+  {v:"balanced",l:"Balanced", c:"rgba(168,85,247,0.8)"},
+  {v:"strong",  l:"Strong",   c:"rgba(236,72,153,0.8)"},
+  {v:"extreme", l:"Extreme",  c:"rgba(239,68,68,0.8)"},
+];
 const EMOTION_OPTIONS = [
   {v:"calm",l:"Calm",e:"😌"},{v:"romantic",l:"Romantic",e:"💕"},
   {v:"sad",l:"Sad",e:"😢"},{v:"tense",l:"Tense",e:"😰"},
@@ -81,8 +99,18 @@ const BEAT_OPTIONS = [
   {v:"climax",l:"Climax"},{v:"pause",l:"Pause"},
   {v:"dream",l:"Dream"},{v:"flashback",l:"Flashback"},
 ];
+const VOICE_OPTIONS = [
+  {v:"cinematic-male",l:"Cinematic Male",i:"🎬"},
+  {v:"soft-female",l:"Soft Female",i:"🌸"},
+  {v:"emotional-female",l:"Emotional",i:"💔"},
+  {v:"deep-narrator",l:"Narrator",i:"📖"},
+  {v:"documentary",l:"Documentary",i:"📽"},
+  {v:"anime-girl",l:"Anime Girl",i:"✨"},
+  {v:"villain",l:"Villain",i:"😈"},
+  {v:"dramatic-trailer",l:"Trailer",i:"📣"},
+];
 
-/* ─── Sub-components ────────────────────────────────────────────── */
+/* ─── Sub-components: Glass panels ──────────────────────────────── */
 function GlassPanel({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
@@ -178,6 +206,34 @@ function PromptPanel({ frame, update }: { frame: VSFrame; update: (p: Partial<VS
   );
 }
 
+function VoicePanel({ frame, update }: { frame: VSFrame; update: (p: Partial<VSFrame>) => void }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div>
+        <p style={{ fontSize: 9, fontWeight: 700, color: TEXT_DIM, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>Voice-over / Dialogue</p>
+        <textarea
+          value={frame.dialogue}
+          onChange={e => update({ dialogue: e.target.value })}
+          placeholder="Enter spoken dialogue or narration…"
+          rows={2}
+          style={{
+            width: "100%", boxSizing: "border-box",
+            background: "rgba(255,255,255,0.04)",
+            border: `1px solid ${BORDER_W}`,
+            borderRadius: 12, padding: "9px 12px",
+            fontSize: 12, color: "white",
+            outline: "none", resize: "none", fontFamily: "inherit",
+          }}
+        />
+      </div>
+      <div>
+        <p style={{ fontSize: 9, fontWeight: 700, color: TEXT_DIM, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>Voice Style</p>
+        <ChipSelector options={VOICE_OPTIONS.map(o => ({v:o.v, l:o.l, i:o.i}))} value={frame.characterVoice} onChange={v => update({ characterVoice: v })} />
+      </div>
+    </div>
+  );
+}
+
 function TransitionPanel({ frame, update }: { frame: VSFrame; update: (p: Partial<VSFrame>) => void }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -186,6 +242,36 @@ function TransitionPanel({ frame, update }: { frame: VSFrame; update: (p: Partia
         <ChipSelector options={TRANS_OPTIONS.map(o => ({v:o.v, l:o.l, i:o.i}))} value={frame.transition} onChange={v => update({ transition: v })} />
       </div>
       <DurationSlider value={frame.durationSec} onChange={v => update({ durationSec: v })} />
+    </div>
+  );
+}
+
+function CameraPanel({ frame, update }: { frame: VSFrame; update: (p: Partial<VSFrame>) => void }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div>
+        <p style={{ fontSize: 9, fontWeight: 700, color: TEXT_DIM, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>Camera Motion</p>
+        <ChipSelector options={CAM_OPTIONS} value={frame.cameraMove} onChange={v => update({ cameraMove: v })} />
+      </div>
+      <div>
+        <p style={{ fontSize: 9, fontWeight: 700, color: TEXT_DIM, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>Motion Intensity</p>
+        <div style={{ display: "flex", gap: 6 }}>
+          {MOTION_OPTIONS.map(o => (
+            <button key={o.v} onClick={() => update({ motionStrength: o.v })}
+              style={{
+                flex: 1, padding: "8px 4px", borderRadius: 10,
+                fontSize: 9, fontWeight: 800,
+                border: `1px solid ${frame.motionStrength===o.v ? o.c : BORDER_W}`,
+                background: frame.motionStrength===o.v ? `${o.c.replace("0.8","0.15")}` : "rgba(255,255,255,0.03)",
+                color: frame.motionStrength===o.v ? "white" : TEXT_DIM,
+                cursor: "pointer", transition: "all 0.15s",
+                textTransform: "uppercase", letterSpacing: "0.06em",
+              }}>
+              {o.l}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -232,11 +318,13 @@ function FlowLine({ glow = false }: { glow?: boolean }) {
   );
 }
 
-/* ─── Storyboard control sections ────────────────────────────────── */
+/* ─── Storyboard control sections (5 panels) ─────────────────────── */
 const SECTIONS = [
-  { key: "prompt",     label: "Scene Prompt",  icon: Sparkles },
-  { key: "transition", label: "Transition",    icon: Film },
-  { key: "mood",       label: "Cinematic Mood",icon: Wand2 },
+  { key: "prompt",     label: "Scene Prompt",          icon: Sparkles },
+  { key: "voice",      label: "Voice-over / Dialogue", icon: Mic },
+  { key: "transition", label: "Transition",            icon: Film },
+  { key: "camera",     label: "Camera Motion",         icon: Camera },
+  { key: "mood",       label: "Cinematic Mood",        icon: Wand2 },
 ] as const;
 
 /* ─── Bezier connector SVG ───────────────────────────────────────── */
@@ -296,8 +384,6 @@ function SceneThumb({ frame, idx, selected, onClick }: {
 export function VerticalStoryboard({
   frames, selectedId, onSelectId, onUpdateFrame,
   onAddFrame, onRemoveFrame, onDuplicateFrame, onTriggerUpload,
-  canGenerate, onGenerate, generating, cooldownSec,
-  engineGradient, engineGlow, credits,
 }: VSProps) {
   const [openSection, setOpenSection] = useState<string>("prompt");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -340,7 +426,7 @@ export function VerticalStoryboard({
 
       {/* ── MAIN SCROLL ────────────────────────────────────────── */}
       {frame ? (
-        <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "16px 16px 100px" }}>
+        <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "16px 16px 32px" }}>
 
           {/* Scene header */}
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
@@ -392,7 +478,7 @@ export function VerticalStoryboard({
 
           <FlowLine glow />
 
-          {/* ── CONTROL SECTIONS ──────────────────────────────── */}
+          {/* ── CONTROL SECTIONS (5 panels) ───────────────────── */}
           {SECTIONS.map((section, si) => {
             const Icon  = section.icon;
             const isOpen = openSection === section.key;
@@ -400,7 +486,6 @@ export function VerticalStoryboard({
               <div key={section.key}>
                 {/* Section header row: mini-thumb + bezier + label button */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                  {/* Tiny scene thumbnail */}
                   <div style={{
                     width: 40, height: 28, borderRadius: 8, overflow: "hidden", flexShrink: 0,
                     border: `1px solid ${PUR_BORDER}`, background: "rgba(176,38,255,0.05)",
@@ -435,7 +520,7 @@ export function VerticalStoryboard({
                   </motion.button>
                 </div>
 
-                {/* Glass panel — collapsible */}
+                {/* Collapsible glass panel */}
                 <AnimatePresence initial={false}>
                   {isOpen && (
                     <motion.div
@@ -447,7 +532,9 @@ export function VerticalStoryboard({
                       style={{ overflow: "hidden", marginBottom: 4, paddingLeft: 82 }}>
                       <GlassPanel>
                         {section.key === "prompt"     && <PromptPanel     frame={frame} update={update} />}
+                        {section.key === "voice"      && <VoicePanel      frame={frame} update={update} />}
                         {section.key === "transition" && <TransitionPanel frame={frame} update={update} />}
+                        {section.key === "camera"     && <CameraPanel     frame={frame} update={update} />}
                         {section.key === "mood"       && <MoodPanel       frame={frame} update={update} />}
                       </GlassPanel>
                     </motion.div>
@@ -458,54 +545,6 @@ export function VerticalStoryboard({
               </div>
             );
           })}
-
-          <FlowLine glow />
-
-          {/* Render card */}
-          <GlassPanel>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div>
-                <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: TEXT_DIM, marginBottom: 4 }}>
-                  Ready to Render
-                </p>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <Layers style={{ width: 11, height: 11, color: TEXT_DIM }} />
-                  <span style={{ fontSize: 11, color: TEXT_MID, fontWeight: 600 }}>{frames.length} scenes</span>
-                  {credits > 0 && (
-                    <>
-                      <span style={{ color: TEXT_DIM, fontSize: 10 }}>·</span>
-                      <Zap style={{ width: 10, height: 10, color: "rgba(176,38,255,0.7)" }} />
-                      <span style={{ fontSize: 11, color: "rgba(200,160,255,0.85)", fontWeight: 700 }}>{credits} credits</span>
-                    </>
-                  )}
-                </div>
-              </div>
-              <motion.button
-                whileTap={{ scale: canGenerate ? 0.95 : 1 }}
-                onClick={canGenerate ? onGenerate : undefined}
-                disabled={!canGenerate || generating}
-                style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  padding: "10px 20px", borderRadius: 14,
-                  background: canGenerate ? engineGradient : "rgba(255,255,255,0.07)",
-                  boxShadow: canGenerate ? `0 6px 20px -4px ${engineGlow}` : "none",
-                  border: "none", color: "white", fontSize: 12, fontWeight: 800,
-                  cursor: canGenerate ? "pointer" : "default",
-                  opacity: generating ? 0.6 : 1, transition: "all 0.2s",
-                  position: "relative", overflow: "hidden",
-                }}>
-                {canGenerate && !generating && (
-                  <motion.div style={{
-                    position: "absolute", inset: 0,
-                    background: "linear-gradient(105deg,transparent 35%,rgba(255,255,255,0.15) 50%,transparent 65%)",
-                    pointerEvents: "none",
-                  }} animate={{ x: ["-100%","100%"] }} transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 1.5 }} />
-                )}
-                <Clapperboard style={{ width: 14, height: 14, flexShrink: 0 }} />
-                <span>{generating ? "Rendering…" : cooldownSec > 0 ? `Wait ${cooldownSec}s` : "Generate"}</span>
-              </motion.button>
-            </div>
-          </GlassPanel>
         </div>
       ) : (
         /* ── EMPTY STATE ─────────────────────────────────────── */

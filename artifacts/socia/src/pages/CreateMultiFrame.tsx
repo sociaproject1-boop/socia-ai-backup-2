@@ -3735,13 +3735,6 @@ export default function CreateMultiFrame() {
                     onRemoveFrame={removeFrame}
                     onDuplicateFrame={duplicateFrame}
                     onTriggerUpload={triggerFrameUpload}
-                    canGenerate={canGenerate}
-                    onGenerate={generate}
-                    generating={generating}
-                    cooldownSec={cooldownSec}
-                    engineGradient={engine.gradient}
-                    engineGlow={engine.glow}
-                    credits={credits}
                   />
                 </motion.div>
               )}
