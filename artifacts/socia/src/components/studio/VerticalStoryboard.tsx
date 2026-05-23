@@ -1,17 +1,15 @@
 /**
  * VerticalStoryboard — Premium cinematic vertical storyboard editor
- * Matches the reference mockup: scene strip → flowing bezier connectors
- * → floating glass control panels stacked vertically per scene.
+ * Scenes → Scene Prompt → Transition → Cinematic Mood
  * Wired 100% to real CreateMultiFrame data — zero fake values.
  */
 
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Plus, Trash2, Copy, Upload, Play, Mic, Film,
-  Camera, Sparkles, ChevronDown, ChevronRight, Layers,
-  Settings2, MonitorPlay, Wand2, Clapperboard, Zap,
-  Clock, GripVertical, Volume2,
+  Plus, Trash2, Copy, Upload, Play, Film,
+  Sparkles, ChevronDown, Layers,
+  Wand2, Clapperboard, Zap,
 } from "lucide-react";
 
 /* ─── Design Tokens ─────────────────────────────────────────────── */
@@ -19,14 +17,12 @@ const PUR        = "#B026FF";
 const PUR_DIM    = "rgba(176,38,255,0.18)";
 const PUR_BORDER = "rgba(176,38,255,0.25)";
 const BG         = "#0A0A0A";
-const GLASS      = "rgba(18, 8, 32, 0.92)";
 const GLASS_MID  = "rgba(24, 12, 40, 0.85)";
 const BORDER_W   = "rgba(255,255,255,0.07)";
 const TEXT_DIM   = "rgba(255,255,255,0.35)";
 const TEXT_MID   = "rgba(255,255,255,0.55)";
 
 /* ─── Frame / Config interface ──────────────────────────────────── */
-// Intentionally minimal — CreateMultiFrame passes full StudioFrame objects
 export interface VSFrame {
   id: string;
   imageUrl: string | null;
@@ -34,12 +30,8 @@ export interface VSFrame {
   title: string;
   durationSec: number;
   directorInstructions: string;
-  dialogue: string;
-  characterVoice: string;
   emotion: string;
   beatType: string;
-  cameraMove: string;
-  motionStrength: string;
   transition: string;
   transDuration: number;
 }
@@ -60,8 +52,6 @@ export interface VSProps {
   engineGradient: string;
   engineGlow: string;
   credits: number;
-  mobileView: string;
-  onSetMobileView: (v: string) => void;
 }
 
 /* ─── Constant option arrays ─────────────────────────────────────── */
@@ -77,26 +67,6 @@ const TRANS_OPTIONS = [
   {v:"speed-ramp",     l:"Spd Ramp",  i:"⚡"},
   {v:"slide-left",     l:"Slide ←",   i:"←"},
 ];
-const CAM_OPTIONS = [
-  {v:"static",         l:"Static"},
-  {v:"dolly-in",       l:"Dolly In"},
-  {v:"dolly-out",      l:"Dolly Out"},
-  {v:"orbit",          l:"Orbit"},
-  {v:"pan-left",       l:"Pan ←"},
-  {v:"pan-right",      l:"Pan →"},
-  {v:"handheld",       l:"Handheld"},
-  {v:"drone-shot",     l:"Drone"},
-  {v:"cinematic-push", l:"Cine Push"},
-  {v:"crash-zoom",     l:"Crash Zoom"},
-  {v:"tracking-shot",  l:"Tracking"},
-  {v:"shoulder-cam",   l:"Shoulder"},
-];
-const MOTION_OPTIONS = [
-  {v:"subtle",  l:"Subtle",   c:"rgba(99,102,241,0.8)"},
-  {v:"balanced",l:"Balanced", c:"rgba(168,85,247,0.8)"},
-  {v:"strong",  l:"Strong",   c:"rgba(236,72,153,0.8)"},
-  {v:"extreme", l:"Extreme",  c:"rgba(239,68,68,0.8)"},
-];
 const EMOTION_OPTIONS = [
   {v:"calm",l:"Calm",e:"😌"},{v:"romantic",l:"Romantic",e:"💕"},
   {v:"sad",l:"Sad",e:"😢"},{v:"tense",l:"Tense",e:"😰"},
@@ -111,18 +81,8 @@ const BEAT_OPTIONS = [
   {v:"climax",l:"Climax"},{v:"pause",l:"Pause"},
   {v:"dream",l:"Dream"},{v:"flashback",l:"Flashback"},
 ];
-const VOICE_OPTIONS = [
-  {v:"cinematic-male",l:"Cinematic Male",i:"🎬"},
-  {v:"soft-female",l:"Soft Female",i:"🌸"},
-  {v:"emotional-female",l:"Emotional",i:"💔"},
-  {v:"deep-narrator",l:"Narrator",i:"📖"},
-  {v:"documentary",l:"Documentary",i:"📽"},
-  {v:"anime-girl",l:"Anime Girl",i:"✨"},
-  {v:"villain",l:"Villain",i:"😈"},
-  {v:"dramatic-trailer",l:"Trailer",i:"📣"},
-];
 
-/* ─── Sub-components: Glass control panels ──────────────────────── */
+/* ─── Sub-components ────────────────────────────────────────────── */
 function GlassPanel({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
@@ -148,15 +108,12 @@ function ChipSelector({ options, value, onChange }: {
       {options.map(o => (
         <button key={o.v} onClick={() => onChange(o.v)}
           style={{
-            padding: "5px 10px",
-            borderRadius: 20,
-            fontSize: 10,
-            fontWeight: 700,
+            padding: "5px 10px", borderRadius: 20,
+            fontSize: 10, fontWeight: 700,
             border: `1px solid ${value===o.v ? PUR : BORDER_W}`,
             background: value===o.v ? PUR_DIM : "rgba(255,255,255,0.04)",
             color: value===o.v ? "#e0b3ff" : TEXT_DIM,
-            transition: "all 0.15s",
-            cursor: "pointer",
+            transition: "all 0.15s", cursor: "pointer",
           }}>
           {o.i && <span style={{marginRight:4}}>{o.i}</span>}{o.l}
         </button>
@@ -188,10 +145,8 @@ function DurationSlider({ value, onChange }: { value: number; onChange: (v: numb
           position: "absolute",
           left: `calc(${((value - 2) / 28) * 100}% - 7px)`,
           width: 14, height: 14, borderRadius: "50%",
-          background: PUR,
-          border: "2px solid rgba(255,255,255,0.8)",
-          boxShadow: `0 0 8px ${PUR}`,
-          pointerEvents: "none",
+          background: PUR, border: "2px solid rgba(255,255,255,0.8)",
+          boxShadow: `0 0 8px ${PUR}`, pointerEvents: "none",
         }} />
       </div>
     </div>
@@ -214,42 +169,11 @@ function PromptPanel({ frame, update }: { frame: VSFrame; update: (p: Partial<VS
             border: `1px solid ${BORDER_W}`,
             borderRadius: 12, padding: "10px 12px",
             fontSize: 12, color: "white",
-            outline: "none", resize: "none",
-            fontFamily: "inherit",
-            lineHeight: 1.5,
+            outline: "none", resize: "none", fontFamily: "inherit", lineHeight: 1.5,
           }}
         />
       </div>
       <DurationSlider value={frame.durationSec} onChange={v => update({ durationSec: v })} />
-    </div>
-  );
-}
-
-function VoicePanel({ frame, update }: { frame: VSFrame; update: (p: Partial<VSFrame>) => void }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div>
-        <p style={{ fontSize: 9, fontWeight: 700, color: TEXT_DIM, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>Voice-over / Dialogue</p>
-        <textarea
-          value={frame.dialogue}
-          onChange={e => update({ dialogue: e.target.value })}
-          placeholder="Enter spoken dialogue or narration…"
-          rows={2}
-          style={{
-            width: "100%", boxSizing: "border-box",
-            background: "rgba(255,255,255,0.04)",
-            border: `1px solid ${BORDER_W}`,
-            borderRadius: 12, padding: "9px 12px",
-            fontSize: 12, color: "white",
-            outline: "none", resize: "none",
-            fontFamily: "inherit",
-          }}
-        />
-      </div>
-      <div>
-        <p style={{ fontSize: 9, fontWeight: 700, color: TEXT_DIM, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>Voice Style</p>
-        <ChipSelector options={VOICE_OPTIONS.map(o => ({v:o.v, l:o.l, i:o.i}))} value={frame.characterVoice} onChange={v => update({ characterVoice: v })} />
-      </div>
     </div>
   );
 }
@@ -266,37 +190,6 @@ function TransitionPanel({ frame, update }: { frame: VSFrame; update: (p: Partia
   );
 }
 
-function CameraPanel({ frame, update }: { frame: VSFrame; update: (p: Partial<VSFrame>) => void }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div>
-        <p style={{ fontSize: 9, fontWeight: 700, color: TEXT_DIM, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>Camera Motion</p>
-        <ChipSelector options={CAM_OPTIONS} value={frame.cameraMove} onChange={v => update({ cameraMove: v })} />
-      </div>
-      <div>
-        <p style={{ fontSize: 9, fontWeight: 700, color: TEXT_DIM, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>Motion Intensity</p>
-        <div style={{ display: "flex", gap: 6 }}>
-          {MOTION_OPTIONS.map(o => (
-            <button key={o.v} onClick={() => update({ motionStrength: o.v })}
-              style={{
-                flex: 1, padding: "8px 4px",
-                borderRadius: 10,
-                fontSize: 9, fontWeight: 800,
-                border: `1px solid ${frame.motionStrength===o.v ? o.c : BORDER_W}`,
-                background: frame.motionStrength===o.v ? `${o.c.replace("0.8","0.15")}` : "rgba(255,255,255,0.03)",
-                color: frame.motionStrength===o.v ? "white" : TEXT_DIM,
-                cursor: "pointer", transition: "all 0.15s",
-                textTransform: "uppercase", letterSpacing: "0.06em",
-              }}>
-              {o.l}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function MoodPanel({ frame, update }: { frame: VSFrame; update: (p: Partial<VSFrame>) => void }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -306,9 +199,7 @@ function MoodPanel({ frame, update }: { frame: VSFrame; update: (p: Partial<VSFr
           {EMOTION_OPTIONS.map(o => (
             <button key={o.v} onClick={() => update({ emotion: o.v })}
               style={{
-                padding: "7px 4px",
-                borderRadius: 10,
-                textAlign: "center",
+                padding: "7px 4px", borderRadius: 10, textAlign: "center",
                 border: `1px solid ${frame.emotion===o.v ? PUR_BORDER : BORDER_W}`,
                 background: frame.emotion===o.v ? PUR_DIM : "rgba(255,255,255,0.03)",
                 cursor: "pointer", transition: "all 0.15s",
@@ -327,7 +218,7 @@ function MoodPanel({ frame, update }: { frame: VSFrame; update: (p: Partial<VSFr
   );
 }
 
-/* ─── Glow connector between sections ───────────────────────────── */
+/* ─── Glow connector ─────────────────────────────────────────────── */
 function FlowLine({ glow = false }: { glow?: boolean }) {
   return (
     <div style={{ display: "flex", justifyContent: "center", padding: "4px 0" }}>
@@ -341,16 +232,14 @@ function FlowLine({ glow = false }: { glow?: boolean }) {
   );
 }
 
-/* ─── Individual section row ─────────────────────────────────────── */
+/* ─── Storyboard control sections ────────────────────────────────── */
 const SECTIONS = [
-  { key: "prompt",     label: "Scene Prompt",          icon: Sparkles },
-  { key: "voice",      label: "Voice-over / Dialogue", icon: Mic },
-  { key: "transition", label: "Transition",            icon: Film },
-  { key: "camera",     label: "Camera Motion",         icon: Camera },
-  { key: "mood",       label: "Cinematic Mood",        icon: Wand2 },
+  { key: "prompt",     label: "Scene Prompt",  icon: Sparkles },
+  { key: "transition", label: "Transition",    icon: Film },
+  { key: "mood",       label: "Cinematic Mood",icon: Wand2 },
 ] as const;
 
-/* ─── Bezier connector SVG: thumbnail → panel ───────────────────── */
+/* ─── Bezier connector SVG ───────────────────────────────────────── */
 function BezierArrow() {
   return (
     <svg width="32" height="44" viewBox="0 0 32 44" style={{ flexShrink: 0, overflow: "visible" }}>
@@ -361,8 +250,7 @@ function BezierArrow() {
         </filter>
       </defs>
       <path d="M 0 22 C 12 22, 20 22, 32 22"
-        stroke={PUR} strokeWidth="1.5" fill="none"
-        strokeOpacity="0.7"
+        stroke={PUR} strokeWidth="1.5" fill="none" strokeOpacity="0.7"
         filter="url(#vs-glow)"
       />
       <circle cx="28" cy="22" r="2" fill={PUR} opacity="0.8"/>
@@ -370,44 +258,31 @@ function BezierArrow() {
   );
 }
 
-/* ─── Scene thumbnail card in strip ─────────────────────────────── */
+/* ─── Scene thumbnail chip in top strip ─────────────────────────── */
 function SceneThumb({ frame, idx, selected, onClick }: {
   frame: VSFrame; idx: number; selected: boolean; onClick: () => void;
 }) {
   return (
-    <motion.button
-      onClick={onClick}
-      whileTap={{ scale: 0.96 }}
+    <motion.button onClick={onClick} whileTap={{ scale: 0.96 }}
       style={{
-        position: "relative",
-        width: 76, height: 52,
-        flexShrink: 0,
-        borderRadius: 12,
-        overflow: "hidden",
+        position: "relative", width: 76, height: 52, flexShrink: 0,
+        borderRadius: 12, overflow: "hidden",
         border: `1.5px solid ${selected ? PUR : BORDER_W}`,
         boxShadow: selected ? `0 0 14px rgba(176,38,255,0.55)` : "none",
-        transition: "all 0.2s",
-        background: "rgba(255,255,255,0.04)",
-        cursor: "pointer",
+        transition: "all 0.2s", background: "rgba(255,255,255,0.04)", cursor: "pointer",
       }}>
-      {frame.imageUrl ? (
-        <img src={frame.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-      ) : (
-        <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: TEXT_DIM, fontSize: 12 }}>{idx + 1}</div>
-      )}
-      {/* Purple badge */}
+      {frame.imageUrl
+        ? <img src={frame.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: TEXT_DIM, fontSize: 12 }}>{idx + 1}</div>}
       <div style={{
         position: "absolute", top: 4, left: 4,
         background: selected ? PUR : "rgba(176,38,255,0.5)",
-        borderRadius: 5, padding: "1px 5px",
-        fontSize: 8, fontWeight: 800, color: "white",
+        borderRadius: 5, padding: "1px 5px", fontSize: 8, fontWeight: 800, color: "white",
       }}>{idx + 1}</div>
-      {/* Duration badge */}
       <div style={{
         position: "absolute", bottom: 3, right: 4,
         fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.55)",
       }}>{frame.durationSec}s</div>
-      {/* Upload spinner */}
       {frame.uploading && (
         <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ width: 16, height: 16, borderRadius: "50%", border: `2px solid ${PUR}`, borderTopColor: "transparent", animation: "spin 0.7s linear infinite" }} />
@@ -417,36 +292,26 @@ function SceneThumb({ frame, idx, selected, onClick }: {
   );
 }
 
-/* ─── Main Export ────────────────────────────────────────────────── */
+/* ─── Main Component ─────────────────────────────────────────────── */
 export function VerticalStoryboard({
   frames, selectedId, onSelectId, onUpdateFrame,
   onAddFrame, onRemoveFrame, onDuplicateFrame, onTriggerUpload,
   canGenerate, onGenerate, generating, cooldownSec,
   engineGradient, engineGlow, credits,
-  mobileView, onSetMobileView,
 }: VSProps) {
   const [openSection, setOpenSection] = useState<string>("prompt");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const frame = frames.find(f => f.id === selectedId) ?? frames[0] ?? null;
+  const frame    = frames.find(f => f.id === selectedId) ?? frames[0] ?? null;
   const frameIdx = frame ? frames.findIndex(f => f.id === frame.id) : -1;
-  const update = (p: Partial<VSFrame>) => { if (frame) onUpdateFrame(frame.id, p); };
-
-  const NAV_TABS = [
-    { id: "scenes",   label: "Scenes",  Icon: Layers },
-    { id: "preview",  label: "Preview", Icon: MonitorPlay },
-    { id: "director", label: "Voice",   Icon: Mic },
-    { id: "director", label: "Motion",  Icon: Camera },
-    { id: "settings", label: "Settings",Icon: Settings2 },
-  ];
+  const update   = (p: Partial<VSFrame>) => { if (frame) onUpdateFrame(frame.id, p); };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: BG, overflow: "hidden" }}>
 
-      {/* ── SCENE STRIP ───────────────────────────────────────── */}
+      {/* ── SCENE STRIP ────────────────────────────────────────── */}
       <div style={{
-        flexShrink: 0,
-        padding: "10px 16px 8px",
+        flexShrink: 0, padding: "10px 16px 8px",
         borderBottom: `1px solid ${BORDER_W}`,
         background: "rgba(10,5,18,0.98)",
       }}>
@@ -454,34 +319,30 @@ export function VerticalStoryboard({
           {frames.map((f, i) => (
             <SceneThumb key={f.id} frame={f} idx={i} selected={f.id === frame?.id} onClick={() => onSelectId(f.id)} />
           ))}
-          {/* Add scene */}
           {frames.length < 10 && (
             <motion.button whileTap={{ scale: 0.95 }} onClick={onAddFrame}
               style={{
-                width: 52, height: 52, flexShrink: 0,
-                borderRadius: 12,
+                width: 52, height: 52, flexShrink: 0, borderRadius: 12,
                 border: `1.5px dashed rgba(176,38,255,0.35)`,
                 background: "rgba(176,38,255,0.05)",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: "pointer",
-                color: "rgba(176,38,255,0.7)",
+                cursor: "pointer", color: "rgba(176,38,255,0.7)",
               }}>
               <Plus style={{ width: 18, height: 18 }} />
             </motion.button>
           )}
         </div>
-        {/* Scene count label */}
         <p style={{ fontSize: 9, fontWeight: 700, color: TEXT_DIM, letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 6 }}>
           {frames.length} scene{frames.length !== 1 ? "s" : ""}
           {frame && ` · Scene ${frameIdx + 1} selected`}
         </p>
       </div>
 
-      {/* ── MAIN SCROLL AREA ──────────────────────────────────── */}
+      {/* ── MAIN SCROLL ────────────────────────────────────────── */}
       {frame ? (
         <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "16px 16px 100px" }}>
 
-          {/* Scene header + actions */}
+          {/* Scene header */}
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
             <div>
               <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(176,38,255,0.8)", marginBottom: 2 }}>
@@ -505,27 +366,23 @@ export function VerticalStoryboard({
             </div>
           </div>
 
-          {/* Large scene image */}
+          {/* Scene image — tap to upload */}
           <motion.button whileTap={{ scale: 0.99 }} onClick={() => onTriggerUpload(frame.id)}
             style={{
-              position: "relative",
-              width: "100%", aspectRatio: "16/9",
-              borderRadius: 18, overflow: "hidden",
+              position: "relative", width: "100%", aspectRatio: "16/9",
+              borderRadius: 18, overflow: "hidden", marginBottom: 4, cursor: "pointer", display: "block",
               background: frame.imageUrl ? "transparent" : "rgba(176,38,255,0.04)",
               border: `1px solid ${frame.imageUrl ? "transparent" : PUR_BORDER}`,
               boxShadow: frame.imageUrl ? `0 8px 40px rgba(176,38,255,0.15)` : "none",
-              marginBottom: 4,
-              cursor: "pointer",
-              display: "block",
             }}>
-            {frame.imageUrl ? (
-              <img src={frame.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 8, color: TEXT_DIM }}>
-                <Upload style={{ width: 28, height: 28 }} />
-                <span style={{ fontSize: 12 }}>Tap to add scene image</span>
-              </div>
-            )}
+            {frame.imageUrl
+              ? <img src={frame.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              : (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 8, color: TEXT_DIM }}>
+                  <Upload style={{ width: 28, height: 28 }} />
+                  <span style={{ fontSize: 12 }}>Tap to add scene image</span>
+                </div>
+              )}
             {frame.uploading && (
               <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <div style={{ width: 32, height: 32, borderRadius: "50%", border: `2.5px solid ${PUR}`, borderTopColor: "transparent", animation: "spin 0.8s linear infinite" }} />
@@ -533,23 +390,20 @@ export function VerticalStoryboard({
             )}
           </motion.button>
 
-          {/* Flow connector from image to first section */}
           <FlowLine glow />
 
-          {/* ── CONTROL SECTIONS ─────────────────────────── */}
+          {/* ── CONTROL SECTIONS ──────────────────────────────── */}
           {SECTIONS.map((section, si) => {
-            const Icon = section.icon;
+            const Icon  = section.icon;
             const isOpen = openSection === section.key;
             return (
               <div key={section.key}>
-                {/* Section label row with left thumbnail */}
+                {/* Section header row: mini-thumb + bezier + label button */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-
-                  {/* Tiny scene thumbnail on left */}
+                  {/* Tiny scene thumbnail */}
                   <div style={{
                     width: 40, height: 28, borderRadius: 8, overflow: "hidden", flexShrink: 0,
-                    border: `1px solid ${PUR_BORDER}`,
-                    background: "rgba(176,38,255,0.05)",
+                    border: `1px solid ${PUR_BORDER}`, background: "rgba(176,38,255,0.05)",
                     boxShadow: `0 0 8px rgba(176,38,255,0.2)`,
                   }}>
                     {frame.imageUrl
@@ -557,20 +411,18 @@ export function VerticalStoryboard({
                       : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, color: TEXT_DIM }}>{frameIdx + 1}</div>}
                   </div>
 
-                  {/* Bezier from thumbnail to panel */}
                   <BezierArrow />
 
-                  {/* Section header button */}
                   <motion.button
                     onClick={() => setOpenSection(isOpen ? "" : section.key)}
+                    whileTap={{ scale: 0.98 }}
                     style={{
                       flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between",
                       background: isOpen ? PUR_DIM : "rgba(255,255,255,0.03)",
                       border: `1px solid ${isOpen ? PUR_BORDER : BORDER_W}`,
                       borderRadius: 12, padding: "8px 12px",
                       cursor: "pointer", transition: "all 0.2s",
-                    }}
-                    whileTap={{ scale: 0.98 }}>
+                    }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                       <Icon style={{ width: 13, height: 13, color: isOpen ? "#e0b3ff" : TEXT_DIM, flexShrink: 0 }} />
                       <span style={{ fontSize: 11, fontWeight: 800, color: isOpen ? "#e0b3ff" : TEXT_MID, letterSpacing: "0.04em" }}>
@@ -583,7 +435,7 @@ export function VerticalStoryboard({
                   </motion.button>
                 </div>
 
-                {/* Collapsible glass panel */}
+                {/* Glass panel — collapsible */}
                 <AnimatePresence initial={false}>
                   {isOpen && (
                     <motion.div
@@ -595,44 +447,41 @@ export function VerticalStoryboard({
                       style={{ overflow: "hidden", marginBottom: 4, paddingLeft: 82 }}>
                       <GlassPanel>
                         {section.key === "prompt"     && <PromptPanel     frame={frame} update={update} />}
-                        {section.key === "voice"      && <VoicePanel      frame={frame} update={update} />}
                         {section.key === "transition" && <TransitionPanel frame={frame} update={update} />}
-                        {section.key === "camera"     && <CameraPanel     frame={frame} update={update} />}
                         {section.key === "mood"       && <MoodPanel       frame={frame} update={update} />}
                       </GlassPanel>
                     </motion.div>
                   )}
                 </AnimatePresence>
 
-                {/* Flow line between sections */}
                 {si < SECTIONS.length - 1 && <FlowLine />}
               </div>
             );
           })}
 
-          {/* Bottom connector to generate */}
           <FlowLine glow />
 
-          {/* Render readiness card */}
+          {/* Render card */}
           <GlassPanel>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: TEXT_DIM, marginBottom: 4 }}>Ready to Generate</p>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <Layers style={{ width: 11, height: 11, color: TEXT_DIM }} />
-                    <span style={{ fontSize: 11, color: TEXT_MID, fontWeight: 600 }}>{frames.length} scenes</span>
-                  </div>
+                <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: TEXT_DIM, marginBottom: 4 }}>
+                  Ready to Render
+                </p>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <Layers style={{ width: 11, height: 11, color: TEXT_DIM }} />
+                  <span style={{ fontSize: 11, color: TEXT_MID, fontWeight: 600 }}>{frames.length} scenes</span>
                   {credits > 0 && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <Zap style={{ width: 11, height: 11, color: "rgba(176,38,255,0.8)" }} />
-                      <span style={{ fontSize: 11, color: "rgba(200,160,255,0.9)", fontWeight: 700 }}>{credits} needed</span>
-                    </div>
+                    <>
+                      <span style={{ color: TEXT_DIM, fontSize: 10 }}>·</span>
+                      <Zap style={{ width: 10, height: 10, color: "rgba(176,38,255,0.7)" }} />
+                      <span style={{ fontSize: 11, color: "rgba(200,160,255,0.85)", fontWeight: 700 }}>{credits} credits</span>
+                    </>
                   )}
                 </div>
               </div>
               <motion.button
-                whileTap={{ scale: canGenerate ? 0.96 : 1 }}
+                whileTap={{ scale: canGenerate ? 0.95 : 1 }}
                 onClick={canGenerate ? onGenerate : undefined}
                 disabled={!canGenerate || generating}
                 style={{
@@ -640,20 +489,17 @@ export function VerticalStoryboard({
                   padding: "10px 20px", borderRadius: 14,
                   background: canGenerate ? engineGradient : "rgba(255,255,255,0.07)",
                   boxShadow: canGenerate ? `0 6px 20px -4px ${engineGlow}` : "none",
-                  border: "none", color: "white",
-                  fontSize: 12, fontWeight: 800,
+                  border: "none", color: "white", fontSize: 12, fontWeight: 800,
                   cursor: canGenerate ? "pointer" : "default",
-                  opacity: generating ? 0.6 : 1,
-                  transition: "all 0.2s",
+                  opacity: generating ? 0.6 : 1, transition: "all 0.2s",
                   position: "relative", overflow: "hidden",
                 }}>
-                {/* Shimmer */}
                 {canGenerate && !generating && (
                   <motion.div style={{
                     position: "absolute", inset: 0,
                     background: "linear-gradient(105deg,transparent 35%,rgba(255,255,255,0.15) 50%,transparent 65%)",
                     pointerEvents: "none",
-                  }} animate={{ x: ["-100%", "100%"] }} transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 1.5 }} />
+                  }} animate={{ x: ["-100%","100%"] }} transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 1.5 }} />
                 )}
                 <Clapperboard style={{ width: 14, height: 14, flexShrink: 0 }} />
                 <span>{generating ? "Rendering…" : cooldownSec > 0 ? `Wait ${cooldownSec}s` : "Generate"}</span>
@@ -662,7 +508,7 @@ export function VerticalStoryboard({
           </GlassPanel>
         </div>
       ) : (
-        /* ── EMPTY STATE ────────────────────────────────── */
+        /* ── EMPTY STATE ─────────────────────────────────────── */
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20, padding: "24px 32px", textAlign: "center" }}>
           <motion.div
             animate={{ scale: [1, 1.05, 1], rotate: [0, 3, -3, 0] }}
@@ -685,8 +531,7 @@ export function VerticalStoryboard({
               padding: "13px 28px", borderRadius: 16,
               background: `linear-gradient(135deg, ${PUR}, #ec4899)`,
               boxShadow: `0 12px 36px rgba(176,38,255,0.45)`,
-              border: "none", color: "white", fontSize: 14, fontWeight: 900,
-              cursor: "pointer",
+              border: "none", color: "white", fontSize: 14, fontWeight: 900, cursor: "pointer",
             }}>
             <Plus style={{ width: 18, height: 18 }} />
             Add First Scene
@@ -694,7 +539,6 @@ export function VerticalStoryboard({
         </div>
       )}
 
-      {/* spin keyframe */}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );

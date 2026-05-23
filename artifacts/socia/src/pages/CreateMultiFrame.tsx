@@ -3505,106 +3505,6 @@ export default function CreateMultiFrame() {
 
   /* ── GENERATE BAR (compact 3-part action row) ── */
   const estMinutes = segmentCount > 0 ? Math.max(1, Math.ceil(segmentCount * 0.5)) : 0;
-  const GenerateBar = (
-    <div className="relative z-10 shrink-0 border-t"
-      style={{background:"rgba(5,0,15,0.98)",borderColor:BORDER,paddingBottom:`calc(env(safe-area-inset-bottom,0px) + 0px)`}}>
-
-      {/* Error banner — compact inline */}
-      <AnimatePresence>
-        {genError && (
-          <motion.div initial={{opacity:0,height:0}} animate={{opacity:1,height:"auto"}} exit={{opacity:0,height:0}}
-            className="overflow-hidden border-b"
-            style={{borderColor:isQuota?"rgba(245,158,11,0.2)":"rgba(239,68,68,0.2)"}}>
-            <div className="flex items-center gap-2 px-4 py-2">
-              {isQuota ? <Crown className="h-3.5 w-3.5 shrink-0 text-yellow-400"/> : <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-400"/>}
-              <p className="flex-1 text-[11px] leading-snug text-white/70">{genError}</p>
-              <button onClick={() => setGenError(null)} className="shrink-0 text-white/25 hover:text-white/50"><X className="h-3 w-3"/></button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Main action row */}
-      <div className="flex items-center gap-3 px-4 py-3">
-
-        {/* Left: time estimate or hint */}
-        <div className="flex w-[76px] shrink-0 flex-col gap-0.5">
-          {segmentCount > 0 ? (
-            <>
-              <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-white/20">Est. time</span>
-              <div className="flex items-center gap-1">
-                <Clock className="h-3 w-3 text-white/30"/>
-                <span className="text-[12px] font-bold text-white/55">~{estMinutes}m</span>
-              </div>
-            </>
-          ) : (
-            <span className="text-[10px] leading-snug text-white/25">
-              {filledFrames.length < MIN_FRAMES
-                ? `Add ${MIN_FRAMES - filledFrames.length} more scene${MIN_FRAMES - filledFrames.length !== 1 ? "s" : ""}`
-                : "Ready"}
-            </span>
-          )}
-          {cooldownSec > 0 && (
-            <div className="flex items-center gap-1 text-[10px] font-bold text-orange-400">
-              <Clock className="h-3 w-3"/>
-              {cooldownSec}s
-            </div>
-          )}
-        </div>
-
-        {/* Center: generate button — compact pill */}
-        <motion.button
-          whileTap={{scale:canGenerate ? 0.98 : 1}}
-          disabled={!canGenerate || generating}
-          onClick={generate}
-          className="relative flex flex-1 h-11 items-center justify-center gap-2 overflow-hidden rounded-xl font-bold text-[13px] text-white transition disabled:cursor-not-allowed"
-          style={{
-            background: cooldownSec > 0
-              ? "rgba(255,255,255,0.06)"
-              : canGenerate ? engine.gradient : "rgba(255,255,255,0.08)",
-            boxShadow: canGenerate && !cooldownSec ? `0 6px 20px -4px ${engine.glow}` : "none",
-            opacity: generating ? 0.65 : cooldownSec > 0 ? 0.75 : 1,
-          }}>
-          {/* Shimmer */}
-          {canGenerate && !generating && (
-            <motion.div className="absolute inset-0 pointer-events-none"
-              style={{background:"linear-gradient(105deg,transparent 35%,rgba(255,255,255,0.12) 50%,transparent 65%)"}}
-              animate={{x:["-100%","100%"]}} transition={{duration:2.5,repeat:Infinity,ease:"easeInOut",repeatDelay:1.5}}/>
-          )}
-          {/* Cooldown fill */}
-          {cooldownSec > 0 && planCooldownMs > 0 && (
-            <motion.div className="absolute left-0 top-0 h-full rounded-xl"
-              style={{background:priority.color,opacity:0.2,
-                width:`${((planCooldownMs/1000 - cooldownSec) / (planCooldownMs/1000)) * 100}%`}}/>
-          )}
-          <Clapperboard className="relative h-4 w-4"/>
-          <span className="relative">
-            {cooldownSec > 0
-              ? `Cooldown · ${cooldownSec}s`
-              : generating
-              ? "Rendering…"
-              : "Generate Film"}
-          </span>
-        </motion.button>
-
-        {/* Right: cost */}
-        <div className="flex w-[76px] shrink-0 flex-col items-end gap-0.5">
-          {segmentCount > 0 && (
-            <>
-              <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-white/20">Credits</span>
-              <div className="flex items-center gap-1">
-                <span className="text-[12px] font-bold" style={{color:CREDIT_COLOR[engine.creditLabel]}}>-{credits}</span>
-                <Zap className="h-3 w-3 text-purple-400" fill="currentColor"/>
-              </div>
-              {summary?.credits !== undefined && summary.credits < credits && (
-                <span className="text-[8px] font-bold text-yellow-400">⚠ Low balance</span>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden" style={{background:BG_DEEP}}>
@@ -3842,8 +3742,6 @@ export default function CreateMultiFrame() {
                     engineGradient={engine.gradient}
                     engineGlow={engine.glow}
                     credits={credits}
-                    mobileView={mobileView}
-                    onSetMobileView={v => setMobileView(v as MobileView)}
                   />
                 </motion.div>
               )}
@@ -3856,77 +3754,6 @@ export default function CreateMultiFrame() {
                 </motion.div>
               )}
 
-              {mobileView === "director" && !selectedFrame && (
-                <motion.div key="director-empty" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
-                  className="flex-1 flex flex-col items-center justify-center gap-4 px-6 text-center">
-                  <Theater className="h-10 w-10 text-white/10"/>
-                  <p className="text-sm text-white/40">Select a scene first<br/>to open the Director panel</p>
-                  <button onClick={() => setMobileView("scenes")}
-                    className="rounded-xl px-4 py-2 text-[13px] font-bold text-purple-400 hover:text-purple-300 transition"
-                    style={{background:"rgba(124,58,237,0.1)",border:"1px solid rgba(124,58,237,0.2)"}}>
-                    ← Go to Scenes
-                  </button>
-                </motion.div>
-              )}
-              {mobileView === "director" && selectedFrame && (
-                <motion.div key="director" initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} exit={{opacity:0,y:20}}
-                  className="flex-1 overflow-hidden flex flex-col">
-                  {/* Scene header */}
-                  <div className="flex items-center gap-3 px-4 py-3 shrink-0" style={{borderBottom:`1px solid ${BORDER}`}}>
-                    <button onClick={() => setMobileView("scenes")}
-                      className="grid h-8 w-8 place-items-center rounded-full" style={{background:GLASS}}>
-                      <ArrowLeft className="h-4 w-4 text-white"/>
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <p className="truncate text-[13px] font-black text-white">{selectedFrame.title || `Scene ${frames.findIndex(f=>f.id===selectedId)+1}`}</p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-white/35">{selectedFrame.durationSec}s</span>
-                        <span className="text-[10px]">{EMOTIONS.find(e=>e.v===selectedFrame.emotion)?.emoji}</span>
-                        <span className="text-[10px] text-white/35">{BEATS.find(b=>b.v===selectedFrame.beatType)?.label}</span>
-                      </div>
-                    </div>
-                    {selectedFrame.imageUrl && (
-                      <div className="h-12 w-9 overflow-hidden rounded-lg shrink-0" style={{border:`1px solid ${BORDER}`}}>
-                        <img src={selectedFrame.imageUrl} alt="" className="h-full w-full object-cover"/>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 overflow-hidden">
-                    <SceneDirectorContent
-                      frame={selectedFrame}
-                      onUpdate={p => updateFrame(selectedFrame.id, p)}/>
-                  </div>
-                </motion.div>
-              )}
-
-              {mobileView === "settings" && (
-                <motion.div key="settings" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
-                  className="flex-1 overflow-y-auto">
-                  {/* Mobile mode toggle */}
-                  <div className="flex items-center justify-between border-b px-4 py-3" style={{borderColor:BORDER}}>
-                    <div>
-                      <p className="text-[12px] font-bold text-white/70">{beginnerMode ? "Beginner Mode" : "Pro Mode"}</p>
-                      <p className="text-[9px] text-white/30">{beginnerMode ? "Simplified controls" : "Full controls"}</p>
-                    </div>
-                    <button onClick={toggleMode}
-                      className="rounded-full border px-3 py-1.5 text-[10px] font-bold transition"
-                      style={beginnerMode
-                        ? {background:"rgba(139,92,246,0.1)",borderColor:"rgba(139,92,246,0.3)",color:"#c4b5fd"}
-                        : {background:GLASS,borderColor:BORDER,color:"rgba(255,255,255,0.4)"}}>
-                      Switch to {beginnerMode ? "Pro" : "Beginner"}
-                    </button>
-                  </div>
-                  <GlobalSettingsPanel cfg={cfg} frames={frames} onChange={updateCfg} beginnerMode={beginnerMode}
-                    onApplyAll={() => setFrames(p => p.map(f => ({...f,durationSec:cfg.defaultDuration})))}/>
-                  <ProjectRecoveryPanel
-                    frameCount={frames.length}
-                    filledCount={filledFrames.length}
-                    projectId={projectIdRef.current}
-                    onReset={resetProject}
-                    onClearCache={clearCorruptedState}
-                    onForceSync={forceSyncProject}/>
-                </motion.div>
-              )}
             </AnimatePresence>
           </div>
         </div>
@@ -4050,9 +3877,6 @@ export default function CreateMultiFrame() {
         </div>
       </div>
 
-      {/* ══ GENERATE BAR ══ */}
-      {GenerateBar}
-
       {/* ══ MOBILE BOTTOM TAB BAR ══ */}
       <div className="relative z-20 flex shrink-0 items-center border-t lg:hidden"
         style={{
@@ -4061,12 +3885,10 @@ export default function CreateMultiFrame() {
           backdropFilter:"blur(20px)",
           paddingBottom:"env(safe-area-inset-bottom,0px)",
         }}>
-        {/* Regular tabs */}
+        {/* Scenes + Preview tabs */}
         {([
-          {id:"scenes",   label:"Scenes",  icon:Layers},
-          {id:"preview",  label:"Preview", icon:MonitorPlay},
-          {id:"director", label:"Voice",   icon:Mic},
-          {id:"settings", label:"Motion",  icon:Camera},
+          {id:"scenes",  label:"Scenes",  icon:Layers},
+          {id:"preview", label:"Preview", icon:MonitorPlay},
         ] as {id:MobileView;label:string;icon:typeof Layers}[]).map(({id,label,icon:Icon}) => (
           <button key={id}
             onClick={() => setMobileView(id)}
