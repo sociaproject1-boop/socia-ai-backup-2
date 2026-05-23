@@ -360,13 +360,17 @@ export async function interpolateWithEngine(
       case "kling-cinematic":
         return await interpolateKling(frame0Url, frame1Url, prompt, aspect, KLING_PRO);
       case "kling-master":
+      case "kling-3-omni":
+        // Kling 3.0 Omni is exposed to the studio as the flagship cinematic
+        // tier — backed by Kling Master on fal.ai until the dedicated 3.0
+        // endpoint ships. Same provider, same billing path.
         return await interpolateKling(frame0Url, frame1Url, prompt, aspect, KLING_MASTER);
       case "luma":
         return await interpolateLuma(frame0Url, frame1Url, prompt, aspect);
       default:
         throw new FalError(
           "FAL_INVALID_INPUT",
-          `Engine "${engine}" is not yet integrated. Available engines: luma, kling-standard, kling-cinematic, kling-master.`,
+          `Engine "${engine}" is not yet integrated. Available engines: luma, kling-standard, kling-cinematic, kling-master, kling-3-omni.`,
         );
     }
   } catch (err) {

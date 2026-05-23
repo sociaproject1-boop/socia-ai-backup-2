@@ -34,6 +34,24 @@ import { supabase } from "@/lib/supabase";
 import { VideoPlayerModal } from "@/components/ui/VideoPlayerModal";
 import { useBillingStore } from "@/lib/billing";
 import { VerticalStoryboard } from "@/components/studio/VerticalStoryboard";
+import { ModelSelector } from "@/components/models/ModelSelector";
+import { useStudioModelStore, type StudioModelId } from "@/store/modelStore";
+import klingOmniCover from "@assets/image-8_1779541488524.jpg";
+
+/* Cover images per model id (null = use gradient fallback) */
+const MODEL_COVERS: Partial<Record<RenderEngineId, string>> = {
+  "kling-3-omni": klingOmniCover,
+};
+/* Per-model badges shown on each cinematic card */
+const MODEL_BADGES: Partial<Record<RenderEngineId, string[]>> = {
+  "kling-3-omni": ["Cinema Grade", "Lip Sync", "Multi-Shot", "Pro Storytelling"],
+  "kling-cinematic": ["Smooth Motion", "Film Look"],
+  "kling-standard":  ["Fast", "Balanced"],
+  "runway-gen4":     ["Hollywood", "Commercial"],
+  "veo-ultra":       ["Ultra HD", "Art Cinema"],
+  "anime-motion":    ["Anime", "Stylized"],
+  "hyper-real":      ["Editorial", "Photoreal"],
+};
 
 /* ═══════════════════════════════════════════════════════════════════
    DESIGN TOKENS
@@ -53,7 +71,7 @@ const GLOW_GOLD   = "rgba(245,158,11,0.5)";
 /* ═══════════════════════════════════════════════════════════════════
    TYPES
 ═══════════════════════════════════════════════════════════════════ */
-type RenderEngineId  = "kling-standard"|"kling-cinematic"|"runway-gen4"|"veo-ultra"|"anime-motion"|"hyper-real";
+type RenderEngineId  = "kling-3-omni"|"kling-standard"|"kling-cinematic"|"runway-gen4"|"veo-ultra"|"anime-motion"|"hyper-real";
 type TransitionType  = "fade"|"dissolve"|"zoom"|"flash"|"warp"|"slide-left"|"slide-right"|"cinematic-blur"|"glitch"|"anime-cut"|"film-burn"|"speed-ramp";
 type CameraMove      = "static"|"dolly-in"|"dolly-out"|"orbit"|"pan-left"|"pan-right"|"tilt-up"|"tilt-down"|"handheld"|"drone-shot"|"cinematic-push"|"crash-zoom"|"tracking-shot"|"shoulder-cam";
 type MotionStrength  = "subtle"|"balanced"|"strong"|"extreme";
@@ -141,6 +159,7 @@ const LS_DRAFT   = "socia_studio_draft_v4";
 const LS_HISTORY = "socia_studio_history_v4";
 
 const ENGINES: RenderEngine[] = [
+  { id:"kling-3-omni",    name:"Kling 3.0 Omni",  tagline:"Cinema Grade AI · Perfect Lip Sync · Pro Storytelling", quality:"Cinema", speed:"Medium",speedScore:70, creditsPerSeg:40, creditLabel:"High", bestFor:"Cinematic Films · Lip Sync · Multi-Shot", available:true,  gradient:"linear-gradient(135deg,#b026ff,#ec4899)", glow:"rgba(176,38,255,0.6)",  cinematicRating:10,gpuIntensity:"Heavy",   realism:95 },
   { id:"kling-standard",  name:"Kling Standard",  tagline:"Fast, balanced. Reels & TikTok ready.",    quality:"Balanced", speed:"Fast",      speedScore:85, creditsPerSeg:20, creditLabel:"Low",     bestFor:"Reels · TikTok · Stories", available:true,  gradient:"linear-gradient(135deg,#3b82f6,#6366f1)", glow:"rgba(99,102,241,0.5)",  cinematicRating:7, gpuIntensity:"Light",   realism:72 },
   { id:"kling-cinematic", name:"Kling Cinematic", tagline:"Smooth camera physics. Film-like motion.",  quality:"High",     speed:"Medium",    speedScore:65, creditsPerSeg:30, creditLabel:"Medium",  bestFor:"Music · Brand Films",      available:true,  gradient:"linear-gradient(135deg,#6366f1,#a855f7)", glow:"rgba(168,85,247,0.5)",  cinematicRating:9, gpuIntensity:"Medium",  realism:86 },
   { id:"runway-gen4",     name:"Runway Gen-4",    tagline:"Hollywood-grade. Commercial realism.",      quality:"Premium",  speed:"Slow",      speedScore:45, creditsPerSeg:50, creditLabel:"High",    bestFor:"Ads · Product Films",      available:false, gradient:"linear-gradient(135deg,#ec4899,#f43f5e)", glow:"rgba(236,72,153,0.5)",  cinematicRating:9, gpuIntensity:"Heavy",   realism:92 },
@@ -313,7 +332,7 @@ const CREDIT_COLOR: Record<RenderEngine["creditLabel"],string> = {
 };
 const DEFAULT_CFG: GlobalCfg = {
   aspect:"9:16", fps:24, globalStyle:"cinematic", defaultTransition:"fade",
-  defaultDuration:5, globalPrompt:"", renderEngine:"kling-standard",
+  defaultDuration:5, globalPrompt:"", renderEngine:"kling-3-omni",
   exportQuality:"1080p", exportFormat:"mp4", soundtrackType:"none",
 };
 
@@ -2951,10 +2970,26 @@ export default function CreateMultiFrame() {
   /* Project state */
   const [projectTitle, setProjectTitle] = useState(() => loadDraft()?.projectTitle ?? "Untitled Film");
   const [editingTitle, setEditingTitle] = useState(false);
+  const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
+  const studioSelectedModelId    = useStudioModelStore(s => s.selectedModelId);
+  const setStudioSelectedModelId = useStudioModelStore(s => s.setSelectedModelId);
   const [cfg, setCfg] = useState<GlobalCfg>(() => {
     const d = loadDraft();
-    return d ? {...DEFAULT_CFG, ...d.cfg} : DEFAULT_CFG;
+    const base = d ? {...DEFAULT_CFG, ...d.cfg} : DEFAULT_CFG;
+    // Hydrate selected model from persisted zustand store so the user's last
+    // picked AI model survives reload (overrides both draft and default).
+    const persistedRaw = useStudioModelStore.getState().selectedModelId;
+    const isKnown = ENGINES.some(e => e.id === persistedRaw);
+    return isKnown ? { ...base, renderEngine: persistedRaw as RenderEngineId } : base;
   });
+
+  /* Keep the persisted modelStore in lockstep with cfg.renderEngine — covers
+     every path that mutates it (ModelSelector sheet + GlobalSettingsPanel). */
+  useEffect(() => {
+    if (cfg.renderEngine !== studioSelectedModelId) {
+      setStudioSelectedModelId(cfg.renderEngine as StudioModelId);
+    }
+  }, [cfg.renderEngine, studioSelectedModelId, setStudioSelectedModelId]);
   const [frames, setFrames] = useState<StudioFrame[]>(() => {
     const d = loadDraft();
     if (d && Array.isArray(d.frames) && d.frames.length >= MIN_FRAMES) {
@@ -3563,6 +3598,41 @@ export default function CreateMultiFrame() {
           </div>
         </div>
 
+        {/* ── AI Model selector pill ── */}
+        {(() => {
+          const activeEngine = ENGINES.find(e => e.id === cfg.renderEngine) ?? ENGINES[0];
+          const cover = MODEL_COVERS[cfg.renderEngine];
+          return (
+            <motion.button
+              onClick={() => setModelSelectorOpen(true)}
+              whileTap={{ scale: 0.95 }}
+              className="group flex items-center gap-2 rounded-full shrink-0 transition"
+              style={{
+                padding: "4px 12px 4px 4px",
+                background: "rgba(176,38,255,0.10)",
+                border: "1px solid rgba(176,38,255,0.30)",
+                boxShadow: "0 0 14px rgba(176,38,255,0.18)",
+              }}
+              title="Choose AI Model"
+            >
+              <div style={{
+                width: 26, height: 26, borderRadius: "50%",
+                overflow: "hidden",
+                background: activeEngine.gradient,
+                border: "1px solid rgba(176,38,255,0.45)",
+                flexShrink: 0,
+              }}>
+                {cover && <img src={cover} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} draggable={false} />}
+              </div>
+              <div className="flex flex-col items-start leading-none">
+                <span style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.12em", color: "rgba(176,38,255,0.85)", textTransform: "uppercase" }}>Model</span>
+                <span className="text-[11px] font-black text-white max-w-[90px] truncate">{activeEngine.name}</span>
+              </div>
+              <ChevronDown className="h-3 w-3 text-purple-300/70" />
+            </motion.button>
+          );
+        })()}
+
         {/* Real account credits */}
         {summary?.credits !== undefined && (
           <button onClick={() => navigate("/billing")}
@@ -3940,6 +4010,28 @@ export default function CreateMultiFrame() {
         <VideoPlayerModal videoUrl={result.videoUrl} posterUrl={result.url}
           open={videoOpen} onClose={() => setVideoOpen(false)}/>
       )}
+
+      {/* ── AI Model Selector bottom sheet (Cinematic Studio scope only) ── */}
+      <ModelSelector
+        open={modelSelectorOpen}
+        onClose={() => setModelSelectorOpen(false)}
+        selectedId={cfg.renderEngine}
+        models={ENGINES.map(e => ({
+          id: e.id,
+          name: e.name,
+          subtitle: e.tagline,
+          cover: MODEL_COVERS[e.id] ?? null,
+          gradient: e.gradient,
+          glow: e.glow,
+          available: e.available,
+          badges: MODEL_BADGES[e.id] ?? [],
+        }))}
+        onSelect={(id) => {
+          const next = id as RenderEngineId;
+          updateCfg({ renderEngine: next });
+          setStudioSelectedModelId(next as StudioModelId);
+        }}
+      />
 
       {/* ── Global file input — "Upload First Scene" + drag-and-drop ── */}
       <input

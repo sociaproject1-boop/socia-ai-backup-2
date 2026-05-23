@@ -3,3 +3,4 @@
 - [Socia-trailer design system](socia-trailer-design.md) — CS tokens (--cs-*), 14 UI primitives in src/components/ui/, 6-component workspace shell; Tailwind v4 @theme inline pattern; ?preview=1 for bare trailer embed mode.
 - [CreateMultiFrame real data integration](create-multiframe-integration.md) — socia-trailer was a design demo only; CreateMultiFrame.tsx IS the real studio; summary?.credits is the live user balance from useBillingStore.
 - [VerticalStoryboard component](vertical-storyboard.md) — Premium cinematic storyboard for mobile "scenes" tab; per-frame upload via frameInputRef + pendingUploadIdRef.
+- [Studio AI model selector](studio-model-selector.md) — `cfg.renderEngine` is the single source of truth; selector must update cfg AND zustand store; add models by extending RenderEngineId + ENGINES.
