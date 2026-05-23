@@ -33,6 +33,7 @@ import VoicePreview from "@/components/studio/VoicePreview";
 import { supabase } from "@/lib/supabase";
 import { VideoPlayerModal } from "@/components/ui/VideoPlayerModal";
 import { useBillingStore } from "@/lib/billing";
+import { VerticalStoryboard } from "@/components/studio/VerticalStoryboard";
 
 /* ═══════════════════════════════════════════════════════════════════
    DESIGN TOKENS
@@ -2996,7 +2997,14 @@ export default function CreateMultiFrame() {
   const [uploadProgressMap, setUploadProgressMap] = useState<Record<string, number>>({});
 
   /* Upload & project persistence */
-  const globalInputRef   = useRef<HTMLInputElement>(null);
+  const globalInputRef      = useRef<HTMLInputElement>(null);
+  const frameInputRef       = useRef<HTMLInputElement>(null);
+  const pendingUploadIdRef  = useRef<string | null>(null);
+  const triggerFrameUpload  = useCallback((id: string) => {
+    pendingUploadIdRef.current = id;
+    frameInputRef.current?.click();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const projectIdRef     = useRef<string|null>(null);
   const [isDragging, setIsDragging]   = useState(false);
   const [uploadToast, setUploadToast] = useState<{msg:string;type:"error"|"success"}|null>(null);
@@ -3818,44 +3826,25 @@ export default function CreateMultiFrame() {
               {mobileView === "scenes" && (
                 <motion.div key="scenes" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}
                   className="flex flex-1 flex-col overflow-hidden">
-                  {/* If no frames, show empty state */}
-                  {!filledFrames.length ? (
-                    <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 text-center">
-                      <div className="relative">
-                        <motion.div animate={{rotate:[0,5,-5,0]}} transition={{duration:5,repeat:Infinity,ease:"easeInOut"}}
-                          className="grid h-20 w-20 place-items-center rounded-3xl"
-                          style={{background:ACCENT_GRAD,boxShadow:`0 0 48px -8px ${GLOW_PURPLE}`}}>
-                          <Film className="h-10 w-10 text-white"/>
-                        </motion.div>
-                      </div>
-                      <div>
-                        <h2 className="font-display text-2xl font-black text-white">Build Your Film</h2>
-                        <p className="mt-2 text-[13px] leading-relaxed text-white/45">
-                          Upload photos and arrange them into a cinematic film
-                        </p>
-                      </div>
-                      <motion.button whileTap={{scale:0.97}}
-                        onClick={() => globalInputRef.current?.click()}
-                        className="flex items-center gap-3 rounded-2xl px-6 py-4 font-display text-[15px] font-black text-white"
-                        style={{background:ACCENT_GRAD,boxShadow:`0 12px 40px -8px ${GLOW_PURPLE}`}}>
-                        <Upload className="h-5 w-5"/> Upload First Scene
-                      </motion.button>
-                      <button onClick={addFrame}
-                        className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-white/40 transition hover:text-white/60"
-                        style={{background:"rgba(255,255,255,0.04)",border:`1px solid ${BORDER}`}}>
-                        <Plus className="h-4 w-4"/> Start with blank scenes
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col flex-1 overflow-hidden">
-                      {beginnerMode && (
-                        <WorkflowStepsBar filledCount={filledFrames.length} canGenerate={canGenerate}/>
-                      )}
-                      <div className="flex-1 overflow-hidden">
-                        {TimelineStrip}
-                      </div>
-                    </div>
-                  )}
+                  <VerticalStoryboard
+                    frames={frames}
+                    selectedId={selectedId}
+                    onSelectId={setSelectedId}
+                    onUpdateFrame={updateFrame}
+                    onAddFrame={addFrame}
+                    onRemoveFrame={removeFrame}
+                    onDuplicateFrame={duplicateFrame}
+                    onTriggerUpload={triggerFrameUpload}
+                    canGenerate={canGenerate}
+                    onGenerate={generate}
+                    generating={generating}
+                    cooldownSec={cooldownSec}
+                    engineGradient={engine.gradient}
+                    engineGlow={engine.glow}
+                    credits={credits}
+                    mobileView={mobileView}
+                    onSetMobileView={v => setMobileView(v as MobileView)}
+                  />
                 </motion.div>
               )}
 
@@ -4065,29 +4054,51 @@ export default function CreateMultiFrame() {
       {GenerateBar}
 
       {/* ══ MOBILE BOTTOM TAB BAR ══ */}
-      <div className="relative z-20 flex shrink-0 border-t lg:hidden"
-        style={{borderColor:BORDER,background:"rgba(5,0,15,0.97)",paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
+      <div className="relative z-20 flex shrink-0 items-center border-t lg:hidden"
+        style={{
+          borderColor:"rgba(176,38,255,0.12)",
+          background:"rgba(8,4,18,0.97)",
+          backdropFilter:"blur(20px)",
+          paddingBottom:"env(safe-area-inset-bottom,0px)",
+        }}>
+        {/* Regular tabs */}
         {([
-          {id:"scenes",   label:"Scenes",   icon:Layers,      disabled:false},
-          {id:"preview",  label:"Preview",  icon:MonitorPlay, disabled:false},
-          {id:"director", label:"Direct",   icon:Theater,     disabled:!selectedFrame},
-          {id:"settings", label:"Settings", icon:Settings2,   disabled:false},
-        ] as {id:MobileView;label:string;icon:typeof Layers;disabled:boolean}[]).map(({id,label,icon:Icon,disabled}) => (
+          {id:"scenes",   label:"Scenes",  icon:Layers},
+          {id:"preview",  label:"Preview", icon:MonitorPlay},
+          {id:"director", label:"Voice",   icon:Mic},
+          {id:"settings", label:"Motion",  icon:Camera},
+        ] as {id:MobileView;label:string;icon:typeof Layers}[]).map(({id,label,icon:Icon}) => (
           <button key={id}
-            onClick={() => { if (!disabled) setMobileView(id); }}
-            aria-disabled={disabled}
-            className={"flex flex-1 flex-col items-center gap-0.5 py-3 transition select-none "+(
-              disabled ? "opacity-25 pointer-events-none" :
-              mobileView===id ? "text-white" : "text-white/35 active:text-white/70"
-            )}>
-            <Icon className="h-5 w-5"/>
-            <span className="text-[9px] font-semibold">{label}</span>
-            {mobileView===id && !disabled && (
-              <motion.div layoutId="mobile-tab-indicator" className="absolute bottom-0 h-0.5 w-10 rounded-t-full"
-                style={{background:ACCENT_GRAD}}/>
+            onClick={() => setMobileView(id)}
+            className="flex flex-1 flex-col items-center gap-0.5 py-3 transition select-none">
+            <Icon className={`h-5 w-5 transition ${mobileView===id ? "text-white" : "text-white/30"}`}/>
+            <span className={`text-[9px] font-semibold transition ${mobileView===id ? "text-white/80" : "text-white/25"}`}>{label}</span>
+            {mobileView===id && (
+              <motion.div layoutId="mobile-tab-indicator" className="absolute bottom-0 h-0.5 w-8 rounded-t-full"
+                style={{background:"linear-gradient(90deg,#B026FF,#ec4899)"}}/>
             )}
           </button>
         ))}
+        {/* Render action */}
+        <div className="flex flex-1 items-center justify-center py-2">
+          <motion.button whileTap={{scale:canGenerate?0.94:1}} onClick={canGenerate ? generate : undefined}
+            className="flex flex-col items-center gap-0.5 select-none"
+            style={{opacity: generating ? 0.55 : canGenerate ? 1 : 0.35}}>
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl"
+              style={{
+                background: canGenerate
+                  ? `linear-gradient(135deg, #B026FF, #ec4899)`
+                  : "rgba(255,255,255,0.07)",
+                boxShadow: canGenerate ? "0 0 16px rgba(176,38,255,0.6)" : "none",
+                border: canGenerate ? "none" : "1px solid rgba(255,255,255,0.1)",
+              }}>
+              <Clapperboard className="h-4 w-4 text-white"/>
+            </div>
+            <span className="text-[9px] font-bold text-white/50">
+              {generating ? "…" : cooldownSec > 0 ? `${cooldownSec}s` : "Render"}
+            </span>
+          </motion.button>
+        </div>
       </div>
 
       {/* ══ OVERLAYS ══ */}
@@ -4124,6 +4135,18 @@ export default function CreateMultiFrame() {
         style={{position:"fixed",top:"-300px",left:"-300px",opacity:0,width:"1px",height:"1px",pointerEvents:"none",overflow:"hidden"}}
         onChange={e => {
           if (e.target.files && e.target.files.length > 0) handleGlobalFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      {/* ── Per-frame file input — triggered from VerticalStoryboard scene tap ── */}
+      <input
+        ref={frameInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/jpg,image/*"
+        style={{position:"fixed",top:"-300px",left:"-300px",opacity:0,width:"1px",height:"1px",pointerEvents:"none",overflow:"hidden"}}
+        onChange={e => {
+          const file = e.target.files?.[0];
+          if (file && pendingUploadIdRef.current) uploadFile(pendingUploadIdRef.current, file);
           e.target.value = "";
         }}
       />
