@@ -9,6 +9,7 @@
 import { Router } from "express";
 import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
 import { gateAndConsume } from "../lib/billing.js";
+import { isMockMode } from "../lib/fal.js";
 import { getRequestSupabase } from "../lib/supabaseAuth.js";
 import { logger } from "../lib/logger.js";
 import {
@@ -86,6 +87,18 @@ router.post("/render/submit", requireAuth, async (req, res) => {
     }
   }
 
+  // FAL mock-mode guard (CRITICAL): if FAL_KEY is missing in production,
+  // refuse the cinematic render BEFORE consuming credits. The worker would
+  // otherwise charge 60 credits and silently return demo MP4s. Mirrors the
+  // guard in /generate-video. Dev is permitted so the queue stays testable.
+  if (isMockMode() && process.env["NODE_ENV"] === "production") {
+    logger.error({ userId: user.id }, "[renderJobs] Refusing submit — FAL_KEY missing in production");
+    return res.status(503).json({
+      error: "Cinematic rendering is temporarily unavailable. No credits were charged.",
+      code:  "PROVIDER_NOT_CONFIGURED",
+    });
+  }
+
   // Credit gate (same as synchronous route)
   const gate = await gateAndConsume(req, sb, {
     freeKind:   "video",
@@ -102,7 +115,12 @@ router.post("/render/submit", requireAuth, async (req, res) => {
       priority,
       renderEngine: renderEngine || "luma",
       planCode:     gate.plan,
-      inputPayload: { images, framePrompts, globalPrompt, aspect, quality, format, codec, transition, soundtrackType, frameVoiceTracks },
+      // charged_credits is stashed here so renderWorker can refund the
+      // EXACT amount the gate consumed (post smart-saver, post plan logic)
+      // when an async render fails with a refundable provider error. Without
+      // this the worker would have to guess the cost from the action map
+      // and might refund the wrong amount.
+      inputPayload: { images, framePrompts, globalPrompt, aspect, quality, format, codec, transition, soundtrackType, frameVoiceTracks, charged_credits: gate.cost },
       thumbnailUrl: images[0],
     });
 

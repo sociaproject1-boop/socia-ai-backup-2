@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { generateImage, editImageWithPrompt } from "../lib/openai.js";
-import { imageToVideo, FalError } from "../lib/fal.js";
+import { imageToVideo, isMockMode, FalError } from "../lib/fal.js";
 import { uploadBufferToCloudinary, uploadUrlToCloudinary } from "../lib/cloudinaryServer.js";
 import { imageSemaphore, videoSemaphore } from "../lib/queue.js";
 import { logger } from "../lib/logger.js";
@@ -129,6 +129,16 @@ router.post("/generate-from-preset", requireAuth, async (req, res) => {
   // Effective duration (preset default → override)
   const effectiveDuration: 5 | 10 =
     (durationOverride as 5 | 10 | undefined) ?? preset.durationSec ?? 5;
+
+  // FAL mock-mode guard (CRITICAL): only for video presets, since the image
+  // preset path runs through OpenAI. Refuses BEFORE the credit gate so no
+  // deduction happens when fal.ts would silently return demo MP4s.
+  if (preset.kind === "video" && isMockMode() && process.env["NODE_ENV"] === "production") {
+    return res.status(503).json({
+      error: "Video presets are temporarily unavailable. No credits were charged.",
+      code:  "PROVIDER_NOT_CONFIGURED",
+    });
+  }
 
   // Plan-aware credit gate
   const gate = await gateAndConsume(req, sb, {

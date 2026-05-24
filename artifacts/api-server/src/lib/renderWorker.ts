@@ -18,7 +18,8 @@ import {
   claimNextJob, updateJobProgress, failJob, completeJob, heartbeat,
   recoverStuckJobs, type RenderJob,
 } from "./renderJobsDb.js";
-import { interpolateWithEngine, isMockMode } from "./fal.js";
+import { interpolateWithEngine, isMockMode, FalError } from "./fal.js";
+import { refundCreditsAdmin, shouldRefund } from "./billing.js";
 import { synthesizeAllVoiceTracks, type VoiceTrackConfig } from "./voiceSynthesis.js";
 import { uploadBufferToCloudinary } from "./cloudinaryServer.js";
 import { encodeCinematic }           from "./mediaEncoder.js";
@@ -389,6 +390,58 @@ async function processJob(job: RenderJob): Promise<void> {
     // there for operator debugging since it's not user-facing.
     const canRetry = job.retry_count < job.max_retries;
     await failJob(job, rawMessage, canRetry);
+
+    // Refund-on-terminal-failure (CRITICAL): the async worker never had
+    // refund logic before this — credits charged at /render/submit were
+    // silently kept on any worker-side failure. We now refund the EXACT
+    // amount stashed in input_payload.charged_credits when:
+    //   1. there are no more retries (terminal failure), AND
+    //   2. the error code is in the refundable allowlist (shouldRefund).
+    // Non-retryable user-attributable errors (FAL_MODERATED, etc) are NOT
+    // refunded — matches the sync /generate-video route's behavior.
+    if (!canRetry) {
+      const code = err instanceof FalError ? err.code : "INTERNAL";
+      const chargedRaw = (job.input_payload as Record<string, unknown> | null)?.["charged_credits"];
+      const charged = typeof chargedRaw === "number" && chargedRaw > 0 ? chargedRaw : 0;
+      if (shouldRefund(code) && charged > 0) {
+        try {
+          const result = await refundCreditsAdmin(
+            getServiceClient(),
+            job.user_id,
+            charged,
+            `render_${code.toLowerCase()}`,
+            job.id,
+          );
+          if (result.refunded > 0) {
+            // IDEMPOTENCY GUARD: zero out charged_credits in the job row so
+            // that if the user clicks "retry" on this failed job and it
+            // fails terminally a second time, we don't refund the SAME
+            // original charge twice (architect-reported billing-integrity
+            // bug). Retry endpoint does not re-charge — so without this,
+            // every retry-then-fail mints free credits.
+            try {
+              const sb = getServiceClient();
+              const cleared = { ...(job.input_payload as Record<string, unknown> | null ?? {}), charged_credits: 0, refunded_at: new Date().toISOString() };
+              await sb.from("render_jobs").update({ input_payload: cleared }).eq("id", job.id);
+            } catch (clearErr) {
+              // Non-fatal: refund already happened, log so ops can investigate.
+              logger.error({ jobId: job.id, clearErr }, "[renderWorker] Failed to zero charged_credits after refund — re-refund possible on retry");
+            }
+            logger.info({ jobId: job.id, userId: job.user_id, charged, code }, "[renderWorker] Refunded credits on terminal failure");
+          } else {
+            // refundCreditsAdmin logs the RPC error internally; this branch
+            // means the migration isn't applied or the RPC rejected the call.
+            logger.warn({ jobId: job.id, userId: job.user_id, charged, code }, "[renderWorker] Refund returned 0 — see prior log; manual credit may be required");
+          }
+        } catch (refundErr) {
+          // Defensive: refundCreditsAdmin shouldn't throw, but if anything
+          // upstream does, never mask the original render failure.
+          logger.error({ jobId: job.id, userId: job.user_id, charged, refundErr }, "[renderWorker] REFUND FAILED — manual credit may be required");
+        }
+      } else if (charged > 0) {
+        logger.info({ jobId: job.id, code, charged }, "[renderWorker] Non-refundable failure (user-attributable)");
+      }
+    }
 
     if (canRetry) {
       logger.info({ jobId: job.id, retry: job.retry_count + 1 }, "[renderWorker] Job re-queued for retry");

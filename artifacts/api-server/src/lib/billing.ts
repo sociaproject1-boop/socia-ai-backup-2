@@ -229,3 +229,37 @@ export async function refundCredits(
   }
   return (data ?? { refunded: 0, balance: 0 }) as { refunded: number; balance: number };
 }
+
+/**
+ * Admin refund — for background workers that have no user JWT (e.g. the
+ * cinematic renderWorker). Calls public.refund_credits_admin which accepts
+ * an explicit p_user_id and is GRANTed only to service_role.
+ *
+ * REQUIRES MIGRATION 41 (41-refund-credits-admin.sql). If the migration is
+ * not applied this call will fail with `function does not exist` and the
+ * caller's catch block will log a "manual credit may be required" warning.
+ * It will NOT throw — refund failures must not mask the original error.
+ */
+export async function refundCreditsAdmin(
+  serviceClient: SupabaseClient,
+  userId: string,
+  amount: number,
+  reason: string,
+  ref?: string,
+): Promise<{ refunded: number; balance: number }> {
+  if (amount <= 0) return { refunded: 0, balance: 0 };
+  const { data, error } = await serviceClient.rpc("refund_credits_admin", {
+    p_user_id: userId,
+    p_amount:  amount,
+    p_reason:  reason,
+    p_ref:     ref ?? null,
+  });
+  if (error) {
+    logger.error(
+      { err: error, userId, amount, reason, ref },
+      "[billing] refund_credits_admin RPC failed — apply migration 41 if 'function does not exist'; user may have lost credits otherwise",
+    );
+    return { refunded: 0, balance: 0 };
+  }
+  return (data ?? { refunded: 0, balance: 0 }) as { refunded: number; balance: number };
+}

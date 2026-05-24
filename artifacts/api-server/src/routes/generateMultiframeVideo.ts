@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { interpolateLuma, FalError } from "../lib/fal.js";
+import { interpolateLuma, isMockMode, FalError } from "../lib/fal.js";
 import { uploadBufferToCloudinary } from "../lib/cloudinaryServer.js";
 import { stitchMp4Urls, StitchError } from "../lib/videoStitch.js";
 import { videoSemaphore } from "../lib/queue.js";
@@ -67,6 +67,17 @@ router.post("/generate-multiframe-video", requireAuth, async (req, res) => {
         code: "INVALID_FRAME_URL",
       });
     }
+  }
+
+  // FAL mock-mode guard (CRITICAL): if FAL_KEY is missing in production,
+  // refuse BEFORE consuming credits. fal.ts would silently return demo
+  // MP4s while we charge 60 real credits. Mirrors /generate-video guard.
+  if (isMockMode() && process.env["NODE_ENV"] === "production") {
+    logger.error({ userId: user.id }, "[generateMultiframeVideo] Refusing — FAL_KEY missing in production");
+    return res.status(503).json({
+      error: "Multi-frame video is temporarily unavailable. No credits were charged.",
+      code:  "PROVIDER_NOT_CONFIGURED",
+    });
   }
 
   // ── 2. Credit gate — multi_frame is a flat 60-credit charge (paid). ────

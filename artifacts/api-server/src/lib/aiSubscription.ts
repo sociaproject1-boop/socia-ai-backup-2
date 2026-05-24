@@ -76,8 +76,8 @@ export const AI_PLANS: Record<AIPlanCode, AIPlan> = {
     maxMessages:      50,
     maxOutputTokens:  8000,
     queuePriority:    8,
-    price_php:        1499,
-    price_usd:        24.99,
+    price_php:        999,
+    price_usd:        17.99,
     allowAttachments: "all",
   },
   "super-elite": {
@@ -92,8 +92,8 @@ export const AI_PLANS: Record<AIPlanCode, AIPlan> = {
     maxMessages:      100,
     maxOutputTokens:  16000,
     queuePriority:    10,
-    price_php:        3999,
-    price_usd:        69,
+    price_php:        1999,
+    price_usd:        35,
     allowAttachments: "all",
   },
 };
