@@ -7,6 +7,7 @@
  * drifts.
  */
 import { PRESETS } from "./presets.js";
+import { PROFILE_PERSONAS, type SociaGptProfile } from "./sociaGptProfiles.js";
 
 export type SociaGptMode =
   | "general"
@@ -225,10 +226,45 @@ You ALWAYS know the current date and time — never reply "I don't know the time
 If the user is clearly in a different timezone, convert as needed.`;
 }
 
-export function buildSystemPrompt(mode: SociaGptMode = "general"): string {
-  const steering = MODE_STEERING[mode];
+export interface SystemPromptInput {
+  mode?:    SociaGptMode;
+  profile?: SociaGptProfile;
+  memory?:  string;
+}
+
+/**
+ * Backward-compatible signature: accepts either the original `mode` string
+ * (so existing call sites keep working) or an options object with the new
+ * profile + memory fields.
+ *
+ * Layering: BASE_SYSTEM → time → profile persona (if non-default) → memory
+ * block (if any) → mode steering. Profile-isolated memory is injected
+ * here only — no other code path sees it.
+ */
+export function buildSystemPrompt(
+  input: SystemPromptInput | SociaGptMode = "general",
+): string {
+  const opts: SystemPromptInput = typeof input === "string" ? { mode: input } : input;
+  const mode    = opts.mode    ?? "general";
+  const profile = opts.profile ?? "assistant";
+  const memory  = (opts.memory ?? "").trim();
+
   const time     = buildTimeBlock();
-  const base     = `${BASE_SYSTEM}\n\n${time}`;
+  const steering = MODE_STEERING[mode];
+
+  // Persona block: only emit for non-default profiles so the existing
+  // Assistant behavior is byte-identical to the old build.
+  const personaBlock = profile !== "assistant"
+    ? `\n\nACTIVE PROFILE: ${PROFILE_PERSONAS[profile].label}\n${PROFILE_PERSONAS[profile].persona}`
+    : "";
+
+  // Memory block: cap is enforced at write time (MEMORY_MAX_CHARS), but
+  // we trim again defensively to keep system-prompt token budget bounded.
+  const memoryBlock = memory.length > 0
+    ? `\n\nMEMORY (durable facts about this user from previous sessions in the ${profile} profile — use naturally, never quote verbatim):\n${memory.slice(0, 2000)}`
+    : "";
+
+  const base = `${BASE_SYSTEM}\n\n${time}${personaBlock}${memoryBlock}`;
   return steering ? `${base}\n\n${steering}` : base;
 }
 

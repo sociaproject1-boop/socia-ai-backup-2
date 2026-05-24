@@ -18,6 +18,8 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { logger } from "../lib/logger.js";
 import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/supabaseAuth.js";
 import { buildSystemPrompt, type SociaGptMode } from "../lib/sociaGptSystem.js";
+import { VALID_PROFILES, type SociaGptProfile } from "../lib/sociaGptProfiles.js";
+import { readMemory } from "../lib/memoryStore.js";
 import {
   buildAttachmentParts, validateAttachments,
   type ChatAttachment, type OpenAIContentPart,
@@ -141,6 +143,31 @@ router.post(
       }
       mode = rawMode as SociaGptMode;
     }
+
+    // Profile is orthogonal to mode — sets persona + which memory row to load.
+    // Defaults to "assistant" so clients that don't send it behave identically.
+    let profile: SociaGptProfile = "assistant";
+    const rawProfile = body["profile"];
+    if (rawProfile !== undefined) {
+      if (typeof rawProfile !== "string" || !VALID_PROFILES.has(rawProfile as SociaGptProfile)) {
+        res.status(400).json({ error: "invalid profile" }); return;
+      }
+      profile = rawProfile as SociaGptProfile;
+    }
+
+    // Load this profile's persistent memory snapshot (best-effort — a
+    // failure here must NEVER break chat, so we swallow + log).
+    let memorySummary = "";
+    try {
+      const mem = await readMemory(user.id, profile);
+      memorySummary = mem?.summary ?? "";
+    } catch (err) {
+      logger.warn(
+        { err: err instanceof Error ? err.message : String(err), userId: user.id, profile },
+        "[sociaGpt] memory load failed — continuing without",
+      );
+    }
+    const systemPrompt = buildSystemPrompt({ mode, profile, memory: memorySummary });
 
     // ── 4. Usage limit check (daily) ───────────────────────────────
     const supabase    = getRequestSupabase(req);
@@ -328,7 +355,7 @@ router.post(
           model:  attempt.model,
           stream: true,
           messages: [
-            { role: "system", content: buildSystemPrompt(mode) },
+            { role: "system", content: systemPrompt },
             ...oaMessages,
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ] as any,

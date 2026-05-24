@@ -7,13 +7,14 @@ import {
   ArrowLeft, Send, Trash2, Loader2, Sparkles, Copy,
   Check, RotateCcw, X, Mic, Plus, Image as ImageIcon,
   Film, Upload, Crown, AlertCircle, Clock, RefreshCw,
-  Camera, Folder,
+  Camera, Folder, ChevronDown, Eraser,
 } from "lucide-react";
 import {
-  useSociaGptStore, streamChat,
+  useSociaGptStore, streamChat, resetMemory,
+  PROFILES,
   subscribeActiveModel, getActiveModel,
   type ChatMessage, type ChatAttachment, type ActiveModelMeta,
-  type ChatMessageMeta,
+  type ChatMessageMeta, type SociaGptProfile,
 } from "@/lib/sociaGptClient";
 import { uploadSociaGptFile, detectAttachmentKind } from "@/lib/sociaGptUpload";
 import { MessageMarkdown } from "@/components/socia-gpt/MessageMarkdown";
@@ -33,8 +34,11 @@ export default function SociaGpt() {
   const [, navigate]  = useLocation();
   const messages      = useSociaGptStore((s) => s.messages);
   const mode          = useSociaGptStore((s) => s.mode);
+  const profile       = useSociaGptStore((s) => s.profile);
+  const setProfile    = useSociaGptStore((s) => s.setProfile);
   const clear         = useSociaGptStore((s) => s.clear);
   const removeMessage = useSociaGptStore((s) => s.removeMessage);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const { plan, refresh: refreshPlan } = useAIPlanStore();
 
@@ -200,7 +204,7 @@ export default function SociaGpt() {
 
     try {
       await streamChat({
-        history, mode,
+        history, mode, profile,
         assistantId: placeholder.id,
         signal: ctl.signal,
         onDone: (meta) => {
@@ -229,9 +233,9 @@ export default function SociaGpt() {
     const history = useSociaGptStore.getState().messages
       .filter((m) => !m.pending).slice(-30)
       .map((m) => ({ role: m.role, content: m.content, attachments: m.attachments }));
-    streamChat({ history, mode, assistantId: placeholder.id, signal: ctl.signal })
+    streamChat({ history, mode, profile, assistantId: placeholder.id, signal: ctl.signal })
       .finally(() => { setBusy(false); abortRef.current = null; });
-  }, [busy, cooldownSec, removeMessage, mode]);
+  }, [busy, cooldownSec, removeMessage, mode, profile]);
 
   const stop = useCallback(() => {
     abortRef.current?.abort();
@@ -295,6 +299,11 @@ export default function SociaGpt() {
                 </button>
               )}
               <AutoPill activeModel={activeModel} />
+              <ProfilePill
+                profile={profile}
+                onClick={() => setProfileOpen((v) => !v)}
+                open={profileOpen}
+              />
             </div>
             <AnimatePresence mode="wait" initial={false}>
               <motion.p
@@ -316,7 +325,22 @@ export default function SociaGpt() {
           <motion.button
             whileTap={{ scale: 0.88 }}
             onClick={() => {
-              if (confirm("Clear this conversation?")) { stop(); clear(); }
+              if (confirm("Clear this conversation?")) {
+                // Snapshot current chat into this profile's memory before
+                // wiping the visible history — preserves learned facts.
+                // Guard with !busy: if the assistant is mid-stream the
+                // tail message is incomplete; skipping the pre-clear
+                // snapshot here avoids persisting half a sentence. The
+                // periodic auto-snapshot in streamChat covers normal flow.
+                const live = useSociaGptStore.getState();
+                if (!busy && live.messages.length >= 2) {
+                  void import("@/lib/sociaGptClient")
+                    .then((m) => m.snapshotMemory(profile, live.messages))
+                    .catch(() => {});
+                  live.resetTurnsSinceSnapshot(profile);
+                }
+                stop(); clear();
+              }
             }}
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full"
             style={{
@@ -330,6 +354,86 @@ export default function SociaGpt() {
           </motion.button>
         )}
       </div>
+
+      {/* ── Profile picker dropdown (absolute, below header) ── */}
+      <AnimatePresence>
+        {profileOpen && (
+          <>
+            <motion.div
+              key="profile-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12 }}
+              className="absolute inset-0 z-30"
+              onClick={() => setProfileOpen(false)}
+            />
+            <motion.div
+              key="profile-panel"
+              initial={{ opacity: 0, y: -6, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.98 }}
+              transition={SPRING_SNAPPY}
+              className="absolute left-4 right-4 top-[64px] z-40 rounded-2xl p-2"
+              style={{
+                background:    "rgba(12,10,18,0.96)",
+                border:        "1px solid rgba(139,92,246,0.18)",
+                backdropFilter:"blur(14px)",
+                boxShadow:     "0 18px 50px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.02) inset",
+              }}
+            >
+              <div className="px-2 pb-1.5 pt-1 text-[9px] uppercase tracking-[0.12em] text-white/35">
+                Conversation profile
+              </div>
+              <div className="flex flex-col gap-[2px]">
+                {PROFILES.map((p) => {
+                  const active = p.id === profile;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        setProfile(p.id);
+                        setProfileOpen(false);
+                      }}
+                      className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition"
+                      style={{
+                        background: active ? "rgba(139,92,246,0.14)" : "transparent",
+                        border:     active ? "1px solid rgba(139,92,246,0.32)" : "1px solid transparent",
+                      }}
+                    >
+                      <span className="text-[16px] leading-none">{p.emoji}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] font-medium leading-tight text-white/90">
+                          {p.label}
+                        </span>
+                        <span className="block text-[11px] leading-tight text-white/40">
+                          {p.hint}
+                        </span>
+                      </span>
+                      {active && <Check className="h-3.5 w-3.5 text-violet-300/80" />}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-1 border-t border-white/[0.05] pt-1">
+                <button
+                  onClick={async () => {
+                    const label = PROFILES.find((x) => x.id === profile)?.label ?? profile;
+                    if (!confirm(`Reset ${label} memory? The AI will forget everything it has learned about you in this profile. Your current chat is not affected.`)) return;
+                    await resetMemory(profile);
+                    useSociaGptStore.getState().resetTurnsSinceSnapshot(profile);
+                    setProfileOpen(false);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-[12px] text-white/55 transition hover:text-white/80"
+                >
+                  <Eraser className="h-3.5 w-3.5" />
+                  Reset memory for this profile
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* ── Message list ── */}
       <div
@@ -966,6 +1070,37 @@ const AutoPill = memo(function AutoPill({ activeModel }: { activeModel: ActiveMo
         </motion.span>
       </AnimatePresence>
     </span>
+  );
+});
+
+/* ─── Profile pill (header chip + dropdown toggle) ──────────────────── */
+const ProfilePill = memo(function ProfilePill({
+  profile, onClick, open,
+}: { profile: SociaGptProfile; onClick: () => void; open: boolean }) {
+  const meta = PROFILES.find((p) => p.id === profile) ?? PROFILES[0];
+  return (
+    <button
+      onClick={onClick}
+      title={`Profile: ${meta.label}`}
+      aria-expanded={open}
+      className="relative inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[9px] font-medium tracking-wide uppercase select-none"
+      style={{
+        background:    "rgba(255,255,255,0.04)",
+        border:        "1px solid rgba(255,255,255,0.08)",
+        color:         "rgba(255,255,255,0.7)",
+        letterSpacing: "0.04em",
+      }}
+    >
+      <span className="text-[11px] leading-none">{meta.emoji}</span>
+      <span className="inline-block">{meta.label}</span>
+      <motion.span
+        animate={{ rotate: open ? 180 : 0 }}
+        transition={{ duration: 0.18, ease: "easeOut" }}
+        className="ml-[1px] inline-flex"
+      >
+        <ChevronDown className="h-2.5 w-2.5 opacity-60" />
+      </motion.span>
+    </button>
   );
 });
 

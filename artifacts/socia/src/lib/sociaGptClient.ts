@@ -25,6 +25,30 @@ export const MODES: { id: SociaGptMode; label: string; emoji: string }[] = [
   { id: "video-director", label: "Video Director", emoji: "🎥" },
 ];
 
+/* ─── Profiles (personas + isolated persistent memory) ───────────────── */
+export type SociaGptProfile =
+  | "assistant"
+  | "creative"
+  | "coding"
+  | "cinematic"
+  | "business";
+
+export const PROFILES: {
+  id: SociaGptProfile;
+  label: string;
+  emoji: string;
+  hint:  string;
+}[] = [
+  { id: "assistant", label: "Assistant", emoji: "🤝", hint: "General helpful assistant"      },
+  { id: "creative",  label: "Creative",  emoji: "🎨", hint: "Brainstorming + ideation"      },
+  { id: "coding",    label: "Coding",    emoji: "💻", hint: "Senior software engineer"      },
+  { id: "cinematic", label: "Cinematic", emoji: "🎬", hint: "Shot designer for AI video"    },
+  { id: "business",  label: "Business",  emoji: "📈", hint: "Strategy + operator framing"   },
+];
+
+/** How many user turns between memory snapshots. Mirrors server constant. */
+export const SNAPSHOT_EVERY_N_TURNS = 10;
+
 export interface ChatAttachment {
   kind: "image" | "audio" | "video";
   url:  string;
@@ -57,7 +81,11 @@ export interface ChatMessage {
 interface ChatState {
   messages:               ChatMessage[];
   mode:                   SociaGptMode;
+  profile:                SociaGptProfile;
+  /** Per-profile counter of user turns since the last successful snapshot. */
+  turnsSinceSnapshot:     Record<SociaGptProfile, number>;
   setMode:                (m: SociaGptMode) => void;
+  setProfile:             (p: SociaGptProfile) => void;
   addUser:                (text: string, attachments?: ChatAttachment[]) => ChatMessage;
   addAssistantPlaceholder: () => ChatMessage;
   appendToAssistant:      (id: string, text: string) => void;
@@ -65,14 +93,23 @@ interface ChatState {
   finishAssistant:        (id: string, error?: string, errorCode?: string) => void;
   removeMessage:          (id: string) => void;
   clear:                  () => void;
+  bumpTurnsSinceSnapshot: (p: SociaGptProfile) => number;
+  resetTurnsSinceSnapshot: (p: SociaGptProfile) => void;
 }
+
+const EMPTY_TURN_COUNTS: Record<SociaGptProfile, number> = {
+  assistant: 0, creative: 0, coding: 0, cinematic: 0, business: 0,
+};
 
 export const useSociaGptStore = create<ChatState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       messages: [],
       mode: "general",
-      setMode: (m) => set({ mode: m }),
+      profile: "assistant",
+      turnsSinceSnapshot: { ...EMPTY_TURN_COUNTS },
+      setMode:    (m) => set({ mode: m }),
+      setProfile: (p) => set({ profile: p }),
       addUser: (text, attachments) => {
         const msg: ChatMessage = {
           id:          `u_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -116,13 +153,46 @@ export const useSociaGptStore = create<ChatState>()(
       removeMessage: (id) =>
         set((s) => ({ messages: s.messages.filter((m) => m.id !== id) })),
       clear: () => set({ messages: [] }),
+      bumpTurnsSinceSnapshot: (p) => {
+        const cur  = get().turnsSinceSnapshot[p] ?? 0;
+        const next = cur + 1;
+        set((s) => ({ turnsSinceSnapshot: { ...s.turnsSinceSnapshot, [p]: next } }));
+        return next;
+      },
+      resetTurnsSinceSnapshot: (p) =>
+        set((s) => ({ turnsSinceSnapshot: { ...s.turnsSinceSnapshot, [p]: 0 } })),
     }),
     {
       name: "socia_gpt_chat_v2",
+      version: 1,
+      // Persist messages + mode + profile + counters. Slice keeps the
+      // persisted blob small (last 50 messages is plenty for context).
       partialize: (s) => ({
-        mode:     s.mode,
-        messages: s.messages.slice(-50).map((m) => ({ ...m, pending: false })),
+        mode:               s.mode,
+        profile:            s.profile,
+        turnsSinceSnapshot: s.turnsSinceSnapshot,
+        messages:           s.messages.slice(-50).map((m) => ({ ...m, pending: false })),
       }),
+      // Migrate v0 → v1: backfill profile + turnsSinceSnapshot for existing
+      // users so the store shape is consistent. Messages are preserved
+      // untouched (the user constraint: "Do NOT break existing message history").
+      migrate: (persisted, version) => {
+        const p = (persisted ?? {}) as Record<string, unknown>;
+        if (version < 1) {
+          return {
+            ...p,
+            // Defensively preserve messages + mode even if the v0 shape was
+            // partial. Constraint: NEVER drop existing chat history.
+            messages:           Array.isArray(p["messages"]) ? p["messages"] : [],
+            mode:               (p["mode"] as SociaGptMode) ?? "general",
+            profile:            (p["profile"] as SociaGptProfile) ?? "assistant",
+            turnsSinceSnapshot: (p["turnsSinceSnapshot"] as Record<SociaGptProfile, number>) ?? { ...EMPTY_TURN_COUNTS },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any;
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return p as any;
+      },
     },
   ),
 );
@@ -246,6 +316,7 @@ function sanitizeError(rawMsg: string, code?: string): { msg: string; code: stri
 export async function streamChat(opts: {
   history:       { role: "user" | "assistant"; content: string; attachments?: ChatAttachment[] }[];
   mode:          SociaGptMode;
+  profile?:      SociaGptProfile;
   assistantId:   string;
   signal?:       AbortSignal;
   onDone?:       (meta: StreamChatDoneMeta) => void;
@@ -253,7 +324,8 @@ export async function streamChat(opts: {
   onModel?:      (meta: ActiveModelMeta) => void;
 }): Promise<void> {
   const { history, mode, assistantId, signal, onDone, onRateLimit, onModel } = opts;
-  const store = useSociaGptStore.getState();
+  const profile = opts.profile ?? "assistant";
+  const store   = useSociaGptStore.getState();
 
   const session = await supabase.auth.getSession();
   const token   = session.data.session?.access_token;
@@ -272,7 +344,7 @@ export async function streamChat(opts: {
         Authorization:   `Bearer ${token}`,
         Accept:          "text/event-stream",
       },
-      body: JSON.stringify({ messages: history, mode }),
+      body: JSON.stringify({ messages: history, mode, profile }),
     });
   } catch (err) {
     if (signal?.aborted) { store.finishAssistant(assistantId); return; }
@@ -392,9 +464,90 @@ export async function streamChat(opts: {
     store.finishAssistant(assistantId, msg, code);
   } else {
     store.finishAssistant(assistantId);
+    // Periodic memory snapshot — bump the per-profile counter and, every
+    // SNAPSHOT_EVERY_N_TURNS user turns, fire a fire-and-forget snapshot.
+    // Failure is silent: snapshots are best-effort and must NEVER break
+    // chat or streaming.
+    try {
+      const live  = useSociaGptStore.getState();
+      const next  = live.bumpTurnsSinceSnapshot(profile);
+      if (next >= SNAPSHOT_EVERY_N_TURNS) {
+        live.resetTurnsSinceSnapshot(profile);
+        void snapshotMemory(profile, live.messages).catch(() => {});
+      }
+    } catch { /* ignore */ }
   }
 
   if (!sseError && doneMeta && onDone) {
     onDone(doneMeta);
   }
+}
+
+/* ───────────────────────── Memory API helpers ───────────────────────── */
+
+async function authHeaders(): Promise<Record<string, string> | null> {
+  const session = await supabase.auth.getSession();
+  const token   = session.data.session?.access_token;
+  if (!token) return null;
+  return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+}
+
+export interface MemorySnapshotInfo {
+  profile:        SociaGptProfile;
+  summary:        string;
+  turnCount:      number;
+  snapshotAtTurn: number;
+  updatedAt:      string | null;
+}
+
+/** Fetch the current memory snapshot for a profile (owner-scoped). */
+export async function getMemory(profile: SociaGptProfile): Promise<MemorySnapshotInfo | null> {
+  const headers = await authHeaders();
+  if (!headers) return null;
+  try {
+    const r = await fetch(`/api/socia-gpt/memory/${profile}`, { headers });
+    if (!r.ok) return null;
+    return (await r.json()) as MemorySnapshotInfo;
+  } catch { return null; }
+}
+
+/** Force-snapshot the current conversation into this profile's memory. */
+export async function snapshotMemory(
+  profile: SociaGptProfile,
+  messages: ChatMessage[],
+): Promise<{ ok: boolean; skipped?: boolean; summary?: string } | null> {
+  const headers = await authHeaders();
+  if (!headers) return null;
+  // Send a slim transcript: role + content only, last 30 user-or-assistant turns.
+  const clean = messages
+    .filter((m) => !m.pending && !m.error && (m.role === "user" || m.role === "assistant"));
+  // Send the *total* user turn count across the whole conversation — the
+  // slim window we send below is only the recent context the model needs
+  // to write the summary. The DB row's turn_count should reflect lifetime,
+  // not just the window, so snapshot cadence comparisons stay correct.
+  const totalUserTurns = clean.filter((m) => m.role === "user").length;
+  const slim = clean.slice(-30).map((m) => ({ role: m.role, content: m.content }));
+  if (slim.length === 0) return { ok: true, skipped: true };
+  try {
+    const r = await fetch("/api/socia-gpt/memory/snapshot", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ profile, messages: slim, totalUserTurns }),
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+
+/** Wipe this profile's memory. Other profiles are untouched. */
+export async function resetMemory(profile: SociaGptProfile): Promise<boolean> {
+  const headers = await authHeaders();
+  if (!headers) return false;
+  try {
+    const r = await fetch(`/api/socia-gpt/memory/${profile}`, {
+      method: "DELETE",
+      headers,
+    });
+    return r.ok;
+  } catch { return false; }
 }
