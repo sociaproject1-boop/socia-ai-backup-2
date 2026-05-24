@@ -201,9 +201,11 @@ router.post(
     const lastUserPrompt = last.content || "";
     const historyLen     = messages.filter((m) => m.role === "user").length;
     const totalChars     = messages.reduce((s, m) => s + m.content.length, 0);
-    const hasHeavyAttachment = (last.attachments ?? []).some(
-      (a) => a.kind === "audio" || a.kind === "video",
-    );
+    // Heavy attachment = audio, video, or 2+ images (multimodal reasoning load).
+    const atts        = last.attachments ?? [];
+    const imageCount  = atts.filter((a) => a.kind === "image").length;
+    const hasAudioVid = atts.some((a) => a.kind === "audio" || a.kind === "video");
+    const hasHeavyAttachment = hasAudioVid || imageCount >= 2;
 
     // OpenAI routing decision (used as fallback path).
     const oaRouting = routeModel({
@@ -260,13 +262,16 @@ router.post(
     }
 
     // Final fallback: existing OpenAI integration (always works).
+    // Tier derives from the model OpenAI actually picked, so the UI label
+    // accurately reflects what the user is getting even on the fallback path.
+    const oaTier: "fast" | "smart" = oaRouting.model === "gpt-4o-mini" ? "fast" : "smart";
     attempts.push({
       client:      openai,
       model:       oaRouting.model,
       isReasoning: oaRouting.model === "o1-mini",
       provider:    "openai",
-      tier:        xai?.tier ?? (oaRouting.model === "gpt-4o-mini" ? "fast" : "smart"),
-      label:       (xai?.tier ?? "fast") === "smart" ? "Auto · Smart" : "Auto · Fast",
+      tier:        oaTier,
+      label:       oaTier === "smart" ? "Auto · Smart" : "Auto · Fast",
     });
 
     const maxOutputTokens = plan.maxOutputTokens;
