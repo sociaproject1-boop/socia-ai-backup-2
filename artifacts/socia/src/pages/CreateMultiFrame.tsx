@@ -174,9 +174,9 @@ const ENGINES: RenderEngine[] = [
   { id:"kling-3-omni",    name:"Kling 3.0 Omni",  tagline:"Cinema Grade AI · Perfect Lip Sync · Pro Storytelling", quality:"Cinema", speed:"Medium",speedScore:70, creditsPerSeg:40, creditLabel:"High", bestFor:"Cinematic Films · Lip Sync · Multi-Shot", available:true,  gradient:"linear-gradient(135deg,#b026ff,#ec4899)", glow:"rgba(176,38,255,0.6)",  cinematicRating:10,gpuIntensity:"Heavy",   realism:95 },
   { id:"kling-standard",  name:"Kling Standard",  tagline:"Fast, balanced. Reels & TikTok ready.",    quality:"Balanced", speed:"Fast",      speedScore:85, creditsPerSeg:20, creditLabel:"Low",     bestFor:"Reels · TikTok · Stories", available:true,  gradient:"linear-gradient(135deg,#3b82f6,#6366f1)", glow:"rgba(99,102,241,0.5)",  cinematicRating:7, gpuIntensity:"Light",   realism:72 },
   { id:"kling-cinematic", name:"Kling Cinematic", tagline:"Smooth camera physics. Film-like motion.",  quality:"High",     speed:"Medium",    speedScore:65, creditsPerSeg:30, creditLabel:"Medium",  bestFor:"Music · Brand Films",      available:true,  gradient:"linear-gradient(135deg,#6366f1,#a855f7)", glow:"rgba(168,85,247,0.5)",  cinematicRating:9, gpuIntensity:"Medium",  realism:86 },
-  { id:"runway-gen4",     name:"Runway Gen-4",    tagline:"Hollywood-grade. Commercial realism.",      quality:"Premium",  speed:"Slow",      speedScore:45, creditsPerSeg:50, creditLabel:"High",    bestFor:"Ads · Product Films",      available:true,  gradient:"linear-gradient(135deg,#ec4899,#f43f5e)", glow:"rgba(236,72,153,0.5)",  cinematicRating:9, gpuIntensity:"Heavy",   realism:92 },
-  { id:"veo-ultra",       name:"Veo",              tagline:"Ultra-realistic motion. Cinematic camera control.", quality:"Ultra", speed:"Very Slow", speedScore:25, creditsPerSeg:80, creditLabel:"Extreme", bestFor:"Short Films · Art Cinema", available:true,  gradient:"linear-gradient(135deg,#06b6d4,#3b82f6)", glow:"rgba(6,182,212,0.55)",  cinematicRating:10,gpuIntensity:"Extreme",  realism:97 },
-  { id:"pika",            name:"Pika",            tagline:"Fast stylized AI video. Social-ready.",     quality:"Stylized", speed:"Fast",      speedScore:90, creditsPerSeg:18, creditLabel:"Low",     bestFor:"Reels · TikTok · Shorts",  available:true,  gradient:"linear-gradient(135deg,#a855f7,#ec4899)", glow:"rgba(168,85,247,0.55)", cinematicRating:8, gpuIntensity:"Light",   realism:74 },
+  { id:"runway-gen4",     name:"Runway Gen-4",    tagline:"Hollywood-grade. Commercial realism.",      quality:"Premium",  speed:"Slow",      speedScore:45, creditsPerSeg:50, creditLabel:"High",    bestFor:"Ads · Product Films",      available:false, gradient:"linear-gradient(135deg,#ec4899,#f43f5e)", glow:"rgba(236,72,153,0.5)",  cinematicRating:9, gpuIntensity:"Heavy",   realism:92 },
+  { id:"veo-ultra",       name:"Veo",              tagline:"Ultra-realistic motion. Cinematic camera control.", quality:"Ultra", speed:"Very Slow", speedScore:25, creditsPerSeg:80, creditLabel:"Extreme", bestFor:"Short Films · Art Cinema", available:false, gradient:"linear-gradient(135deg,#06b6d4,#3b82f6)", glow:"rgba(6,182,212,0.55)",  cinematicRating:10,gpuIntensity:"Extreme",  realism:97 },
+  { id:"pika",            name:"Pika",            tagline:"Fast stylized AI video. Social-ready.",     quality:"Stylized", speed:"Fast",      speedScore:90, creditsPerSeg:18, creditLabel:"Low",     bestFor:"Reels · TikTok · Shorts",  available:false, gradient:"linear-gradient(135deg,#a855f7,#ec4899)", glow:"rgba(168,85,247,0.55)", cinematicRating:8, gpuIntensity:"Light",   realism:74 },
   { id:"luma",            name:"Luma",            tagline:"Smooth cinematic motion. Immersive transitions.",   quality:"High", speed:"Medium",    speedScore:68, creditsPerSeg:32, creditLabel:"Medium",  bestFor:"Music · Dreamlike · 3D",   available:true,  gradient:"linear-gradient(135deg,#8b5cf6,#06b6d4)", glow:"rgba(139,92,246,0.55)", cinematicRating:9, gpuIntensity:"Medium",  realism:86 },
   { id:"anime-motion",    name:"Anime Motion",    tagline:"Stylized anime & manga movement.",          quality:"Stylized", speed:"Medium",    speedScore:60, creditsPerSeg:25, creditLabel:"Medium",  bestFor:"Anime · Webtoon · Manga",  available:false, gradient:"linear-gradient(135deg,#22d3ee,#3b82f6)", glow:"rgba(6,182,212,0.5)",   cinematicRating:8, gpuIntensity:"Medium",  realism:65 },
   { id:"hyper-real",      name:"Hyper Real",      tagline:"Ultra-realistic humans, skin, fashion.",    quality:"Editorial",speed:"Slow",      speedScore:40, creditsPerSeg:45, creditLabel:"High",    bestFor:"Fashion · Portrait · Beauty",available:false, gradient:"linear-gradient(135deg,#10b981,#06b6d4)", glow:"rgba(16,185,129,0.5)",  cinematicRating:8, gpuIntensity:"Heavy",   realism:94 },
@@ -972,8 +972,11 @@ function SceneBeatTimeline({
           <Film className="h-4 w-4 text-purple-400"/>
         </div>
         <div>
-          <p className="text-[13px] font-black text-white">Scene Beat Timeline</p>
-          <p className="text-[10px] text-white/35">{frame.durationSec}s scene · {frame.beats.length} beat{frame.beats.length !== 1 ? "s" : ""}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-[13px] font-black text-white">Scene Beat Timeline</p>
+            <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-1.5 py-px text-[8px] font-black uppercase tracking-wider text-amber-300">Preview · Coming Soon</span>
+          </div>
+          <p className="text-[10px] text-white/35">{frame.durationSec}s scene · {frame.beats.length} beat{frame.beats.length !== 1 ? "s" : ""} · per-beat overrides don't yet affect render</p>
         </div>
         <button onClick={addBeat}
           className="ml-auto flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold text-purple-200 transition hover:bg-purple-500/20"
@@ -1339,7 +1342,10 @@ function SceneDirectorContent({
             <div className="flex items-center gap-2">
               <Wand2 className="h-4 w-4 text-purple-400"/>
               <p className="text-[13px] font-black text-white">Cinematic Color Grade</p>
-              <span className="ml-auto text-[10px] text-white/30">Per-scene · Live preview</span>
+              <span className="ml-auto rounded-full border border-amber-400/40 bg-amber-400/10 px-1.5 py-px text-[8px] font-black uppercase tracking-wider text-amber-300">Preview · Coming Soon</span>
+            </div>
+            <div className="rounded-2xl border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2 text-[11px] text-amber-100/80">
+              Color grades show in the preview only — they're not baked into the exported MP4 yet.
             </div>
             {/* Selected grade preview */}
             {frame.colorGrade !== "none" && frame.imageUrl && (
@@ -1717,6 +1723,10 @@ function SceneDirectorContent({
         {/* ═══ SUBTITLES ═══ */}
         {section === "subs" && (
           <>
+            <div className="rounded-2xl border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2 text-[11px] text-amber-200/90">
+              <span className="font-black uppercase tracking-wider text-amber-300">Coming Soon</span>
+              <span className="ml-2 text-amber-100/70">Subtitle controls preview UI only — captions are not yet rendered into your exported film.</span>
+            </div>
             {/* Enable toggle */}
             <button onClick={() => onUpdate({subtitlesEnabled:!frame.subtitlesEnabled})}
               className={"flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition "+(

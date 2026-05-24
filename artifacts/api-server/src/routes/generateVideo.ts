@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createRateLimiter } from "../lib/rateLimit.js";
 import { imageToVideo, interpolateKling, isMockMode, FalError } from "../lib/fal.js";
 import { enhancePrompt } from "../lib/promptEnhancer.js";
 import { uploadUrlToCloudinary } from "../lib/cloudinaryServer.js";
@@ -26,7 +27,7 @@ function falToHttp(err: FalError): { status: number; body: { error: string; code
 
 const router = Router();
 
-router.post("/generate-video", requireAuth, async (req, res) => {
+router.post("/generate-video", createRateLimiter({ name: "gen-video", windowSec: 60, max: 8 }), requireAuth, async (req, res) => {
   const user = getAuthedUser(req);
   const sb   = getRequestSupabase(req);
 

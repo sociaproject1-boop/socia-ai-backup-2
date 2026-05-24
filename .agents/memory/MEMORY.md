@@ -5,5 +5,6 @@
 - [VerticalStoryboard component](vertical-storyboard.md) — Premium cinematic storyboard for mobile "scenes" tab; per-frame upload via frameInputRef + pendingUploadIdRef.
 - [Studio AI model selector](studio-model-selector.md) — `cfg.renderEngine` is the single source of truth; selector must update cfg AND zustand store; add models by extending RenderEngineId + ENGINES.
 - [Billing refund RPC auth](billing-rpc-auth-context.md) — refund_credits needs user JWT; background workers must use refund_credits_admin (migration 41) via refundCreditsAdmin().
+- [Per-IP rate limiting](rate-limit-policy.md) — single-instance in-memory sliding window via lib/rateLimit.ts; Cloudflare-aware IP extraction; webhook + refund endpoints intentionally NOT limited.
 - [Socia GPT memory profiles](socia-gpt-memory-profiles.md) — buildSystemPrompt now takes {mode,profile,memory}; memory failures NEVER block chat (try/catch + skipped flag); snapshot turn_count must be lifetime (client sends totalUserTurns), not slim-window count.
 - [Grok routing resilience](grok-routing-resilience.md) — first-byte timer must outlive create() until first delta; client-abort must never recordGrokFail; retry-once is Grok Smart only.

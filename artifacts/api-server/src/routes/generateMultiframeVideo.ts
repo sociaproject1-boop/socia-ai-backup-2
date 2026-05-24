@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createRateLimiter } from "../lib/rateLimit.js";
 import { interpolateLuma, isMockMode, FalError } from "../lib/fal.js";
 import { uploadBufferToCloudinary } from "../lib/cloudinaryServer.js";
 import { stitchMp4Urls, StitchError } from "../lib/videoStitch.js";
@@ -37,7 +38,7 @@ const MAX_FRAMES = 10;
  *     consecutive user frames are. If the frames depict different characters,
  *     Luma will render exactly that — a hard cut interpolation.
  */
-router.post("/generate-multiframe-video", requireAuth, async (req, res) => {
+router.post("/generate-multiframe-video", createRateLimiter({ name: "gen-mf-video", windowSec: 60, max: 5 }), requireAuth, async (req, res) => {
   const user = getAuthedUser(req);
   const sb = getRequestSupabase(req);
 

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createRateLimiter } from "../lib/rateLimit.js";
 import { generateImage, editImageWithPrompt } from "../lib/openai.js";
 import { imageToVideo, isMockMode, FalError } from "../lib/fal.js";
 import { uploadBufferToCloudinary, uploadUrlToCloudinary } from "../lib/cloudinaryServer.js";
@@ -62,7 +63,7 @@ function falToHttp(err: FalError): { status: number; body: { error: string; code
  *   durationOverride? — 5 | 10, overrides preset's default durationSec for video
  * }
  */
-router.post("/generate-from-preset", requireAuth, async (req, res) => {
+router.post("/generate-from-preset", createRateLimiter({ name: "gen-preset", windowSec: 60, max: 10 }), requireAuth, async (req, res) => {
   const user = getAuthedUser(req);
   const sb = getRequestSupabase(req);
 

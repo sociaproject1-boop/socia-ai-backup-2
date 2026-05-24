@@ -7,6 +7,7 @@
  * POST /api/render/job/:id/cancel  — cancel a queued/in-progress job
  */
 import { Router } from "express";
+import { createRateLimiter } from "../lib/rateLimit.js";
 import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
 import { gateAndConsume } from "../lib/billing.js";
 import { isMockMode } from "../lib/fal.js";
@@ -33,7 +34,7 @@ function planToPriority(planCode: string): number {
    POST /api/render/submit
    Validate inputs, gate credits, create job in DB, return job ID.
 ───────────────────────────────────────────────────────────────────── */
-router.post("/render/submit", requireAuth, async (req, res) => {
+router.post("/render/submit", createRateLimiter({ name: "render-submit", windowSec: 60, max: 6 }), requireAuth, async (req, res) => {
   const user = getAuthedUser(req);
   const sb   = getRequestSupabase(req);
 
@@ -85,6 +86,23 @@ router.post("/render/submit", requireAuth, async (req, res) => {
         code: "INVALID_FRAME_URL",
       });
     }
+  }
+
+  // Engine allow-list (CRITICAL): reject unsupported engines BEFORE the
+  // credit gate. Phase 4 disabled runway-gen4 / veo-ultra / pika in the UI
+  // and removed their silent aliases in fal.ts — but a stale client or a
+  // direct API caller could still submit with one of those IDs. The worker
+  // would then fail with FAL_INVALID_INPUT, which is classified as
+  // user-attributable + non-refundable in billing.ts. Block it here so no
+  // credit is ever consumed for an engine we do not actually run.
+  const SUPPORTED_ENGINES = new Set(["luma", "kling", "kling-pro"]);
+  const requestedEngine = String(renderEngine || "luma");
+  if (!SUPPORTED_ENGINES.has(requestedEngine)) {
+    logger.warn({ userId: user.id, requestedEngine }, "[renderJobs] Rejecting unsupported engine before credit gate");
+    return res.status(400).json({
+      error: `Engine '${requestedEngine}' is not currently available. No credits were charged.`,
+      code:  "ENGINE_UNAVAILABLE",
+    });
   }
 
   // FAL mock-mode guard (CRITICAL): if FAL_KEY is missing in production,
@@ -232,7 +250,7 @@ router.get("/render/queue-position/:id", requireAuth, async (req, res) => {
    POST /api/render/job/:id/retry
    Re-queues a failed or cancelled job owned by the user.
 ───────────────────────────────────────────────────────────────────── */
-router.post("/render/job/:id/retry", requireAuth, async (req, res) => {
+router.post("/render/job/:id/retry", createRateLimiter({ name: "render-retry", windowSec: 60, max: 10 }), requireAuth, async (req, res) => {
   const user    = getAuthedUser(req);
   const jobId   = String(req.params.id);
   const updated = await retryJobForUser(jobId, user.id);

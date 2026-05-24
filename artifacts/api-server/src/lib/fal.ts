@@ -335,9 +335,14 @@ export async function interpolateKling(
  * | kling-standard    | fal.ai Kling         | v1.6/standard             |
  * | kling-cinematic   | fal.ai Kling         | v1.6/pro                  |
  * | kling-master      | fal.ai Kling         | v2.1/master               |
- * | runway-gen4       | (not yet integrated) | throws descriptive error  |
- * | veo-ultra         | (not yet integrated) | throws descriptive error  |
- * | pika-2.2          | (not yet integrated) | throws descriptive error  |
+ * | runway-gen4       | NOT INTEGRATED       | throws FAL_INVALID_INPUT  |
+ * | veo-ultra         | NOT INTEGRATED       | throws FAL_INVALID_INPUT  |
+ * | pika              | NOT INTEGRATED       | throws FAL_INVALID_INPUT  |
+ *
+ * IMPORTANT: runway/veo/pika previously aliased silently to Kling — that
+ * was dishonest and was removed. The frontend now marks these models as
+ * `available: false` (Coming Soon) so users cannot select them. Any direct
+ * API call attempting one of these engines will be rejected.
  */
 export async function interpolateWithEngine(
   engine:    string,
@@ -367,23 +372,24 @@ export async function interpolateWithEngine(
         return await interpolateKling(frame0Url, frame1Url, prompt, aspect, KLING_MASTER);
       case "runway-gen4":
       case "veo-ultra":
-        // Runway Gen-4 / Veo are surfaced by the AI Models orchestrator as
-        // premium cinematic tiers. Both providers are billed per generation
-        // and not wired to fal.ai yet, so we route them through Kling Master
-        // (highest available tier) until their dedicated endpoints ship.
-        // Frontend already prices them above Kling so credits are honoured.
-        return await interpolateKling(frame0Url, frame1Url, prompt, aspect, KLING_MASTER);
       case "pika":
-        // Pika is the "fast & stylized" tier in the orchestrator — route to
-        // Kling Standard (the equivalent fast/cheap fal.ai endpoint) until
-        // the dedicated Pika integration is wired.
-        return await interpolateKling(frame0Url, frame1Url, prompt, aspect, KLING_STANDARD);
+      case "pika-2.2":
+        // Honest hard-stop: these three engines are NOT wired to their
+        // real providers. They previously silently aliased to Kling which
+        // misled paying customers. They are now marked `available:false`
+        // in the frontend (Coming Soon). If someone bypasses the UI and
+        // submits one of these IDs directly, we refuse instead of
+        // pretending — credit gating already returned what it consumed.
+        throw new FalError(
+          "FAL_INVALID_INPUT",
+          `Engine "${engine}" is not yet integrated (Coming Soon). Please choose Kling 3.0 Omni, Kling Standard, Kling Cinematic, Kling Master, or Luma.`,
+        );
       case "luma":
         return await interpolateLuma(frame0Url, frame1Url, prompt, aspect);
       default:
         throw new FalError(
           "FAL_INVALID_INPUT",
-          `Engine "${engine}" is not yet integrated. Available engines: luma, kling-standard, kling-cinematic, kling-master, kling-3-omni, runway-gen4, veo-ultra, pika.`,
+          `Engine "${engine}" is not recognized. Available engines: luma, kling-standard, kling-cinematic, kling-master, kling-3-omni.`,
         );
     }
   } catch (err) {

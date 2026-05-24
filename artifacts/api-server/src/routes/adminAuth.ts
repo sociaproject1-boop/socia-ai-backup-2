@@ -9,6 +9,7 @@ import {
   getServiceClient, isAdminSystemReady, hashPassword, verifyPassword,
   signAdminToken, verifyAdminToken, requireAdmin, audit, getAdminClaims,
 } from "../lib/adminAuth.js";
+import { createRateLimiter, getClientIp } from "../lib/rateLimit.js";
 
 const router: IRouter = Router();
 
@@ -32,7 +33,11 @@ router.get("/admin/auth/needs-setup", async (_req, res) => {
 
 /* ─── POST /api/admin/auth/setup ───────────────────────────────────────── */
 /* One-time bootstrap — only succeeds when zero super_admins exist. */
-router.post("/admin/auth/setup", async (req, res) => {
+router.post("/admin/auth/setup", createRateLimiter({
+  name: "admin-setup",
+  windowSec: 3600,
+  max: 5,
+}), async (req, res) => {
   if (!isAdminSystemReady()) return res.status(503).json({ code: "ADMIN_NOT_CONFIGURED" });
   const sb = getServiceClient()!;
 
@@ -67,7 +72,17 @@ router.post("/admin/auth/setup", async (req, res) => {
 });
 
 /* ─── POST /api/admin/auth/login ───────────────────────────────────────── */
-router.post("/admin/auth/login", async (req, res) => {
+router.post("/admin/auth/login", createRateLimiter({
+  name: "admin-login",
+  windowSec: 60,
+  max: 10,
+  // Scope per IP+username so a guessing attack can't spread across many
+  // usernames from one IP. The `username` field is read from req.body.
+  keyOf: (req) => {
+    const u = String((req.body as { username?: unknown })?.username ?? "").toLowerCase().slice(0, 64);
+    return `admin-login:${getClientIp(req)}:${u}`;
+  },
+}), async (req, res) => {
   if (!isAdminSystemReady()) return res.status(503).json({ code: "ADMIN_NOT_CONFIGURED" });
   const sb = getServiceClient()!;
   const { username, password } = req.body ?? {};

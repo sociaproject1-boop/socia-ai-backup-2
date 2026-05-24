@@ -93,7 +93,7 @@ export const AI_MODELS: AiModel[] = [
     tags: ["Hollywood", "Commercial", "Photoreal", "High-End"],
     gradient: "linear-gradient(135deg,#ec4899,#f43f5e)",
     glow: "rgba(236,72,153,0.55)",
-    available: true,
+    available: false,
   },
   {
     id: "veo-ultra",
@@ -110,7 +110,7 @@ export const AI_MODELS: AiModel[] = [
     tags: ["Ultra HD", "Art Cinema", "Photoreal", "Camera Control"],
     gradient: "linear-gradient(135deg,#06b6d4,#3b82f6)",
     glow: "rgba(6,182,212,0.55)",
-    available: true,
+    available: false,
   },
   {
     id: "pika",
@@ -127,7 +127,7 @@ export const AI_MODELS: AiModel[] = [
     tags: ["Fast", "Stylized", "Social", "Reels"],
     gradient: "linear-gradient(135deg,#a855f7,#ec4899)",
     glow: "rgba(168,85,247,0.55)",
-    available: true,
+    available: false,
   },
   {
     id: "luma",

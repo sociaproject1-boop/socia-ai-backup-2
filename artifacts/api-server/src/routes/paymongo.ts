@@ -39,6 +39,7 @@
 
 import { Router, type Request, type Response } from "express";
 import crypto from "node:crypto";
+import { createRateLimiter } from "../lib/rateLimit.js";
 import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
 import { getServiceClient } from "../lib/adminAuth.js";
 import { logger } from "../lib/logger.js";
@@ -114,7 +115,7 @@ function appOrigin(req: Request): string {
 /* ─────────────────────────────────────────────────────────────────────────
  * POST /api/paymongo/checkout-session
  * ───────────────────────────────────────────────────────────────────── */
-router.post("/paymongo/checkout-session", requireAuth, async (req: Request, res: Response) => {
+router.post("/paymongo/checkout-session", createRateLimiter({ name: "pm-checkout", windowSec: 60, max: 10 }), requireAuth, async (req: Request, res: Response) => {
   const sb = getServiceClient();
   if (!sb) return res.status(503).json({ code: "DB_UNAVAILABLE" });
   if (!process.env["PAYMONGO_SECRET_KEY"]) {
@@ -233,7 +234,7 @@ const SUPPORT_MAX_CENTAVOS = 1_000_000;   //  ₱10,000 — safety ceiling per t
 // malformed client value can't propagate.
 const SUPPORT_METHODS = new Set(["gcash", "paymaya", "card"]);
 
-router.post("/paymongo/support-checkout", requireAuth, async (req: Request, res: Response) => {
+router.post("/paymongo/support-checkout", createRateLimiter({ name: "pm-support-checkout", windowSec: 60, max: 10 }), requireAuth, async (req: Request, res: Response) => {
   const sb = getServiceClient();
   if (!sb) return res.status(503).json({ code: "DB_UNAVAILABLE" });
   if (!process.env["PAYMONGO_SECRET_KEY"]) {

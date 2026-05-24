@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createRateLimiter } from "../lib/rateLimit.js";
 import { generateImage, expandPromptWithAI } from "../lib/openai.js";
 import { enhancePromptAdvanced, expandShortPrompt } from "../lib/promptEnhancer.js";
 import { uploadBufferToCloudinary } from "../lib/cloudinaryServer.js";
@@ -25,7 +26,7 @@ function resolveApiAspect(label: string): "1:1" | "9:16" | "16:9" {
   return "1:1";
 }
 
-router.post("/generate-image", requireAuth, async (req, res) => {
+router.post("/generate-image", createRateLimiter({ name: "gen-image", windowSec: 60, max: 20 }), requireAuth, async (req, res) => {
   const user = getAuthedUser(req);
   const sb   = getRequestSupabase(req);
 
