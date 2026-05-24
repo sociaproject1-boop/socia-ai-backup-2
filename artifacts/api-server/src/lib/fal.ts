@@ -69,7 +69,9 @@ export class FalError extends Error {
       | "FAL_UNAVAILABLE"   // 5xx
       | "FAL_TIMEOUT"
       | "FAL_NO_OUTPUT"
-      | "FAL_FAILED",
+      | "FAL_FAILED"
+      | "PROVIDER_NOT_CONFIGURED",  // operator hasn't set the API key for a real provider
+
     message: string,
     public readonly status?: number,
   ) {
@@ -352,7 +354,16 @@ export async function interpolateWithEngine(
   aspect:    string = "9:16",
 ): Promise<string> {
   // ── Mock mode: FAL_KEY not configured ─────────────────────────────
-  if (isMockMode()) {
+  // Engine-scoped: only fal.ai-backed engines fall through to the demo
+  // MP4. Third-party providers (runway/veo/pika) must surface their own
+  // PROVIDER_NOT_CONFIGURED / FAL_AUTH so the worker refunds correctly
+  // — silently returning a demo for a paid Runway/Veo/Pika call would
+  // be the worst kind of fake.
+  const _FAL_BACKED_FOR_MOCK = new Set([
+    "luma", "kling-standard", "kling-cinematic",
+    "kling-master", "kling-3-omni",
+  ]);
+  if (isMockMode() && _FAL_BACKED_FOR_MOCK.has(engine)) {
     logger.info({ engine, mockCall: _mockCallCount + 1 }, "[fal] mock mode — FAL_KEY not set, returning demo segment");
     return mockSegmentVideo();
   }
@@ -370,20 +381,21 @@ export async function interpolateWithEngine(
         // tier — backed by Kling Master on fal.ai until the dedicated 3.0
         // endpoint ships. Same provider, same billing path.
         return await interpolateKling(frame0Url, frame1Url, prompt, aspect, KLING_MASTER);
-      case "runway-gen4":
-      case "veo-ultra":
+      case "runway-gen4": {
+        // Real Runway adapter — throws PROVIDER_NOT_CONFIGURED (refundable)
+        // when RUNWAY_API_KEY is missing.
+        const { interpolateRunway } = await import("./providers/runway.js");
+        return await interpolateRunway(frame0Url, frame1Url, prompt, aspect);
+      }
+      case "veo-ultra": {
+        const { interpolateVeo } = await import("./providers/veo.js");
+        return await interpolateVeo(frame0Url, frame1Url, prompt, aspect);
+      }
       case "pika":
-      case "pika-2.2":
-        // Honest hard-stop: these three engines are NOT wired to their
-        // real providers. They previously silently aliased to Kling which
-        // misled paying customers. They are now marked `available:false`
-        // in the frontend (Coming Soon). If someone bypasses the UI and
-        // submits one of these IDs directly, we refuse instead of
-        // pretending — credit gating already returned what it consumed.
-        throw new FalError(
-          "FAL_INVALID_INPUT",
-          `Engine "${engine}" is not yet integrated (Coming Soon). Please choose Kling 3.0 Omni, Kling Standard, Kling Cinematic, Kling Master, or Luma.`,
-        );
+      case "pika-2.2": {
+        const { interpolatePika } = await import("./providers/pika.js");
+        return await interpolatePika(frame0Url, frame1Url, prompt, aspect);
+      }
       case "luma":
         return await interpolateLuma(frame0Url, frame1Url, prompt, aspect);
       default:
@@ -393,8 +405,20 @@ export async function interpolateWithEngine(
         );
     }
   } catch (err) {
-    // Runtime fallback: key set but rejected (wrong key) or account out of credit
-    if (err instanceof FalError && (err.code === "FAL_AUTH" || err.code === "FAL_BILLING")) {
+    // Runtime fallback: FAL_KEY was set but the live request was rejected.
+    // ONLY apply this to fal.ai-backed engines (luma, kling-*). The new
+    // third-party adapters (Runway / Veo / Pika) have their OWN keys and
+    // their own billing; silently returning a demo MP4 for their auth
+    // failures would mislead the user and violate the honesty contract.
+    const FAL_BACKED = new Set([
+      "luma", "kling-standard", "kling-cinematic",
+      "kling-master", "kling-3-omni",
+    ]);
+    if (
+      err instanceof FalError &&
+      (err.code === "FAL_AUTH" || err.code === "FAL_BILLING") &&
+      FAL_BACKED.has(engine)
+    ) {
       logger.warn(
         { engine, falCode: err.code, msg: err.message },
         "[fal] Falling back to mock render — FAL_KEY rejected or account out of credit",

@@ -274,6 +274,28 @@ export async function submitRenderJob(params: {
   transition?:        string;
   soundtrackType?:    string;
   frameVoiceTracks?:  FrameVoiceTrack[];
+  /** Per-frame beat timelines, indexed against `images[]`. Each beat
+   *  carries cinematic motion data the worker injects into the AI
+   *  provider prompt via composeSegmentPrompt. */
+  frameBeats?:        Array<Array<{
+    startSec?:       number;
+    endSec?:         number;
+    cameraMove?:     string;
+    motionStrength?: string;
+    facialBehavior?: string;
+    effect?:         string;
+  }>>;
+  /** Per-frame camera / motion / emotion direction. */
+  frameDirections?:   Array<{ cameraMove?: string; motionStrength?: string; emotion?: string }>;
+  /** Per-frame continuity locks (same face, same outfit, etc). */
+  frameContinuity?:   Array<{
+    keepFace?: boolean; keepOutfit?: boolean; keepHairstyle?: boolean;
+    keepEnvironment?: boolean; keepLighting?: boolean; keepCinematicTone?: boolean;
+  }>;
+  /** Project-wide color grade preset; baked into the exported MP4. */
+  projectColorGrade?: string;
+  /** When true and dialogue is present, captions are burned in. */
+  subtitlesEnabled?:  boolean;
 }): Promise<{ jobId: string; billing: Record<string, unknown> }> {
   const token = await getStoredToken();
   const res = await fetch("/api/render/submit", {

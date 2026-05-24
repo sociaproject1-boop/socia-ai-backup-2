@@ -974,9 +974,9 @@ function SceneBeatTimeline({
         <div>
           <div className="flex items-center gap-1.5">
             <p className="text-[13px] font-black text-white">Scene Beat Timeline</p>
-            <span className="rounded-full border border-amber-400/40 bg-amber-400/10 px-1.5 py-px text-[8px] font-black uppercase tracking-wider text-amber-300">Preview · Coming Soon</span>
+            <span className="rounded-full border border-emerald-400/40 bg-emerald-400/10 px-1.5 py-px text-[8px] font-black uppercase tracking-wider text-emerald-300">Live</span>
           </div>
-          <p className="text-[10px] text-white/35">{frame.durationSec}s scene · {frame.beats.length} beat{frame.beats.length !== 1 ? "s" : ""} · per-beat overrides don't yet affect render</p>
+          <p className="text-[10px] text-white/35">{frame.durationSec}s scene · {frame.beats.length} beat{frame.beats.length !== 1 ? "s" : ""} · sent to the render engine as a beat timeline</p>
         </div>
         <button onClick={addBeat}
           className="ml-auto flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold text-purple-200 transition hover:bg-purple-500/20"
@@ -1342,10 +1342,10 @@ function SceneDirectorContent({
             <div className="flex items-center gap-2">
               <Wand2 className="h-4 w-4 text-purple-400"/>
               <p className="text-[13px] font-black text-white">Cinematic Color Grade</p>
-              <span className="ml-auto rounded-full border border-amber-400/40 bg-amber-400/10 px-1.5 py-px text-[8px] font-black uppercase tracking-wider text-amber-300">Preview · Coming Soon</span>
+              <span className="ml-auto rounded-full border border-emerald-400/40 bg-emerald-400/10 px-1.5 py-px text-[8px] font-black uppercase tracking-wider text-emerald-300">Baked into export</span>
             </div>
-            <div className="rounded-2xl border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2 text-[11px] text-amber-100/80">
-              Color grades show in the preview only — they're not baked into the exported MP4 yet.
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] text-white/55">
+              The grade on frame&nbsp;1 becomes the project grade and is rendered straight into the exported MP4 via FFmpeg.
             </div>
             {/* Selected grade preview */}
             {frame.colorGrade !== "none" && frame.imageUrl && (
@@ -1723,9 +1723,9 @@ function SceneDirectorContent({
         {/* ═══ SUBTITLES ═══ */}
         {section === "subs" && (
           <>
-            <div className="rounded-2xl border border-amber-400/30 bg-amber-400/[0.06] px-3 py-2 text-[11px] text-amber-200/90">
-              <span className="font-black uppercase tracking-wider text-amber-300">Coming Soon</span>
-              <span className="ml-2 text-amber-100/70">Subtitle controls preview UI only — captions are not yet rendered into your exported film.</span>
+            <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/[0.06] px-3 py-2 text-[11px] text-emerald-200/90">
+              <span className="font-black uppercase tracking-wider text-emerald-300">Live</span>
+              <span className="ml-2 text-emerald-100/70">When enabled, dialogue lines are burned into the exported MP4 via FFmpeg — they cannot be turned off in the player.</span>
             </div>
             {/* Enable toggle */}
             <button onClick={() => onUpdate({subtitlesEnabled:!frame.subtitlesEnabled})}
@@ -3436,6 +3436,40 @@ export default function CreateMultiFrame() {
         }))
         .filter(t => t.dialogueText.length > 0);
 
+      /* ── Per-frame beat + direction + continuity payloads ───
+         Index aligns with `ordered` (i.e. with `images[]`). Frame N's
+         data describes the segment that animates frame N → frame N+1,
+         so only the first N-1 entries actually matter — but we send all
+         N for clarity. The backend's `composeSegmentPrompt` reads only
+         the first segmentCount entries. */
+      const frameBeats = ordered.map(f => f.beats.map(b => ({
+        startSec:        b.startSec,
+        endSec:          b.endSec,
+        cameraMove:      b.cameraMove,
+        motionStrength:  b.motionStrength,
+        facialBehavior:  b.facialBehavior,
+        effect:          b.effect,
+      })));
+      const frameDirections = ordered.map(f => ({
+        cameraMove:     f.cameraMove,
+        motionStrength: f.motionStrength,
+        emotion:        f.emotion,
+      }));
+      const frameContinuity = ordered.map(f => ({
+        keepFace:          f.keepFace,
+        keepOutfit:        f.keepOutfit,
+        keepHairstyle:     f.keepHairstyle,
+        keepEnvironment:   f.keepEnvironment,
+        keepLighting:      f.keepLighting,
+        keepCinematicTone: f.keepCinematicTone,
+      }));
+      /* Project grade: use the first frame's grade as the project grade.
+         FFmpeg bakes it into the entire exported MP4. */
+      const projectColorGrade = ordered[0]?.colorGrade ?? "none";
+      /* Burn captions when any frame has subtitlesEnabled AND we have
+         dialogue lines to display. The backend confirms both. */
+      const subtitlesEnabled = ordered.some(f => f.subtitlesEnabled) && frameVoiceTracks.length > 0;
+
       /* ── Submit async render job to real backend ── */
       const { jobId } = await submitRenderJob({
         images,
@@ -3449,6 +3483,11 @@ export default function CreateMultiFrame() {
         transition:        cfg.defaultTransition,
         soundtrackType:    cfg.soundtrackType,
         frameVoiceTracks:  frameVoiceTracks.length > 0 ? frameVoiceTracks : undefined,
+        frameBeats,
+        frameDirections,
+        frameContinuity,
+        projectColorGrade,
+        subtitlesEnabled,
       });
 
       /* Store job ID — the useRenderJob hook picks up Socket.IO events

@@ -19,6 +19,8 @@ import { tmpdir }                         from "node:os";
 import { join }                           from "node:path";
 import ffmpegStaticPath                   from "ffmpeg-static";
 import { logger }                         from "./logger.js";
+import { colorGradeArgs, type ColorGradePreset } from "./colorGrade.js";
+import { subtitleBurnArgs } from "./subtitleBurn.js";
 
 const FFMPEG_BIN: string = (ffmpegStaticPath as unknown as string) || "ffmpeg";
 
@@ -59,6 +61,18 @@ export interface CinematicEncodeOptions {
   codec:      string;   // "h264" | "h265"
   transition: string;   // TransitionType value from frontend
   soundtrack: string;   // "none" | anything else → ambient sine tone
+  /**
+   * Optional cinematic color grade preset. Passed straight through to
+   * `colorGrade.ts` → FFmpeg `eq`/`curves` pass. `"none"` or omitted
+   * means skip the grading pass entirely.
+   */
+  colorGrade?: ColorGradePreset | string;
+  /**
+   * Optional valid SRT subtitle text. When non-empty, a final pass runs
+   * `ffmpeg -vf subtitles=...` to permanently burn the captions into the
+   * video stream (libass-rendered, TikTok-safe styling).
+   */
+  subtitlesSrt?: string;
 }
 
 export interface CinematicEncodeResult {
@@ -68,6 +82,15 @@ export interface CinematicEncodeResult {
   stripBuffer:     Buffer;   // 4-frame contact sheet (JPEG)
   durationSec:     number;
   fileSizeBytes:   number;
+  /** Per-segment runtimes (post-probe) so the worker can build correctly
+   *  timed SRT files even when it has already discarded segment paths. */
+  segmentDurations: number[];
+  /** Which post-passes actually ran — surfaced so the worker can log
+   *  honest "graded" / "subtitled" lines instead of guessing. */
+  postPasses: {
+    colorGradeApplied: string | null;
+    subtitlesBurned:   boolean;
+  };
 }
 
 /* ── Internal helpers ────────────────────────────────────────────── */
@@ -290,6 +313,38 @@ export async function encodeCinematic(
       logger.warn({ err: (audioErr as Error).message }, "[mediaEncoder] Audio mix failed, keeping silent video");
     }
 
+    // ── 5b. Color grading pass (optional, baked into final MP4) ─────
+    //
+    // HONESTY RULE: if the user requested a grade and we cannot bake it,
+    // we FAIL the render. We do NOT silently ship un-graded video while
+    // having charged them for a graded one. The renderWorker classifies
+    // ENCODE_FAILED as refundable so credits return.
+    let gradeApplied: string | null = null;
+    if (opts.colorGrade && opts.colorGrade !== "none") {
+      const gradedPath = join(dir, `out_graded.${ext}`);
+      const args = colorGradeArgs(outPath, gradedPath, opts.colorGrade);
+      if (args) {
+        await runFfmpeg(args, "ffmpeg-color-grade");
+        await writeFile(outPath, await readFile(gradedPath));
+        gradeApplied = String(opts.colorGrade);
+        logger.info({ preset: gradeApplied }, "[mediaEncoder] color grade baked");
+      }
+    }
+
+    // ── 5c. Subtitle burn-in pass (optional, permanently in video) ──
+    // Same honesty rule: if subtitles were requested and burn-in fails,
+    // we fail the render. No silent caption-less shipping.
+    let subsBurned = false;
+    if (opts.subtitlesSrt && opts.subtitlesSrt.trim().length > 0) {
+      const srtPath = join(dir, "captions.srt");
+      const subbedPath = join(dir, `out_subbed.${ext}`);
+      await writeFile(srtPath, opts.subtitlesSrt, "utf8");
+      await runFfmpeg(subtitleBurnArgs(outPath, srtPath, subbedPath), "ffmpeg-subtitle-burn");
+      await writeFile(outPath, await readFile(subbedPath));
+      subsBurned = true;
+      logger.info({ srtBytes: opts.subtitlesSrt.length }, "[mediaEncoder] subtitles burned in");
+    }
+
     const finalVideoBuffer = await readFile(outPath);
 
     // ── 6. Thumbnail + preview + strip (parallel, all non-critical) ──
@@ -341,6 +396,11 @@ export async function encodeCinematic(
       stripBuffer,
       durationSec:     Math.round(totalDur),
       fileSizeBytes:   finalVideoBuffer.byteLength,
+      segmentDurations: durations,
+      postPasses: {
+        colorGradeApplied: gradeApplied,
+        subtitlesBurned:   subsBurned,
+      },
     };
   } finally {
     rm(dir, { recursive: true, force: true }).catch(err => {

@@ -19,6 +19,8 @@ import {
   recoverStuckJobs, type RenderJob,
 } from "./renderJobsDb.js";
 import { interpolateWithEngine, isMockMode, FalError } from "./fal.js";
+import { composeSegmentPrompt, type BeatLike } from "./beatPrompt.js";
+import { buildSrtFromScenes, shouldBurnSubtitles } from "./subtitleBurn.js";
 import { refundCreditsAdmin, shouldRefund } from "./billing.js";
 import { synthesizeAllVoiceTracks, type VoiceTrackConfig } from "./voiceSynthesis.js";
 import { uploadBufferToCloudinary } from "./cloudinaryServer.js";
@@ -88,6 +90,14 @@ async function processJob(job: RenderJob): Promise<void> {
     transition     = "fade",
     soundtrackType    = "none",
     frameVoiceTracks  = [] as VoiceTrackConfig[],
+    frameBeats        = [] as BeatLike[][],
+    frameDirections   = [] as Array<{ cameraMove?: string; motionStrength?: string; emotion?: string }>,
+    frameContinuity   = [] as Array<{
+      keepFace?: boolean; keepOutfit?: boolean; keepHairstyle?: boolean;
+      keepEnvironment?: boolean; keepLighting?: boolean; keepCinematicTone?: boolean;
+    }>,
+    projectColorGrade = "none",
+    subtitlesEnabled  = false,
   } = job.input_payload as {
     images?:              string[];
     framePrompts?:        string[];
@@ -99,6 +109,14 @@ async function processJob(job: RenderJob): Promise<void> {
     transition?:          string;
     soundtrackType?:      string;
     frameVoiceTracks?:    VoiceTrackConfig[];
+    frameBeats?:          BeatLike[][];
+    frameDirections?:     Array<{ cameraMove?: string; motionStrength?: string; emotion?: string }>;
+    frameContinuity?:     Array<{
+      keepFace?: boolean; keepOutfit?: boolean; keepHairstyle?: boolean;
+      keepEnvironment?: boolean; keepLighting?: boolean; keepCinematicTone?: boolean;
+    }>;
+    projectColorGrade?:   string;
+    subtitlesEnabled?:    boolean;
   };
 
   const segmentCount = Math.max(0, images.length - 1);
@@ -135,11 +153,30 @@ async function processJob(job: RenderJob): Promise<void> {
     emit(job, "building_prompt_graph", 8, "Building cinematic prompt graph…");
     await sleep(600);
 
-    const resolvedPrompts = images.slice(0, -1).map((_, i) =>
-      (framePrompts[i] && framePrompts[i].trim())
-        ? framePrompts[i].trim()
-        : globalPrompt.trim() || "smooth cinematic transition, natural movement, photorealistic motion",
-    );
+    // Compose per-segment prompts that genuinely carry beats + direction +
+    // continuity locks from the studio into the AI provider request.
+    // Without composeSegmentPrompt, those controls would be discarded here.
+    const resolvedPrompts = images.slice(0, -1).map((_, i) => {
+      const basePrompt =
+        (framePrompts[i] && framePrompts[i].trim())
+          ? framePrompts[i].trim()
+          : globalPrompt.trim() || "smooth cinematic transition, natural movement, photorealistic motion";
+      const dir = frameDirections[i] || {};
+      const cont = frameContinuity[i] || {};
+      return composeSegmentPrompt({
+        basePrompt,
+        cameraMove:        dir.cameraMove,
+        motionStrength:    dir.motionStrength,
+        emotion:           dir.emotion,
+        beats:             frameBeats[i] || [],
+        keepFace:          cont.keepFace,
+        keepOutfit:        cont.keepOutfit,
+        keepHairstyle:     cont.keepHairstyle,
+        keepEnvironment:   cont.keepEnvironment,
+        keepLighting:      cont.keepLighting,
+        keepCinematicTone: cont.keepCinematicTone,
+      });
+    });
 
     await updateJobProgress(job.id, {
       status:   "generating_motion",
@@ -279,14 +316,36 @@ async function processJob(job: RenderJob): Promise<void> {
       emit(job, stg, pct, msg);
     }, 1_800);
 
+    // Build the SRT in two passes: first encode without subtitles to learn
+    // each segment's true duration via probe, then re-encode with the SRT
+    // burn-in. But that doubles render time. Instead: assume the documented
+    // ~5s/clip, hand the SRT in up front, and let mediaEncoder use real
+    // probed durations only for the metadata it returns. This matches the
+    // soft-target the studio already shows the user.
+    const provisionalDurations = Array.from({ length: segmentCount }, () => 5);
+    const subtitleScenes = frameVoiceTracks
+      .filter(t => t.dialogueText.trim().length > 0)
+      .map(t => ({ sceneIndex: t.sceneIndex, dialogueText: t.dialogueText }));
+    const burnSubs = subtitlesEnabled && shouldBurnSubtitles(subtitleScenes);
+    const srt = burnSubs ? buildSrtFromScenes(subtitleScenes, provisionalDurations) : "";
+
     let encodeResult: Awaited<ReturnType<typeof encodeCinematic>>;
     try {
       encodeResult = await encodeCinematic(segmentUrls, {
         quality, format, codec, transition, soundtrack: soundtrackType,
+        colorGrade:   projectColorGrade,
+        subtitlesSrt: srt,
       });
     } finally {
       clearInterval(_progressTimer);
     }
+
+    logger.info({
+      jobId: job.id,
+      colorGradeApplied: encodeResult.postPasses.colorGradeApplied,
+      subtitlesBurned:   encodeResult.postPasses.subtitlesBurned,
+      segmentDurations:  encodeResult.segmentDurations,
+    }, "[renderWorker] Cinematic pipeline post-passes complete");
 
     // ── Stage: uploading ───────────────────────────────────────────
     await updateJobProgress(job.id, {

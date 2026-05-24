@@ -205,6 +205,8 @@ export function shouldRefund(code: string | undefined | null): boolean {
     case "FAL_INVALID_INPUT":
     case "FAL_FORBIDDEN":
       return false; // user-attributable
+    case "PROVIDER_NOT_CONFIGURED":
+      return true;  // operator failure — must refund
     default:
       return false;
   }

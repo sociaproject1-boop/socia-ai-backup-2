@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { createRateLimiter } from "../lib/rateLimit.js";
 import { interpolateLuma, isMockMode, FalError } from "../lib/fal.js";
+import { composeSegmentPrompt } from "../lib/beatPrompt.js";
 import { uploadBufferToCloudinary } from "../lib/cloudinaryServer.js";
 import { stitchMp4Urls, StitchError } from "../lib/videoStitch.js";
 import { videoSemaphore } from "../lib/queue.js";
@@ -47,11 +48,24 @@ router.post("/generate-multiframe-video", createRateLimiter({ name: "gen-mf-vide
     framePrompts = [],
     globalPrompt = "",
     aspect = "9:16",
+    frameBeats = [],
+    frameDirections = [],
+    frameContinuity = [],
   } = req.body as {
     images?: string[];
     framePrompts?: string[];
     globalPrompt?: string;
     aspect?: string;
+    frameBeats?: Array<Array<{
+      startSec?: number; endSec?: number;
+      cameraMove?: string; motionStrength?: string;
+      facialBehavior?: string; effect?: string;
+    }>>;
+    frameDirections?: Array<{ cameraMove?: string; motionStrength?: string; emotion?: string }>;
+    frameContinuity?: Array<{
+      keepFace?: boolean; keepOutfit?: boolean; keepHairstyle?: boolean;
+      keepEnvironment?: boolean; keepLighting?: boolean; keepCinematicTone?: boolean;
+    }>;
   };
 
   // ── 1. Validate inputs ─────────────────────────────────────────────────
@@ -102,10 +116,25 @@ router.post("/generate-multiframe-video", createRateLimiter({ name: "gen-mf-vide
     for (let i = 0; i < segmentCount; i++) {
       const frame0 = images[i];
       const frame1 = images[i + 1];
-      const segPrompt =
+      const basePrompt =
         (framePrompts[i] && framePrompts[i].trim()) ||
         globalPrompt.trim() ||
         "smooth cinematic transition, natural movement, photorealistic motion";
+      const dir = frameDirections[i] || {};
+      const cont = frameContinuity[i] || {};
+      const segPrompt = composeSegmentPrompt({
+        basePrompt,
+        cameraMove:        dir.cameraMove,
+        motionStrength:    dir.motionStrength,
+        emotion:           dir.emotion,
+        beats:             frameBeats[i] || [],
+        keepFace:          cont.keepFace,
+        keepOutfit:        cont.keepOutfit,
+        keepHairstyle:     cont.keepHairstyle,
+        keepEnvironment:   cont.keepEnvironment,
+        keepLighting:      cont.keepLighting,
+        keepCinematicTone: cont.keepCinematicTone,
+      });
 
       logger.info(
         { userId: user.id, segment: i + 1, of: segmentCount },

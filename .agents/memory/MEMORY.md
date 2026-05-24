@@ -4,6 +4,7 @@
 - [CreateMultiFrame real data integration](create-multiframe-integration.md) — socia-trailer was a design demo only; CreateMultiFrame.tsx IS the real studio; summary?.credits is the live user balance from useBillingStore.
 - [VerticalStoryboard component](vertical-storyboard.md) — Premium cinematic storyboard for mobile "scenes" tab; per-frame upload via frameInputRef + pendingUploadIdRef.
 - [Studio AI model selector](studio-model-selector.md) — `cfg.renderEngine` is the single source of truth; selector must update cfg AND zustand store; add models by extending RenderEngineId + ENGINES.
+- [Provider honesty contract](provider-honesty-contract.md) — allow-list IDs, allow-list env-var aliases, and the mock-fallback catch must all stay aligned with the provider switch; otherwise users get charged for engines that can't run or get demo MP4s for paid provider calls.
 - [Billing refund RPC auth](billing-rpc-auth-context.md) — refund_credits needs user JWT; background workers must use refund_credits_admin (migration 41) via refundCreditsAdmin().
 - [Per-IP rate limiting](rate-limit-policy.md) — single-instance in-memory sliding window via lib/rateLimit.ts; Cloudflare-aware IP extraction; webhook + refund endpoints intentionally NOT limited.
 - [Socia GPT memory profiles](socia-gpt-memory-profiles.md) — buildSystemPrompt now takes {mode,profile,memory}; memory failures NEVER block chat (try/catch + skipped flag); snapshot turn_count must be lifetime (client sends totalUserTurns), not slim-window count.
