@@ -11,6 +11,7 @@ import { createRateLimiter } from "../lib/rateLimit.js";
 import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
 import { gateAndConsume } from "../lib/billing.js";
 import { isMockMode } from "../lib/fal.js";
+import { getEngine, isEngineConfigured } from "../lib/engineRegistry.js";
 import { getRequestSupabase } from "../lib/supabaseAuth.js";
 import { logger } from "../lib/logger.js";
 import {
@@ -114,36 +115,37 @@ router.post("/render/submit", createRateLimiter({ name: "render-submit", windowS
   }
 
   // Engine allow-list (CRITICAL): reject unsupported engines BEFORE the
-  // credit gate. The fal/Kling/Luma engines are always available; the
-  // third-party adapters (runway/veo/pika) only enter the allow-list when
-  // their API key is present in env. Any other ID is refused with no
-  // credit consumption.
-  // Must match interpolateWithEngine() in fal.ts exactly — every ID here
-  // has a corresponding `case` there. The old list included "kling" and
-  // "kling-pro" which fal.ts does NOT handle, so requests for those slipped
-  // through the credit gate and then failed with FAL_INVALID_INPUT
-  // (non-refundable). Keep this list in lockstep with fal.ts.
-  const ALWAYS_ON_ENGINES = new Set([
-    "luma", "kling-standard", "kling-cinematic", "kling-master", "kling-3-omni",
-  ]);
-  // Provider engines: each accepts MULTIPLE possible env var names so the
-  // allow-list stays in sync with the adapter's own key-resolution logic.
-  // If the adapter reads `A || B`, the allow-list must check `A || B` too.
-  const PROVIDER_ENGINES: Record<string, string[]> = {
-    "runway-gen4": ["RUNWAY_API_KEY"],
-    "veo-ultra":   ["GOOGLE_VEO_API_KEY", "GOOGLE_GENAI_API_KEY"],
-    "pika":        ["PIKA_API_KEY"],
-    "pika-2.2":    ["PIKA_API_KEY"],
-  };
+  // credit gate. The single source of truth is `engineRegistry.ts` —
+  // it knows which engines are fal-backed and which third-party env
+  // vars each provider requires. Keeping the allow-list, the dispatch
+  // switch in fal.ts, and the /engines/availability endpoint all
+  // converging on the registry is what enforces the honesty contract.
   const requestedEngine = String(renderEngine || "luma");
-  const providerEnvCandidates = PROVIDER_ENGINES[requestedEngine] || [];
-  const providerKeyPresent = providerEnvCandidates.some(k => Boolean((process.env[k] || "").trim()));
-  const engineAvailable = ALWAYS_ON_ENGINES.has(requestedEngine) || providerKeyPresent;
-  if (!engineAvailable) {
-    logger.warn({ userId: user.id, requestedEngine, providerEnvCandidates }, "[renderJobs] Rejecting unconfigured engine before credit gate");
+  const engine = getEngine(requestedEngine);
+  if (!engine) {
+    logger.warn({ userId: user.id, requestedEngine }, "[renderJobs] Rejecting unknown engine before credit gate");
     return res.status(400).json({
-      error: `Engine '${requestedEngine}' is not currently available. No credits were charged.`,
+      error: `Engine '${requestedEngine}' is not recognized. No credits were charged.`,
       code:  "ENGINE_UNAVAILABLE",
+    });
+  }
+  // For third-party providers (non fal-backed), every `requires` group
+  // must have at least one configured env var. isEngineConfigured()
+  // does that AND/OR walk identically to the availability endpoint.
+  if (!engine.falBacked && !isEngineConfigured(requestedEngine)) {
+    // Known engine, but its third-party credentials are missing in env.
+    // Distinct code (PROVIDER_NOT_CONFIGURED) so the client can tell
+    // apart "you asked for something we've never heard of" from "we
+    // know about it but the operator hasn't wired up the API key".
+    // Refundable by definition: nothing was charged.
+    const missing = engine.requires
+      .filter(group => !group.some(env => Boolean((process.env[env] || "").trim())))
+      .map(group => group.join(" or "));
+    logger.warn({ userId: user.id, requestedEngine, missing }, "[renderJobs] Rejecting unconfigured provider engine before credit gate");
+    return res.status(503).json({
+      error: `Engine '${requestedEngine}' is not yet configured on this server. No credits were charged.`,
+      code:  "PROVIDER_NOT_CONFIGURED",
+      missing,
     });
   }
 
@@ -156,7 +158,7 @@ router.post("/render/submit", createRateLimiter({ name: "render-submit", windowS
   if (
     isMockMode() &&
     process.env["NODE_ENV"] === "production" &&
-    ALWAYS_ON_ENGINES.has(requestedEngine)
+    engine.falBacked
   ) {
     logger.error({ userId: user.id, requestedEngine }, "[renderJobs] Refusing submit — FAL_KEY missing in production for fal-backed engine");
     return res.status(503).json({

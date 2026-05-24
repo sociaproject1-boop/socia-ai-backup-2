@@ -83,7 +83,7 @@ const GLOW_GOLD   = "rgba(245,158,11,0.5)";
 /* ═══════════════════════════════════════════════════════════════════
    TYPES
 ═══════════════════════════════════════════════════════════════════ */
-type RenderEngineId  = "kling-3-omni"|"kling-standard"|"kling-cinematic"|"runway-gen4"|"veo-ultra"|"pika"|"luma"|"anime-motion"|"hyper-real";
+type RenderEngineId  = "kling-3-omni"|"kling-standard"|"kling-cinematic"|"runway-gen3"|"runway-gen4"|"veo-ultra"|"pika"|"luma"|"anime-motion"|"hyper-real";
 type TransitionType  = "fade"|"dissolve"|"zoom"|"flash"|"warp"|"slide-left"|"slide-right"|"cinematic-blur"|"glitch"|"anime-cut"|"film-burn"|"speed-ramp";
 type CameraMove      = "static"|"dolly-in"|"dolly-out"|"orbit"|"pan-left"|"pan-right"|"tilt-up"|"tilt-down"|"handheld"|"drone-shot"|"cinematic-push"|"crash-zoom"|"tracking-shot"|"shoulder-cam";
 type MotionStrength  = "subtle"|"balanced"|"strong"|"extreme";
@@ -174,6 +174,7 @@ const ENGINES: RenderEngine[] = [
   { id:"kling-3-omni",    name:"Kling 3.0 Omni",  tagline:"Cinema Grade AI · Perfect Lip Sync · Pro Storytelling", quality:"Cinema", speed:"Medium",speedScore:70, creditsPerSeg:40, creditLabel:"High", bestFor:"Cinematic Films · Lip Sync · Multi-Shot", available:true,  gradient:"linear-gradient(135deg,#b026ff,#ec4899)", glow:"rgba(176,38,255,0.6)",  cinematicRating:10,gpuIntensity:"Heavy",   realism:95 },
   { id:"kling-standard",  name:"Kling Standard",  tagline:"Fast, balanced. Reels & TikTok ready.",    quality:"Balanced", speed:"Fast",      speedScore:85, creditsPerSeg:20, creditLabel:"Low",     bestFor:"Reels · TikTok · Stories", available:true,  gradient:"linear-gradient(135deg,#3b82f6,#6366f1)", glow:"rgba(99,102,241,0.5)",  cinematicRating:7, gpuIntensity:"Light",   realism:72 },
   { id:"kling-cinematic", name:"Kling Cinematic", tagline:"Smooth camera physics. Film-like motion.",  quality:"High",     speed:"Medium",    speedScore:65, creditsPerSeg:30, creditLabel:"Medium",  bestFor:"Music · Brand Films",      available:true,  gradient:"linear-gradient(135deg,#6366f1,#a855f7)", glow:"rgba(168,85,247,0.5)",  cinematicRating:9, gpuIntensity:"Medium",  realism:86 },
+  { id:"runway-gen3",     name:"Runway Gen-3",    tagline:"Fast cinematic motion. Turbo image-to-video.", quality:"High",  speed:"Medium",   speedScore:60, creditsPerSeg:35, creditLabel:"Medium",  bestFor:"Reels · Hooks · Quick Cinematic", available:false, gradient:"linear-gradient(135deg,#f97316,#ec4899)", glow:"rgba(249,115,22,0.5)", cinematicRating:8, gpuIntensity:"Medium",  realism:86 },
   { id:"runway-gen4",     name:"Runway Gen-4",    tagline:"Hollywood-grade. Commercial realism.",      quality:"Premium",  speed:"Slow",      speedScore:45, creditsPerSeg:50, creditLabel:"High",    bestFor:"Ads · Product Films",      available:false, gradient:"linear-gradient(135deg,#ec4899,#f43f5e)", glow:"rgba(236,72,153,0.5)",  cinematicRating:9, gpuIntensity:"Heavy",   realism:92 },
   { id:"veo-ultra",       name:"Veo",              tagline:"Ultra-realistic motion. Cinematic camera control.", quality:"Ultra", speed:"Very Slow", speedScore:25, creditsPerSeg:80, creditLabel:"Extreme", bestFor:"Short Films · Art Cinema", available:false, gradient:"linear-gradient(135deg,#06b6d4,#3b82f6)", glow:"rgba(6,182,212,0.55)",  cinematicRating:10,gpuIntensity:"Extreme",  realism:97 },
   { id:"pika",            name:"Pika",            tagline:"Fast stylized AI video. Social-ready.",     quality:"Stylized", speed:"Fast",      speedScore:90, creditsPerSeg:18, creditLabel:"Low",     bestFor:"Reels · TikTok · Shorts",  available:false, gradient:"linear-gradient(135deg,#a855f7,#ec4899)", glow:"rgba(168,85,247,0.55)", cinematicRating:8, gpuIntensity:"Light",   realism:74 },
@@ -2999,6 +3000,58 @@ export default function CreateMultiFrame() {
   const summary = useBillingStore(s => s.summary);
   const { refresh } = useBillingStore();
   useEffect(() => { refresh(); }, [refresh]);
+
+  /* ─────────── ENGINE AVAILABILITY (server-driven) ───────────
+     Fetch /api/engines/availability and override each ENGINES[i].available
+     to reflect what the server can ACTUALLY run right now. This is the
+     anti-fake rule — the picker must never claim a provider is live
+     when its API key isn't configured server-side. Engines not present
+     in the server response are left untouched (their hardcoded default
+     stands — e.g. anime-motion / hyper-real are studio-only placeholders
+     with no backend yet).
+
+     We mutate ENGINES in place (single module, single page) and bump
+     `availabilityTick` to force a re-render of the engine picker. */
+  const [availabilityTick, setAvailabilityTick] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/engines/availability");
+        if (!res.ok) return;
+        const body = await res.json() as { engines?: Array<{ id: string; available: boolean; reason?: string }> };
+        if (cancelled || !Array.isArray(body.engines)) return;
+        const byId = new Map(body.engines.map(e => [e.id, e]));
+        let changed = false;
+        for (const e of ENGINES) {
+          const live = byId.get(e.id);
+          if (live && live.available !== e.available) {
+            e.available = live.available;
+            changed = true;
+          }
+        }
+        if (changed) setAvailabilityTick(t => t + 1);
+
+        // Reconcile cfg.renderEngine: if the currently-selected engine
+        // is now unavailable (e.g. operator removed the provider key,
+        // or the user's persisted choice is stale), auto-switch to the
+        // first available engine in ENGINES so the Generate button
+        // doesn't submit something the server will refuse. We pick by
+        // ENGINES order so the studio's curated "best default" wins.
+        const liveSelected = byId.get((useStudioModelStore.getState().selectedModelId) as string);
+        if (liveSelected && liveSelected.available === false) {
+          const fallback = ENGINES.find(e => e.available);
+          if (fallback) {
+            setCfg(c => c.renderEngine === fallback.id ? c : { ...c, renderEngine: fallback.id as RenderEngineId });
+            setStudioSelectedModelId(fallback.id as StudioModelId);
+          }
+        }
+      } catch { /* leave hardcoded defaults */ }
+    })();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Reference availabilityTick so the linter knows we use it for re-render.
+  void availabilityTick;
 
   /* Plan gate — requires Pro ₱3,000 (p30), or owner bypass */
   const isPaid   = summary ? (summary.plan_code === "p30" || summary.is_owner) : null;

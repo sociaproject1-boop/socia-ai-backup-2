@@ -1,4 +1,5 @@
 import { logger } from "./logger.js";
+import { isFalBacked } from "./engineRegistry.js";
 
 const FAL_BASE = "https://queue.fal.run";
 
@@ -331,20 +332,23 @@ export async function interpolateKling(
  * returned after a 6–14 s delay so the rest of the pipeline (FFmpeg encode,
  * Cloudinary upload, DB complete) runs identically to a real render.
  *
- * | engine ID         | Provider             | Model                     |
- * |-------------------|----------------------|---------------------------|
- * | luma              | fal.ai Luma          | luma-dream-machine        |
- * | kling-standard    | fal.ai Kling         | v1.6/standard             |
- * | kling-cinematic   | fal.ai Kling         | v1.6/pro                  |
- * | kling-master      | fal.ai Kling         | v2.1/master               |
- * | runway-gen4       | NOT INTEGRATED       | throws FAL_INVALID_INPUT  |
- * | veo-ultra         | NOT INTEGRATED       | throws FAL_INVALID_INPUT  |
- * | pika              | NOT INTEGRATED       | throws FAL_INVALID_INPUT  |
+ * | engine ID         | Provider             | Model / Notes                            |
+ * |-------------------|----------------------|------------------------------------------|
+ * | luma              | fal.ai Luma          | luma-dream-machine                       |
+ * | kling-standard    | fal.ai Kling         | v1.6/standard                            |
+ * | kling-cinematic   | fal.ai Kling         | v1.6/pro                                 |
+ * | kling-master      | fal.ai Kling         | v2.1/master                              |
+ * | kling-3-omni      | fal.ai Kling         | aliased to v2.1/master until 3.0 ships   |
+ * | runway-gen3       | Runway (real)        | gen3a_turbo via RUNWAY_API_KEY           |
+ * | runway-gen4       | Runway (real)        | gen4_turbo via RUNWAY_API_KEY            |
+ * | veo-ultra         | Google Vertex AI     | veo-2.0-generate-001 via service account |
+ * | pika / pika-2.2   | Pika (real)          | pika-2.2 via PIKA_API_KEY                |
  *
- * IMPORTANT: runway/veo/pika previously aliased silently to Kling — that
- * was dishonest and was removed. The frontend now marks these models as
- * `available: false` (Coming Soon) so users cannot select them. Any direct
- * API call attempting one of these engines will be rejected.
+ * Third-party adapters throw `PROVIDER_NOT_CONFIGURED` (refundable)
+ * when their keys are absent — they NEVER silently fall back to a
+ * demo MP4. The frontend's engine picker fetches /api/engines/
+ * availability and disables unavailable engines so users cannot
+ * select something the server cannot run.
  */
 export async function interpolateWithEngine(
   engine:    string,
@@ -359,11 +363,7 @@ export async function interpolateWithEngine(
   // PROVIDER_NOT_CONFIGURED / FAL_AUTH so the worker refunds correctly
   // — silently returning a demo for a paid Runway/Veo/Pika call would
   // be the worst kind of fake.
-  const _FAL_BACKED_FOR_MOCK = new Set([
-    "luma", "kling-standard", "kling-cinematic",
-    "kling-master", "kling-3-omni",
-  ]);
-  if (isMockMode() && _FAL_BACKED_FOR_MOCK.has(engine)) {
+  if (isMockMode() && isFalBacked(engine)) {
     logger.info({ engine, mockCall: _mockCallCount + 1 }, "[fal] mock mode — FAL_KEY not set, returning demo segment");
     return mockSegmentVideo();
   }
@@ -381,43 +381,47 @@ export async function interpolateWithEngine(
         // tier — backed by Kling Master on fal.ai until the dedicated 3.0
         // endpoint ships. Same provider, same billing path.
         return await interpolateKling(frame0Url, frame1Url, prompt, aspect, KLING_MASTER);
+      case "runway-gen3":
       case "runway-gen4": {
-        // Real Runway adapter — throws PROVIDER_NOT_CONFIGURED (refundable)
-        // when RUNWAY_API_KEY is missing.
+        // Real Runway adapter — throws PROVIDER_NOT_CONFIGURED
+        // (refundable) when RUNWAY_API_KEY is missing.
         const { interpolateRunway } = await import("./providers/runway.js");
-        return await interpolateRunway(frame0Url, frame1Url, prompt, aspect);
+        const model = engine === "runway-gen3" ? "gen3a_turbo" : "gen4_turbo";
+        const r = await interpolateRunway(frame0Url, frame1Url, prompt, aspect, model);
+        logger.info({ engine, provider: r.provider, meta: r.metadata, duration: r.duration }, "[fal] provider returned");
+        return r.videoUrl;
       }
       case "veo-ultra": {
         const { interpolateVeo } = await import("./providers/veo.js");
-        return await interpolateVeo(frame0Url, frame1Url, prompt, aspect);
+        const r = await interpolateVeo(frame0Url, frame1Url, prompt, aspect);
+        logger.info({ engine, provider: r.provider, meta: r.metadata, duration: r.duration }, "[fal] provider returned");
+        return r.videoUrl;
       }
       case "pika":
       case "pika-2.2": {
         const { interpolatePika } = await import("./providers/pika.js");
-        return await interpolatePika(frame0Url, frame1Url, prompt, aspect);
+        const r = await interpolatePika(frame0Url, frame1Url, prompt, aspect);
+        logger.info({ engine, provider: r.provider, meta: r.metadata, duration: r.duration }, "[fal] provider returned");
+        return r.videoUrl;
       }
       case "luma":
         return await interpolateLuma(frame0Url, frame1Url, prompt, aspect);
       default:
         throw new FalError(
           "FAL_INVALID_INPUT",
-          `Engine "${engine}" is not recognized. Available engines: luma, kling-standard, kling-cinematic, kling-master, kling-3-omni.`,
+          `Engine "${engine}" is not recognized. See /api/engines/availability for the live list.`,
         );
     }
   } catch (err) {
     // Runtime fallback: FAL_KEY was set but the live request was rejected.
-    // ONLY apply this to fal.ai-backed engines (luma, kling-*). The new
-    // third-party adapters (Runway / Veo / Pika) have their OWN keys and
-    // their own billing; silently returning a demo MP4 for their auth
-    // failures would mislead the user and violate the honesty contract.
-    const FAL_BACKED = new Set([
-      "luma", "kling-standard", "kling-cinematic",
-      "kling-master", "kling-3-omni",
-    ]);
+    // ONLY apply this to fal.ai-backed engines (luma, kling-*). The
+    // third-party adapters (Runway / Veo / Pika) have their OWN keys
+    // and billing; silently returning a demo MP4 for their auth failures
+    // would mislead the user and violate the honesty contract.
     if (
       err instanceof FalError &&
       (err.code === "FAL_AUTH" || err.code === "FAL_BILLING") &&
-      FAL_BACKED.has(engine)
+      isFalBacked(engine)
     ) {
       logger.warn(
         { engine, falCode: err.code, msg: err.message },
