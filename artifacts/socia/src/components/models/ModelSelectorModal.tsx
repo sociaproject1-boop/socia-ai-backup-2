@@ -165,15 +165,36 @@ export function ModelSelectorModal({
               ref={scrollerRef}
               style={{
                 flex: 1,
+                /* CRITICAL: flex children default to `min-height: auto`,
+                   which prevents `overflow-y: auto` from ever activating
+                   inside a `flex: 1` column. Without `minHeight: 0`, the
+                   scroller grows to its content height instead of being
+                   capped by the parent's 100dvh, and the lower model
+                   cards (Veo / Pika / Luma) literally cannot be reached
+                   because nothing scrolls — the page just clips. This is
+                   the root cause of the "lower models can't be tapped"
+                   bug. Do not remove. */
+                minHeight: 0,
                 overflowY: "auto",
                 overflowX: "hidden",
                 WebkitOverflowScrolling: "touch",
                 overscrollBehavior: "contain",
                 scrollbarWidth: "none",
-                paddingBottom: 32,
-                /* CSS containment isolates scroll layout/paint from the
-                   rest of the modal — a major Android-jank win. */
-                contain: "layout paint",
+                /* Explicit hint to Chrome Android / Replit webview that
+                   this surface only handles vertical pan gestures —
+                   prevents the browser from waiting for a horizontal-
+                   swipe interpretation and gives momentum scrolling
+                   immediately on first finger movement. */
+                touchAction: "pan-y",
+                /* Padding bottom = visual breathing room PLUS the home-
+                   indicator safe-area inset, so the last card never
+                   sits behind the iOS gesture bar. */
+                paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 32px)",
+                /* NOTE: previously had `contain: "layout paint"` here —
+                   intended as a paint-isolation win but on Chrome
+                   Android it occasionally creates a compositor layer
+                   that swallows touches that begin near the top edge.
+                   Removed; per-row `contain` is still applied. */
                 ...GPU,
               }}
             >
@@ -203,10 +224,14 @@ export function ModelSelectorModal({
                 </p>
               </div>
 
-              <motion.div
-                layout
-                style={{ display: "flex", flexDirection: "column", gap: 12, padding: "12px 16px 0" }}
-              >
+              {/* Plain div — the previous `motion.div layout` animated
+                  height on every selection swap, which on Android Chrome
+                  intermittently captured touch events on the rows below
+                  the changing region (the "dead tap zone" symptom).
+                  Individual rows still animate in/out via AnimatePresence
+                  on the ModelRow itself; we just don't need the parent
+                  to re-layout-animate too. */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "12px 16px 0" }}>
                 <AnimatePresence initial={false}>
                   {others.map((m) => (
                     <ModelRow
@@ -216,7 +241,7 @@ export function ModelSelectorModal({
                     />
                   ))}
                 </AnimatePresence>
-              </motion.div>
+              </div>
 
               {/* Footer disclaimer */}
               <p style={{
@@ -354,7 +379,14 @@ const FlagshipCard = memo(function FlagshipCard({
       style={{
         position: "relative",
         margin: "14px 16px 18px",
-        height: 280,
+        /* Mobile-first hero sizing. `clamp` keeps it cinematic on tablets
+           and desktop (cap at 280) but shrinks aggressively on small
+           phones so the user can see and reach at least 2–3 catalog rows
+           below it without scrolling. Previously a fixed 280px ate ~40%
+           of a 700-dvh phone viewport, hiding Runway/Veo/Pika/Luma
+           below the fold and contributing to the "lower models
+           unreachable" report. */
+        height: "clamp(200px, 32dvh, 280px)",
         borderRadius: 26,
         overflow: "hidden",
         border: `1.5px solid rgba(176,38,255,0.55)`,
@@ -551,6 +583,13 @@ const ModelRow = memo(function ModelRow({
         opacity: model.available ? 1 : 0.55,
         textAlign: "left",
         width: "100%",
+        /* Removes Android Chrome's 300ms double-tap delay on the row
+           and lets the browser commit the click on first tap-up. */
+        touchAction: "manipulation",
+        /* Minimum tap-target size per WCAG 2.5.5 — ensures the row is
+           always reachable even when the thumbnail/text would otherwise
+           collapse below ~44px. */
+        minHeight: 44,
         boxShadow: hovered && model.available
           ? `0 6px 20px rgba(0,0,0,0.45), 0 0 14px ${model.glow}`
           : "0 4px 14px rgba(0,0,0,0.35)",
