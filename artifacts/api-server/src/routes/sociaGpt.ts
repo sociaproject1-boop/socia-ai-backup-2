@@ -27,6 +27,8 @@ import { checkCooldown, recordRequest, checkAndIncrementUsage } from "../lib/aiR
 import { checkAbuse, escalateCooldown } from "../lib/aiAbuseGuard.js";
 import { trackUsage, AI_PLAN_COST_KEY } from "../lib/usageTracker.js";
 import { routeModel, getLimitMessage, getCooldownMessage } from "../lib/aiModelRouter.js";
+import { getGrok, GROK_FAST, GROK_SMART } from "../lib/grokClient.js";
+import { routeXai } from "../lib/xaiRouter.js";
 
 const router = Router();
 
@@ -193,18 +195,80 @@ router.post(
     }
 
     // ── 7. Smart model routing ──────────────────────────────────────
-    // Pick the cheapest model that satisfies the request, invisibly.
+    // Default = Grok Fast (xAI). Auto-switches to Grok Smart for heavy
+    // reasoning / long context. Falls back to OpenAI (existing router)
+    // if Grok is not configured or fails mid-flight.
     const lastUserPrompt = last.content || "";
     const historyLen     = messages.filter((m) => m.role === "user").length;
+    const totalChars     = messages.reduce((s, m) => s + m.content.length, 0);
+    const hasHeavyAttachment = (last.attachments ?? []).some(
+      (a) => a.kind === "audio" || a.kind === "video",
+    );
 
-    const routing = routeModel({
+    // OpenAI routing decision (used as fallback path).
+    const oaRouting = routeModel({
       plan,
       prompt:     lastUserPrompt,
       historyLen,
       abuseScore: abuse.abuseScore,
     });
 
-    const model           = routing.model;
+    // Grok routing decision (used as primary path when XAI_API_KEY set).
+    const grok = getGrok();
+    const xai  = grok ? routeXai({
+      prompt:     lastUserPrompt,
+      historyLen,
+      totalChars,
+      hasHeavyAttachment,
+    }) : null;
+
+    // Build the ordered fallback chain: [primary, ...backups].
+    // Each attempt has its own client + model. If one errors before any
+    // tokens are emitted, we transparently try the next one.
+    type Attempt = {
+      client:      typeof openai;
+      model:       string;
+      isReasoning: boolean;
+      provider:    "xai" | "openai";
+      tier:        "fast" | "smart";
+      label:       string;
+    };
+
+    const attempts: Attempt[] = [];
+
+    if (grok && xai) {
+      // Primary: Grok at the chosen tier.
+      attempts.push({
+        client:      grok as unknown as typeof openai,
+        model:       xai.tier === "smart" ? GROK_SMART : GROK_FAST,
+        isReasoning: false,
+        provider:    "xai",
+        tier:        xai.tier,
+        label:       xai.tier === "smart" ? "Auto · Smart" : "Auto · Fast",
+      });
+      // Safety net: drop to Grok Fast if Smart fails.
+      if (xai.tier === "smart") {
+        attempts.push({
+          client:      grok as unknown as typeof openai,
+          model:       GROK_FAST,
+          isReasoning: false,
+          provider:    "xai",
+          tier:        "fast",
+          label:       "Auto · Fast",
+        });
+      }
+    }
+
+    // Final fallback: existing OpenAI integration (always works).
+    attempts.push({
+      client:      openai,
+      model:       oaRouting.model,
+      isReasoning: oaRouting.model === "o1-mini",
+      provider:    "openai",
+      tier:        xai?.tier ?? (oaRouting.model === "gpt-4o-mini" ? "fast" : "smart"),
+      label:       (xai?.tier ?? "fast") === "smart" ? "Auto · Smart" : "Auto · Fast",
+    });
+
     const maxOutputTokens = plan.maxOutputTokens;
 
     // ── 8. SSE handshake ───────────────────────────────────────────
@@ -224,52 +288,89 @@ router.post(
     let aborted = false;
     req.on("close", () => { aborted = true; });
 
+    const oaMessages = messages.map((m, i) => {
+      if (i === lastIdx) {
+        return { role: m.role, content: multimodalLastContent } as const;
+      }
+      return { role: m.role, content: m.content } as const;
+    });
+
+    let chosen: Attempt | null = null;
+    let totalChars2 = 0;
+    let lastErr: unknown = null;
+
     try {
-      const oaMessages = messages.map((m, i) => {
-        if (i === lastIdx) {
-          return { role: m.role, content: multimodalLastContent } as const;
+      for (let i = 0; i < attempts.length; i++) {
+        const attempt   = attempts[i];
+        const isLast    = i === attempts.length - 1;
+
+        const completionParams: Parameters<typeof openai.chat.completions.create>[0] = {
+          model:  attempt.model,
+          stream: true,
+          messages: [
+            { role: "system", content: buildSystemPrompt(mode) },
+            ...oaMessages,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ] as any,
+        };
+
+        if (attempt.isReasoning) {
+          (completionParams as unknown as Record<string, unknown>).max_completion_tokens = maxOutputTokens;
+        } else {
+          completionParams.max_tokens = maxOutputTokens;
         }
-        return { role: m.role, content: m.content } as const;
-      });
 
-      // o1-mini uses max_completion_tokens, not max_tokens
-      const isReasoning = model === "o1-mini";
+        let stream: AsyncIterable<{ choices?: Array<{ delta?: { content?: string | null }; finish_reason?: string | null }> }>;
+        try {
+          stream = await attempt.client.chat.completions.create(completionParams) as AsyncIterable<{ choices?: Array<{ delta?: { content?: string | null }; finish_reason?: string | null }> }>;
+        } catch (err) {
+          lastErr = err;
+          logger.warn(
+            { err, provider: attempt.provider, model: attempt.model, attempt: i + 1 },
+            "Socia GPT: provider init failed, trying next",
+          );
+          if (isLast) throw err;
+          continue;
+        }
 
-      const completionParams: Parameters<typeof openai.chat.completions.create>[0] = {
-        model,
-        stream: true,
-        messages: [
-          { role: "system", content: buildSystemPrompt(mode) },
-          ...oaMessages,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ] as any,
-      };
+        // We have a stream — commit to this attempt. Announce the active
+        // model to the client for the subtle "Auto · Fast/Smart" label.
+        chosen = attempt;
+        send("meta", { provider: attempt.provider, tier: attempt.tier, label: attempt.label });
 
-      if (isReasoning) {
-        (completionParams as unknown as Record<string, unknown>).max_completion_tokens = maxOutputTokens;
-      } else {
-        completionParams.max_tokens = maxOutputTokens;
+        try {
+          for await (const chunk of stream) {
+            if (aborted) break;
+            const delta = chunk.choices?.[0]?.delta?.content;
+            if (typeof delta === "string" && delta.length > 0) {
+              totalChars2 += delta.length;
+              send("token", { text: delta });
+            }
+            const finish = chunk.choices?.[0]?.finish_reason;
+            if (finish && finish !== "stop") {
+              send("warning", { finishReason: finish });
+            }
+          }
+          // Successful stream completion — break out of fallback loop.
+          break;
+        } catch (err) {
+          lastErr = err;
+          // Mid-stream failure: if we've already emitted any tokens, we
+          // cannot safely retry (the user is reading them). Surface as
+          // a sanitized warning and stop.
+          if (totalChars2 > 0 || isLast) throw err;
+          logger.warn(
+            { err, provider: attempt.provider, model: attempt.model },
+            "Socia GPT: stream failed before first token, trying next",
+          );
+          // No tokens yet — fall through to next attempt.
+          continue;
+        }
       }
 
-      const stream = await openai.chat.completions.create(completionParams) as AsyncIterable<{ choices?: Array<{ delta?: { content?: string | null }; finish_reason?: string | null }> }>;
-
-      let totalChars = 0;
-      for await (const chunk of stream) {
-        if (aborted) break;
-        const delta = chunk.choices?.[0]?.delta?.content;
-        if (typeof delta === "string" && delta.length > 0) {
-          totalChars += delta.length;
-          send("token", { text: delta });
-        }
-        const finish = chunk.choices?.[0]?.finish_reason;
-        if (finish && finish !== "stop") {
-          send("warning", { finishReason: finish });
-        }
-      }
-
-      if (!aborted) {
+      if (!aborted && chosen) {
         send("done", {
-          chars:   totalChars,
+          chars:   totalChars2,
           plan:    plan.code,
           used:    usageResult.used,
           limit:   usageResult.limit,
@@ -277,9 +378,10 @@ router.post(
         });
 
         logger.info(
-          { userId: user.id, mode, turns: messages.length, chars: totalChars,
-            attCount: last.attachments?.length ?? 0, plan: plan.code, model,
-            routeReason: routing.reason, degraded: routing.degraded },
+          { userId: user.id, mode, turns: messages.length, chars: totalChars2,
+            attCount: last.attachments?.length ?? 0, plan: plan.code,
+            provider: chosen.provider, model: chosen.model, tier: chosen.tier,
+            oaRouteReason: oaRouting.reason, xaiReason: xai?.reason },
           "Socia GPT reply",
         );
 
@@ -287,42 +389,46 @@ router.post(
         void Promise.resolve(supabase.from("ai_requests").insert({
           user_id:          user.id,
           plan_code:        plan.code,
-          model,
+          model:            chosen.model,
           mode,
-          input_chars:      messages.reduce((s, m) => s + m.content.length, 0),
-          output_chars:     totalChars,
+          input_chars:      totalChars,
+          output_chars:     totalChars2,
           attachment_count: last.attachments?.length ?? 0,
           status:           "completed",
           abuse_score:      abuse.abuseScore,
-          route_reason:     routing.reason,
+          route_reason:     `${chosen.provider}:${chosen.tier} ${xai?.reason ?? oaRouting.reason}`,
         })).catch(() => {});
 
         // Fire-and-forget usage tracking
-        const inputChars = messages.reduce((s, m) => s + m.content.length, 0);
-        const costKey    = AI_PLAN_COST_KEY[plan.code] ?? "gpt_msg_mini";
+        const costKey = AI_PLAN_COST_KEY[plan.code] ?? "gpt_msg_mini";
         trackUsage(supabase, user.id, {
           tool_used:       "ai_chat",
           generation_type: costKey,
-          model_used:      model,
+          model_used:      chosen.model,
           status:          "success",
           token_usage: {
-            prompt_tokens:     Math.ceil(inputChars / 4),
-            completion_tokens: Math.ceil(totalChars / 4),
-            total_tokens:      Math.ceil((inputChars + totalChars) / 4),
+            prompt_tokens:     Math.ceil(totalChars / 4),
+            completion_tokens: Math.ceil(totalChars2 / 4),
+            total_tokens:      Math.ceil((totalChars + totalChars2) / 4),
           },
-          metadata: { mode, plan: plan.code, attachment_count: last.attachments?.length ?? 0, routed_model: model },
+          metadata: { mode, plan: plan.code, attachment_count: last.attachments?.length ?? 0, routed_model: chosen.model, provider: chosen.provider, tier: chosen.tier },
         }).catch(() => {});
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Chat failed";
-      logger.error({ err, userId: user.id, mode, plan: plan.code, model }, "Socia GPT error");
+      const raw = err instanceof Error ? err.message : "Chat failed";
+      logger.error(
+        { err, userId: user.id, mode, plan: plan.code, lastErr: raw },
+        "Socia GPT error (all attempts exhausted)",
+      );
 
       if (abuse.abuseScore > 30) escalateCooldown(user.id, 2);
 
+      // Never leak provider details to clients.
+      const safeMsg = "AI service temporarily unavailable. Please try again in a moment.";
       if (!res.headersSent) {
-        res.status(500).json({ error: msg, code: "CHAT_FAILED" }); return;
+        res.status(503).json({ error: safeMsg, code: "CHAT_FAILED" }); return;
       } else {
-        send("error", { error: msg, code: "CHAT_FAILED" });
+        send("error", { error: safeMsg, code: "CHAT_FAILED" });
       }
     } finally {
       clearInterval(heartbeat);

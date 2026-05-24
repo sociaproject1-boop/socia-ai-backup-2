@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import {
   useSociaGptStore, streamChat,
-  type ChatMessage, type ChatAttachment,
+  subscribeActiveModel, getActiveModel,
+  type ChatMessage, type ChatAttachment, type ActiveModelMeta,
 } from "@/lib/sociaGptClient";
 import { uploadSociaGptFile, detectAttachmentKind } from "@/lib/sociaGptUpload";
 import { MessageMarkdown } from "@/components/socia-gpt/MessageMarkdown";
@@ -45,6 +46,9 @@ export default function SociaGpt() {
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [cooldownSec, setCooldownSec] = useState(0);
   const [focused,     setFocused]     = useState(false);
+  const [activeModel, setActiveModel] = useState<ActiveModelMeta | null>(() => getActiveModel());
+
+  useEffect(() => subscribeActiveModel(setActiveModel), []);
 
   const abortRef      = useRef<AbortController | null>(null);
   const scrollerRef   = useRef<HTMLDivElement>(null);
@@ -289,6 +293,29 @@ export default function SociaGpt() {
                   <AIPlanBadge code={planCode} />
                 </button>
               )}
+              <span
+                title={activeModel ? `${activeModel.provider === "xai" ? "Grok" : "Standard"} · ${activeModel.tier}` : "Automatic model selection"}
+                className="inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[9px] font-medium tracking-wide uppercase select-none"
+                style={{
+                  background:   "rgba(139,92,246,0.08)",
+                  border:       "1px solid rgba(139,92,246,0.18)",
+                  color:        "rgba(196,181,253,0.85)",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                <span
+                  className="h-1 w-1 rounded-full"
+                  style={{
+                    background: activeModel?.tier === "smart"
+                      ? "rgba(167,139,250,0.95)"
+                      : "rgba(110,231,183,0.85)",
+                    boxShadow:  activeModel?.tier === "smart"
+                      ? "0 0 6px rgba(167,139,250,0.6)"
+                      : "0 0 6px rgba(110,231,183,0.5)",
+                  }}
+                />
+                Auto
+              </span>
             </div>
             <AnimatePresence mode="wait" initial={false}>
               <motion.p

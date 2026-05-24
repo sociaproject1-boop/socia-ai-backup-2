@@ -119,6 +119,30 @@ export interface StreamChatDoneMeta {
   period:  string;
 }
 
+export interface ActiveModelMeta {
+  provider: "xai" | "openai";
+  tier:     "fast" | "smart";
+  label:    string;
+}
+
+/**
+ * Tiny module-scoped store for the most recently active model label
+ * (e.g. "Auto · Fast"). Kept outside the chat store to avoid re-rendering
+ * the message list when only the header label changes.
+ */
+type ModelListener = (m: ActiveModelMeta | null) => void;
+let _activeModel: ActiveModelMeta | null = null;
+const _modelListeners = new Set<ModelListener>();
+export function getActiveModel(): ActiveModelMeta | null { return _activeModel; }
+export function subscribeActiveModel(fn: ModelListener): () => void {
+  _modelListeners.add(fn);
+  return () => { _modelListeners.delete(fn); };
+}
+function _setActiveModel(m: ActiveModelMeta | null) {
+  _activeModel = m;
+  for (const fn of _modelListeners) fn(m);
+}
+
 /**
  * Sanitize raw API/server error messages so users never see
  * technical details, OpenAI error text, quota messages, etc.
@@ -205,8 +229,9 @@ export async function streamChat(opts: {
   signal?:       AbortSignal;
   onDone?:       (meta: StreamChatDoneMeta) => void;
   onRateLimit?:  (retryAfterSec: number) => void;
+  onModel?:      (meta: ActiveModelMeta) => void;
 }): Promise<void> {
-  const { history, mode, assistantId, signal, onDone, onRateLimit } = opts;
+  const { history, mode, assistantId, signal, onDone, onRateLimit, onModel } = opts;
   const store = useSociaGptStore.getState();
 
   const session = await supabase.auth.getSession();
@@ -293,6 +318,17 @@ export async function streamChat(opts: {
         if (event === "token") {
           const t = (payload as { text?: unknown })?.text;
           if (typeof t === "string") store.appendToAssistant(assistantId, t);
+        } else if (event === "meta") {
+          const p = payload as Partial<ActiveModelMeta>;
+          if (
+            (p.provider === "xai" || p.provider === "openai") &&
+            (p.tier === "fast" || p.tier === "smart") &&
+            typeof p.label === "string"
+          ) {
+            const meta: ActiveModelMeta = { provider: p.provider, tier: p.tier, label: p.label };
+            _setActiveModel(meta);
+            onModel?.(meta);
+          }
         } else if (event === "error") {
           const p  = payload as { error?: unknown; code?: unknown };
           sseError = typeof p.error === "string" ? p.error : "Stream error";
