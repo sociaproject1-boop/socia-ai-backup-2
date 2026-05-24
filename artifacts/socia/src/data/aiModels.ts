@@ -53,8 +53,13 @@ export interface AiModel {
   gradient: string;
   /** Coloured glow shadow. */
   glow: string;
-  /** False → shows "Coming Soon" lock. */
+  /** False → shows the locked / "API key required" state in the picker. */
   available: boolean;
+  /** Optional human-readable reason the engine is unavailable, sourced from
+      the server's /api/engines/availability endpoint (e.g.
+      "Missing: RUNWAY_API_KEY."). Surfaced in the disabled-state toast
+      so the user knows exactly what's needed to enable the engine. */
+  unavailableReason?: string;
   /** True → flagship recommended model. */
   featured?: boolean;
 }

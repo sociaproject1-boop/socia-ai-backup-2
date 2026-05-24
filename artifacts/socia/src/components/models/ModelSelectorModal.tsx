@@ -22,7 +22,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
 import {
   X, Cpu, Check, Coins,
-  Sparkles, Film, ChevronRight,
+  Sparkles, Film, ChevronRight, Lock,
 } from "lucide-react";
 import { useSelectedModel } from "@/hooks/useSelectedModel";
 import type { AiModel, AiModelId } from "@/data/aiModels";
@@ -43,12 +43,20 @@ export function ModelSelectorModal({
   open,
   onClose,
   onSelect,
+  onUnavailableTap,
 }: {
   open: boolean;
   onClose: () => void;
   /** Called AFTER the persisted store is updated so callers can mirror
       the change into their local render config (cfg.renderEngine). */
   onSelect?: (id: AiModelId) => void;
+  /** Called when the user taps a disabled engine row. The picker uses
+      this to surface a toast ("Runway requires RUNWAY_API_KEY") instead
+      of silently swallowing the tap, which previously made disabled
+      engines feel broken. The model's `unavailableReason` (from the
+      server's availability endpoint) is included so the caller can
+      show an actionable message. */
+  onUnavailableTap?: (model: AiModel) => void;
 }) {
   const { model: active, models, setModel } = useSelectedModel();
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -238,6 +246,7 @@ export function ModelSelectorModal({
                       key={m.id}
                       model={m}
                       onSelect={handleSelect}
+                      onUnavailableTap={onUnavailableTap}
                     />
                   ))}
                 </AnimatePresence>
@@ -549,16 +558,27 @@ const FlagshipCard = memo(function FlagshipCard({
 const ModelRow = memo(function ModelRow({
   model,
   onSelect,
+  onUnavailableTap,
 }: {
   model: AiModel;
   onSelect: (id: AiModelId) => void;
+  onUnavailableTap?: (model: AiModel) => void;
 }) {
   /* Localised hover state so the row reacts instantly without forcing the
      parent scroller to re-render. */
   const [hovered, setHovered] = useState(false);
+  /* Disabled rows are STILL tappable — they fire onUnavailableTap so the
+     parent can surface a toast explaining what's needed (e.g. "Runway
+     requires RUNWAY_API_KEY"). Previously the click was a silent no-op,
+     which made the picker feel broken to users who didn't notice the
+     small "Soon" badge. */
   const handleClick = useCallback(() => {
-    if (model.available) onSelect(model.id);
-  }, [model.available, model.id, onSelect]);
+    if (model.available) {
+      onSelect(model.id);
+    } else {
+      onUnavailableTap?.(model);
+    }
+  }, [model, onSelect, onUnavailableTap]);
 
   return (
     <motion.button
@@ -570,17 +590,21 @@ const ModelRow = memo(function ModelRow({
       onClick={handleClick}
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
-      whileTap={model.available ? { scale: 0.98 } : undefined}
-      disabled={!model.available}
+      whileTap={{ scale: 0.985 }}
+      aria-disabled={!model.available}
       style={{
         position: "relative",
         display: "flex", gap: 14,
         padding: 10,
         borderRadius: 20,
         border: `1.5px solid ${hovered && model.available ? "rgba(176,38,255,0.32)" : "rgba(255,255,255,0.07)"}`,
-        background: "rgba(255,255,255,0.03)",
-        cursor: model.available ? "pointer" : "not-allowed",
-        opacity: model.available ? 1 : 0.55,
+        /* Locked rows get a subtle desaturated wash so they read clearly
+           as "not yet wired up" without disappearing entirely. */
+        background: model.available ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.015)",
+        cursor: model.available ? "pointer" : "help",
+        /* Stronger dim than before (45% vs 55%) so locked rows clearly
+           recede behind active ones. */
+        opacity: model.available ? 1 : 0.45,
         textAlign: "left",
         width: "100%",
         /* Removes Android Chrome's 300ms double-tap delay on the row
@@ -593,7 +617,7 @@ const ModelRow = memo(function ModelRow({
         boxShadow: hovered && model.available
           ? `0 6px 20px rgba(0,0,0,0.45), 0 0 14px ${model.glow}`
           : "0 4px 14px rgba(0,0,0,0.35)",
-        transition: "border 0.2s, box-shadow 0.25s",
+        transition: "border 0.2s, box-shadow 0.25s, opacity 0.2s",
         contain: "layout paint",
         ...GPU,
       }}
@@ -618,25 +642,60 @@ const ModelRow = memo(function ModelRow({
             position: "absolute", inset: 0,
             width: "100%", height: "100%",
             objectFit: "cover",
+            /* Desaturate locked thumbnails so they read as "inactive"
+               at a glance, even before the user notices the badge. */
+            filter: model.available ? "none" : "grayscale(0.7) brightness(0.7)",
           }}
         />
+        {/* Lock overlay — only on disabled rows. Sits above the cover
+            (z-index implicit, last in DOM order) and centers a clear
+            padlock glyph so the locked state is unmistakable on mobile
+            where the side badge can be missed. */}
+        {!model.available && (
+          <div style={{
+            position: "absolute", inset: 0,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "rgba(0,0,0,0.45)",
+            pointerEvents: "none",
+          }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: "50%",
+              background: "rgba(0,0,0,0.7)",
+              border: "1px solid rgba(255,255,255,0.18)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              backdropFilter: "blur(6px)",
+            }}>
+              <Lock style={{ width: 14, height: 14, color: "rgba(255,255,255,0.85)" }} />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Right side */}
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2, flexWrap: "wrap" }}>
           <h4 style={{
             fontSize: 15, fontWeight: 800, color: "white",
             letterSpacing: "-0.01em",
           }}>{model.name}</h4>
           {!model.available && (
+            /* Explicit "API key required" pill replaces the ambiguous
+               "Soon" badge — tells the user the engine is real and
+               only needs a credential to come online. Tapping the row
+               surfaces a toast with the specific env var (e.g.
+               "Missing: RUNWAY_API_KEY."). */
             <span style={{
-              fontSize: 8, fontWeight: 800, letterSpacing: "0.08em",
+              display: "inline-flex", alignItems: "center", gap: 4,
+              fontSize: 8.5, fontWeight: 800, letterSpacing: "0.08em",
               textTransform: "uppercase",
-              padding: "2px 6px", borderRadius: 5,
-              background: "rgba(255,255,255,0.08)",
-              color: "rgba(255,255,255,0.55)",
-            }}>Soon</span>
+              padding: "3px 7px", borderRadius: 6,
+              background: "rgba(250,204,21,0.12)",
+              border: "1px solid rgba(250,204,21,0.32)",
+              color: "rgba(253,224,71,0.95)",
+            }}>
+              <Lock style={{ width: 9, height: 9 }} />
+              API key required
+            </span>
           )}
         </div>
         <p style={{

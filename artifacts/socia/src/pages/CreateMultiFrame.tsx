@@ -3020,6 +3020,23 @@ export default function CreateMultiFrame() {
         const res = await fetch("/api/engines/availability");
         if (!res.ok) return;
         const body = await res.json() as { engines?: Array<{ id: string; available: boolean; reason?: string }> };
+        // Mirror availability + reason into AI_MODELS too — the studio's
+        // ModelSelectorModal reads from AI_MODELS (via useSelectedModel),
+        // so without this sync the picker would show stale "available"
+        // flags from the hardcoded data file even after the server says
+        // otherwise. We mutate in-place because AI_MODELS is a module-
+        // level singleton consumed across the studio; the modal re-reads
+        // on every open and uses availabilityTick to force a re-render.
+        try {
+          const { AI_MODELS_BY_ID } = await import("@/data/aiModels");
+          for (const live of body.engines ?? []) {
+            const m = AI_MODELS_BY_ID[live.id as keyof typeof AI_MODELS_BY_ID];
+            if (m) {
+              m.available = live.available;
+              m.unavailableReason = live.available ? undefined : live.reason;
+            }
+          }
+        } catch { /* AI_MODELS sync is best-effort */ }
         if (cancelled || !Array.isArray(body.engines)) return;
         const byId = new Map(body.engines.map(e => [e.id, e]));
         let changed = false;
@@ -4159,6 +4176,17 @@ export default function CreateMultiFrame() {
       <ModelSelectorModal
         open={modelSelectorOpen}
         onClose={() => setModelSelectorOpen(false)}
+        onUnavailableTap={(m) => {
+          // Show the server's exact reason if we have it (e.g.
+          // "Missing: RUNWAY_API_KEY.") so the operator knows the
+          // precise env var to set; otherwise fall back to a generic
+          // message. We do NOT close the modal — the user is browsing
+          // the catalog and should see the next row immediately.
+          const reason = m.unavailableReason
+            ? `${m.name}: ${m.unavailableReason}`
+            : `${m.name} requires an API key to enable. Contact the operator to configure it.`;
+          showToast(reason, "error");
+        }}
         onSelect={(id: AiModelId) => {
           /* The orchestrator and the render pipeline share the same id
              namespace, so we can route the chosen model straight into
