@@ -5,6 +5,7 @@ import { setupSockets } from "./lib/socketServer.js";
 import { prewarmTesseract } from "./lib/ocrService.js";
 import { startRenderWorker }  from "./lib/renderWorker.js";
 import { startStorageCleanup } from "./lib/storageCleanup.js";
+import { warmGrok } from "./lib/grokClient.js";
 
 const rawPort = process.env["PORT"];
 
@@ -31,4 +32,6 @@ httpServer.listen(port, () => {
   );
   // Start storage cleanup (scans stale temp dirs + recovers abandoned jobs every 30 min)
   startStorageCleanup();
+  // Eagerly construct the Grok SDK client so the first chat doesn't pay it.
+  warmGrok();
 });

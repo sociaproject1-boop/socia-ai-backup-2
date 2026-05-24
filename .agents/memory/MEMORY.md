@@ -4,3 +4,4 @@
 - [CreateMultiFrame real data integration](create-multiframe-integration.md) — socia-trailer was a design demo only; CreateMultiFrame.tsx IS the real studio; summary?.credits is the live user balance from useBillingStore.
 - [VerticalStoryboard component](vertical-storyboard.md) — Premium cinematic storyboard for mobile "scenes" tab; per-frame upload via frameInputRef + pendingUploadIdRef.
 - [Studio AI model selector](studio-model-selector.md) — `cfg.renderEngine` is the single source of truth; selector must update cfg AND zustand store; add models by extending RenderEngineId + ENGINES.
+- [Grok routing resilience](grok-routing-resilience.md) — first-byte timer must outlive create() until first delta; client-abort must never recordGrokFail; retry-once is Grok Smart only.

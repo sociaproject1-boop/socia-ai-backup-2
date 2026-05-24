@@ -13,6 +13,7 @@ import {
   useSociaGptStore, streamChat,
   subscribeActiveModel, getActiveModel,
   type ChatMessage, type ChatAttachment, type ActiveModelMeta,
+  type ChatMessageMeta,
 } from "@/lib/sociaGptClient";
 import { uploadSociaGptFile, detectAttachmentKind } from "@/lib/sociaGptUpload";
 import { MessageMarkdown } from "@/components/socia-gpt/MessageMarkdown";
@@ -293,29 +294,7 @@ export default function SociaGpt() {
                   <AIPlanBadge code={planCode} />
                 </button>
               )}
-              <span
-                title={activeModel ? `${activeModel.provider === "xai" ? "Grok" : "Standard"} · ${activeModel.tier}` : "Automatic model selection"}
-                className="inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[9px] font-medium tracking-wide uppercase select-none"
-                style={{
-                  background:   "rgba(139,92,246,0.08)",
-                  border:       "1px solid rgba(139,92,246,0.18)",
-                  color:        "rgba(196,181,253,0.85)",
-                  letterSpacing: "0.04em",
-                }}
-              >
-                <span
-                  className="h-1 w-1 rounded-full"
-                  style={{
-                    background: activeModel?.tier === "smart"
-                      ? "rgba(167,139,250,0.95)"
-                      : "rgba(110,231,183,0.85)",
-                    boxShadow:  activeModel?.tier === "smart"
-                      ? "0 0 6px rgba(167,139,250,0.6)"
-                      : "0 0 6px rgba(110,231,183,0.5)",
-                  }}
-                />
-                Auto
-              </span>
+              <AutoPill activeModel={activeModel} />
             </div>
             <AnimatePresence mode="wait" initial={false}>
               <motion.p
@@ -896,7 +875,7 @@ const Bubble = memo(function Bubble({ m, onRegen, busy, onUpgrade }: {
 
         {!m.pending && m.content && !m.error && (
           <div
-            className="mt-1.5 flex gap-3 px-1 text-[11px]"
+            className="mt-1.5 flex items-center gap-3 px-1 text-[11px]"
             style={{ color: "rgba(255,255,255,0.2)" }}
           >
             <motion.button
@@ -920,10 +899,73 @@ const Bubble = memo(function Bubble({ m, onRegen, busy, onUpgrade }: {
               <RotateCcw className="h-3 w-3" />
               Retry
             </motion.button>
+            {m.meta && <MessageMetaLine meta={m.meta} />}
           </div>
         )}
       </div>
     </motion.div>
+  );
+});
+
+/* ─── Per-message meta line ──────────────────────────────────────────── */
+const PROVIDER_DISPLAY: Record<"xai" | "openai", string> = {
+  xai:    "Grok",
+  openai: "Standard",
+};
+
+const MessageMetaLine = memo(function MessageMetaLine({ meta }: { meta: ChatMessageMeta }) {
+  const seconds = (meta.latencyMs / 1000).toFixed(meta.latencyMs < 10_000 ? 1 : 0);
+  const dot     = meta.tier === "smart" ? "rgba(167,139,250,0.9)" : "rgba(110,231,183,0.85)";
+  return (
+    <span
+      title={`${PROVIDER_DISPLAY[meta.provider]} ${meta.tier} · ${meta.model} · ~${meta.tokens.toLocaleString()} tokens · ${seconds}s`}
+      className="ml-auto inline-flex items-center gap-1.5 text-[10px] tabular-nums select-none"
+      style={{ color: "rgba(255,255,255,0.22)" }}
+    >
+      <span
+        className="h-[5px] w-[5px] rounded-full"
+        style={{ background: dot, boxShadow: `0 0 5px ${dot}` }}
+      />
+      {PROVIDER_DISPLAY[meta.provider]} · {meta.tokens.toLocaleString()}t · {seconds}s
+    </span>
+  );
+});
+
+/* ─── Animated Auto pill (header) ────────────────────────────────────── */
+const AutoPill = memo(function AutoPill({ activeModel }: { activeModel: ActiveModelMeta | null }) {
+  const tier = activeModel?.tier ?? "fast";
+  // Smooth color crossfade between Fast (green) and Smart (purple).
+  const dotColor = tier === "smart" ? "rgba(167,139,250,0.95)" : "rgba(110,231,183,0.85)";
+  const glow     = tier === "smart" ? "0 0 8px rgba(167,139,250,0.75)" : "0 0 8px rgba(110,231,183,0.6)";
+  return (
+    <span
+      title={activeModel ? `${PROVIDER_DISPLAY[activeModel.provider]} · ${tier}` : "Automatic model selection"}
+      className="relative inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[9px] font-medium tracking-wide uppercase select-none overflow-hidden"
+      style={{
+        background:    "rgba(139,92,246,0.08)",
+        border:        "1px solid rgba(139,92,246,0.18)",
+        color:         "rgba(196,181,253,0.85)",
+        letterSpacing: "0.04em",
+      }}
+    >
+      <motion.span
+        className="h-1 w-1 rounded-full"
+        animate={{ backgroundColor: dotColor, boxShadow: glow }}
+        transition={{ duration: 0.45, ease: "easeOut" }}
+      />
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={tier}
+          initial={{ opacity: 0, y: 2 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -2 }}
+          transition={{ duration: 0.22, ease: "easeOut" }}
+          className="inline-block"
+        >
+          {tier === "smart" ? "Auto · Smart" : "Auto"}
+        </motion.span>
+      </AnimatePresence>
+    </span>
   );
 });
 

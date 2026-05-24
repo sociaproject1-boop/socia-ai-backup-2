@@ -34,6 +34,14 @@ export interface ChatAttachment {
   size: number;
 }
 
+export interface ChatMessageMeta {
+  provider:  "xai" | "openai";
+  tier:      "fast" | "smart";
+  model:     string;
+  tokens:    number;
+  latencyMs: number;
+}
+
 export interface ChatMessage {
   id:          string;
   role:        "user" | "assistant";
@@ -43,6 +51,7 @@ export interface ChatMessage {
   error?:      string;
   errorCode?:  string;
   createdAt:   string;
+  meta?:       ChatMessageMeta;
 }
 
 interface ChatState {
@@ -52,6 +61,7 @@ interface ChatState {
   addUser:                (text: string, attachments?: ChatAttachment[]) => ChatMessage;
   addAssistantPlaceholder: () => ChatMessage;
   appendToAssistant:      (id: string, text: string) => void;
+  setAssistantMeta:       (id: string, meta: ChatMessageMeta) => void;
   finishAssistant:        (id: string, error?: string, errorCode?: string) => void;
   removeMessage:          (id: string) => void;
   clear:                  () => void;
@@ -91,6 +101,12 @@ export const useSociaGptStore = create<ChatState>()(
             m.id === id ? { ...m, content: m.content + text } : m,
           ),
         })),
+      setAssistantMeta: (id, meta) =>
+        set((s) => ({
+          messages: s.messages.map((m) =>
+            m.id === id ? { ...m, meta } : m,
+          ),
+        })),
       finishAssistant: (id, error, errorCode) =>
         set((s) => ({
           messages: s.messages.map((m) =>
@@ -112,11 +128,16 @@ export const useSociaGptStore = create<ChatState>()(
 );
 
 export interface StreamChatDoneMeta {
-  chars:   number;
-  plan:    string;
-  used:    number;
-  limit:   number;
-  period:  string;
+  chars:     number;
+  plan:      string;
+  used:      number;
+  limit:     number;
+  period:    string;
+  provider?: "xai" | "openai";
+  tier?:     "fast" | "smart";
+  model?:    string;
+  tokens?:   number;
+  latencyMs?: number;
 }
 
 export interface ActiveModelMeta {
@@ -336,12 +357,28 @@ export async function streamChat(opts: {
         } else if (event === "done") {
           const d  = payload as Partial<StreamChatDoneMeta>;
           doneMeta = {
-            chars:  typeof d.chars  === "number" ? d.chars  : 0,
-            plan:   typeof d.plan   === "string" ? d.plan   : "free",
-            used:   typeof d.used   === "number" ? d.used   : 0,
-            limit:  typeof d.limit  === "number" ? d.limit  : 30,
-            period: typeof d.period === "string" ? d.period : "daily",
+            chars:     typeof d.chars     === "number" ? d.chars     : 0,
+            plan:      typeof d.plan      === "string" ? d.plan      : "free",
+            used:      typeof d.used      === "number" ? d.used      : 0,
+            limit:     typeof d.limit     === "number" ? d.limit     : 30,
+            period:    typeof d.period    === "string" ? d.period    : "daily",
+            provider:  d.provider === "xai" || d.provider === "openai" ? d.provider : undefined,
+            tier:      d.tier === "fast" || d.tier === "smart" ? d.tier : undefined,
+            model:     typeof d.model     === "string" ? d.model     : undefined,
+            tokens:    typeof d.tokens    === "number" ? d.tokens    : undefined,
+            latencyMs: typeof d.latencyMs === "number" ? d.latencyMs : undefined,
           };
+          // Persist the per-message meta so the bubble can render
+          // "Grok 4 · 412 tokens · 1.4s" forever.
+          if (doneMeta.provider && doneMeta.tier && doneMeta.model && doneMeta.tokens !== undefined && doneMeta.latencyMs !== undefined) {
+            store.setAssistantMeta(assistantId, {
+              provider:  doneMeta.provider,
+              tier:      doneMeta.tier,
+              model:     doneMeta.model,
+              tokens:    doneMeta.tokens,
+              latencyMs: doneMeta.latencyMs,
+            });
+          }
         }
       }
     }

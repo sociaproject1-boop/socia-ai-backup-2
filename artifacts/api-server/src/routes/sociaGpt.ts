@@ -27,8 +27,14 @@ import { checkCooldown, recordRequest, checkAndIncrementUsage } from "../lib/aiR
 import { checkAbuse, escalateCooldown } from "../lib/aiAbuseGuard.js";
 import { trackUsage, AI_PLAN_COST_KEY } from "../lib/usageTracker.js";
 import { routeModel, getLimitMessage, getCooldownMessage } from "../lib/aiModelRouter.js";
-import { getGrok, GROK_FAST, GROK_SMART } from "../lib/grokClient.js";
+import {
+  getGrok, GROK_FAST, GROK_SMART,
+  shouldSkipGrok, recordGrokOk, recordGrokFail,
+} from "../lib/grokClient.js";
 import { routeXai } from "../lib/xaiRouter.js";
+
+/** Per-attempt no-first-byte budget. After this, abort + try next attempt. */
+const FIRST_BYTE_TIMEOUT_MS = 8_000;
 
 const router = Router();
 
@@ -201,11 +207,11 @@ router.post(
     const lastUserPrompt = last.content || "";
     const historyLen     = messages.filter((m) => m.role === "user").length;
     const totalChars     = messages.reduce((s, m) => s + m.content.length, 0);
-    // Heavy attachment = audio, video, or 2+ images (multimodal reasoning load).
-    const atts        = last.attachments ?? [];
-    const imageCount  = atts.filter((a) => a.kind === "image").length;
-    const hasAudioVid = atts.some((a) => a.kind === "audio" || a.kind === "video");
-    const hasHeavyAttachment = hasAudioVid || imageCount >= 2;
+    // Any attachment is "heavy" enough to want Smart — image/audio/video all
+    // benefit from stronger multimodal reasoning. Streaming speed is preserved
+    // because Grok Smart still streams the same way.
+    const atts = last.attachments ?? [];
+    const hasHeavyAttachment = atts.length > 0;
 
     // OpenAI routing decision (used as fallback path).
     const oaRouting = routeModel({
@@ -215,9 +221,11 @@ router.post(
       abuseScore: abuse.abuseScore,
     });
 
-    // Grok routing decision (used as primary path when XAI_API_KEY set).
-    const grok = getGrok();
-    const xai  = grok ? routeXai({
+    // Grok routing decision (used as primary path when XAI_API_KEY set
+    // AND the health breaker is closed).
+    const grok       = getGrok();
+    const grokHealthy = grok !== null && !shouldSkipGrok();
+    const xai        = grokHealthy ? routeXai({
       prompt:     lastUserPrompt,
       historyLen,
       totalChars,
@@ -225,8 +233,8 @@ router.post(
     }) : null;
 
     // Build the ordered fallback chain: [primary, ...backups].
-    // Each attempt has its own client + model. If one errors before any
-    // tokens are emitted, we transparently try the next one.
+    // Each attempt has its own client + model + retry budget. If one errors
+    // before any tokens are emitted, we transparently try the next one.
     type Attempt = {
       client:      typeof openai;
       model:       string;
@@ -234,12 +242,15 @@ router.post(
       provider:    "xai" | "openai";
       tier:        "fast" | "smart";
       label:       string;
+      retries:     number; // extra attempts on this same provider after a timeout
     };
 
     const attempts: Attempt[] = [];
 
     if (grok && xai) {
-      // Primary: Grok at the chosen tier.
+      // Primary: Grok at the chosen tier. Only Grok Smart gets a transparent
+      // retry on timeout — Smart is more cold-start-prone and the cost of a
+      // single extra try is acceptable. Grok Fast falls through immediately.
       attempts.push({
         client:      grok as unknown as typeof openai,
         model:       xai.tier === "smart" ? GROK_SMART : GROK_FAST,
@@ -247,8 +258,9 @@ router.post(
         provider:    "xai",
         tier:        xai.tier,
         label:       xai.tier === "smart" ? "Auto · Smart" : "Auto · Fast",
+        retries:     xai.tier === "smart" ? 1 : 0,
       });
-      // Safety net: drop to Grok Fast if Smart fails.
+      // Safety net: drop to Grok Fast if Smart still fails.
       if (xai.tier === "smart") {
         attempts.push({
           client:      grok as unknown as typeof openai,
@@ -257,6 +269,7 @@ router.post(
           provider:    "xai",
           tier:        "fast",
           label:       "Auto · Fast",
+          retries:     0,
         });
       }
     }
@@ -272,6 +285,7 @@ router.post(
       provider:    "openai",
       tier:        oaTier,
       label:       oaTier === "smart" ? "Auto · Smart" : "Auto · Fast",
+      retries:     0,
     });
 
     const maxOutputTokens = plan.maxOutputTokens;
@@ -303,11 +317,12 @@ router.post(
     let chosen: Attempt | null = null;
     let totalChars2 = 0;
     let lastErr: unknown = null;
+    const startedAt = Date.now();
 
     try {
-      for (let i = 0; i < attempts.length; i++) {
-        const attempt   = attempts[i];
-        const isLast    = i === attempts.length - 1;
+      outer: for (let i = 0; i < attempts.length; i++) {
+        const attempt = attempts[i];
+        const isLast  = i === attempts.length - 1;
 
         const completionParams: Parameters<typeof openai.chat.completions.create>[0] = {
           model:  attempt.model,
@@ -325,61 +340,128 @@ router.post(
           completionParams.max_tokens = maxOutputTokens;
         }
 
-        let stream: AsyncIterable<{ choices?: Array<{ delta?: { content?: string | null }; finish_reason?: string | null }> }>;
-        try {
-          stream = await attempt.client.chat.completions.create(completionParams) as AsyncIterable<{ choices?: Array<{ delta?: { content?: string | null }; finish_reason?: string | null }> }>;
-        } catch (err) {
-          lastErr = err;
-          logger.warn(
-            { err, provider: attempt.provider, model: attempt.model, attempt: i + 1 },
-            "Socia GPT: provider init failed, trying next",
-          );
-          if (isLast) throw err;
-          continue;
-        }
+        // Local retry budget. attempt.retries=1 → up to 2 tries on the same
+        // provider before falling through to the next attempt in the chain.
+        const maxTries = attempt.retries + 1;
+        for (let t = 0; t < maxTries; t++) {
+          if (aborted) break outer;
 
-        // We have a stream — commit to this attempt. Announce the active
-        // model to the client for the subtle "Auto · Fast/Smart" label.
-        chosen = attempt;
-        send("meta", { provider: attempt.provider, tier: attempt.tier, label: attempt.label });
+          /**
+           * Per-try AbortController guards the *entire* first-byte phase.
+           * - `firstByteTimer` aborts the request if no token arrives within
+           *   FIRST_BYTE_TIMEOUT_MS (the stream iterator throws on next read).
+           * - The timer is cleared only when we observe an actual content
+           *   delta, NOT when create() resolves (streaming SDKs resolve
+           *   immediately with an iterator).
+           * - `timedOut` and `aborted` are checked in catches so we can
+           *   distinguish "our timeout" from "client closed the tab" — only
+           *   the former should poison the Grok health breaker.
+           */
+          const ac = new AbortController();
+          let timedOut = false;
+          let firstByteSeen = false;
+          const firstByteTimer = setTimeout(() => {
+            timedOut = true;
+            ac.abort();
+          }, FIRST_BYTE_TIMEOUT_MS);
 
-        try {
-          for await (const chunk of stream) {
-            if (aborted) break;
-            const delta = chunk.choices?.[0]?.delta?.content;
-            if (typeof delta === "string" && delta.length > 0) {
-              totalChars2 += delta.length;
-              send("token", { text: delta });
-            }
-            const finish = chunk.choices?.[0]?.finish_reason;
-            if (finish && finish !== "stop") {
-              send("warning", { finishReason: finish });
-            }
+          let stream: AsyncIterable<{ choices?: Array<{ delta?: { content?: string | null }; finish_reason?: string | null }> }>;
+          try {
+            stream = await attempt.client.chat.completions.create(
+              { ...completionParams, signal: ac.signal } as Parameters<typeof openai.chat.completions.create>[0],
+            ) as AsyncIterable<{ choices?: Array<{ delta?: { content?: string | null }; finish_reason?: string | null }> }>;
+          } catch (err) {
+            clearTimeout(firstByteTimer);
+            lastErr = err;
+            // Client closed the tab while we were waiting on the provider —
+            // not the provider's fault, don't trip the breaker.
+            if (aborted) break outer;
+            const isTimeout = timedOut || (err as { name?: string })?.name === "AbortError";
+            logger.warn(
+              { err: (err as Error).message, provider: attempt.provider, model: attempt.model,
+                attempt: i + 1, try: t + 1, timeout: isTimeout },
+              "Socia GPT: provider init failed",
+            );
+            if (attempt.provider === "xai") recordGrokFail(err);
+            const moreTries = t < maxTries - 1;
+            if (moreTries) continue;          // retry same provider
+            if (isLast) throw err;            // out of options
+            continue outer;                   // advance to next attempt
           }
-          // Successful stream completion — break out of fallback loop.
-          break;
-        } catch (err) {
-          lastErr = err;
-          // Mid-stream failure: if we've already emitted any tokens, we
-          // cannot safely retry (the user is reading them). Surface as
-          // a sanitized warning and stop.
-          if (totalChars2 > 0 || isLast) throw err;
-          logger.warn(
-            { err, provider: attempt.provider, model: attempt.model },
-            "Socia GPT: stream failed before first token, trying next",
-          );
-          // No tokens yet — fall through to next attempt.
-          continue;
+
+          // We have a stream object — but the timer is still running until
+          // we actually see a content delta. Commit to this attempt only
+          // when first byte arrives, so a fallback can still kick in if the
+          // provider stalls before producing anything.
+          let committed = false;
+
+          try {
+            for await (const chunk of stream) {
+              if (aborted) { ac.abort(); break; }
+              const delta = chunk.choices?.[0]?.delta?.content;
+              if (typeof delta === "string" && delta.length > 0) {
+                if (!firstByteSeen) {
+                  firstByteSeen = true;
+                  clearTimeout(firstByteTimer);
+                  chosen    = attempt;
+                  committed = true;
+                  send("meta", { provider: attempt.provider, tier: attempt.tier, label: attempt.label });
+                }
+                totalChars2 += delta.length;
+                send("token", { text: delta });
+              }
+              const finish = chunk.choices?.[0]?.finish_reason;
+              if (finish && finish !== "stop") {
+                send("warning", { finishReason: finish });
+              }
+            }
+            clearTimeout(firstByteTimer);
+            if (!firstByteSeen) {
+              // Stream ended without any content — treat as provider failure.
+              if (aborted) break outer;
+              if (attempt.provider === "xai") recordGrokFail(new Error("empty stream"));
+              const moreTries = t < maxTries - 1;
+              if (moreTries) continue;
+              if (isLast) throw new Error("Provider returned empty stream");
+              continue outer;
+            }
+            if (attempt.provider === "xai") recordGrokOk();
+            break outer;                      // success — done
+          } catch (err) {
+            clearTimeout(firstByteTimer);
+            lastErr = err;
+            if (aborted) break outer;         // client gave up — silent
+            // Pre-first-token failure → we never committed, fallback is safe.
+            // Post-first-token failure → tokens already on the wire, must surface.
+            if (committed && totalChars2 > 0) {
+              if (attempt.provider === "xai") recordGrokFail(err);
+              throw err;
+            }
+            if (attempt.provider === "xai") recordGrokFail(err);
+            if (isLast) throw err;
+            logger.warn(
+              { err: (err as Error).message, provider: attempt.provider, model: attempt.model,
+                timeout: timedOut },
+              "Socia GPT: stream failed before first token, advancing",
+            );
+            continue outer;
+          }
         }
       }
 
       if (!aborted && chosen) {
+        const latencyMs = Date.now() - startedAt;
         send("done", {
-          chars:   totalChars2,
-          plan:    plan.code,
-          used:    usageResult.used,
-          limit:   usageResult.limit,
-          period:  usageResult.period,
+          chars:    totalChars2,
+          plan:     plan.code,
+          used:     usageResult.used,
+          limit:    usageResult.limit,
+          period:   usageResult.period,
+          provider: chosen.provider,
+          tier:     chosen.tier,
+          model:    chosen.model,
+          tokens:   Math.ceil(totalChars2 / 4),
+          latencyMs,
         });
 
         logger.info(
