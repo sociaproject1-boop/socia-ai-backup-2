@@ -134,10 +134,15 @@ export async function generateVideo(prompt: string, opts?: GenOptions): Promise<
 export async function imageToVideo(
   imageUrl: string,
   prompt: string,
-  opts?: GenOptions,
+  opts?: GenOptions & { endImageUrl?: string },
 ): Promise<GenResult> {
   const videoResult = await callVideoAPI({
     imageUrl,
+    // When endImageUrl is provided the server routes the call to Kling's
+    // keyframe-interpolation model so BOTH frames genuinely condition the
+    // generation (start + tail). Without it, the standard image-to-video
+    // path is used. Either way the response shape is identical.
+    endImageUrl: opts?.endImageUrl,
     prompt,
     aspect: opts?.aspect || "9:16",
     durationSec: opts?.durationSec || 5,

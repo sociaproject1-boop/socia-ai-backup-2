@@ -367,18 +367,28 @@ async function processJob(job: RenderJob): Promise<void> {
     logger.info({ jobId: job.id, userId: job.user_id, segments: segmentCount, bytes: encodeResult.fileSizeBytes, quality }, "[renderWorker] Job completed");
 
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown render error";
-    logger.error({ jobId: job.id, err: message, workerId: WORKER_ID }, "[renderWorker] Job failed");
+    const rawMessage = err instanceof Error ? err.message : "Unknown render error";
+    // Sanitize before emitting to the client: strip absolute filesystem
+    // paths (FFmpeg, node, /tmp/...) and any "at fn (file:line)" stack
+    // fragments that may have leaked in. Keep the human-readable prefix.
+    const message = rawMessage
+      .replace(/\/(?:home|root|tmp|var|usr|app)\/[^\s'"]+/g, "[path]")
+      .replace(/\bat\s+\S+\s*\([^)]+\)/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 240) || "Render failed";
+    logger.error({ jobId: job.id, err: rawMessage, workerId: WORKER_ID }, "[renderWorker] Job failed");
 
-    // Emit failure to frontend immediately
+    // Emit failure to frontend immediately (sanitized message only)
     emitRenderProgress(job.id, {
       jobId: job.id, stage: "failed", progress: job.progress,
       eta: 0, error: message, done: true,
     });
 
-    // Retry if retries remain
+    // Retry if retries remain. failJob writes to DB — keep the raw message
+    // there for operator debugging since it's not user-facing.
     const canRetry = job.retry_count < job.max_retries;
-    await failJob(job, message, canRetry);
+    await failJob(job, rawMessage, canRetry);
 
     if (canRetry) {
       logger.info({ jobId: job.id, retry: job.retry_count + 1 }, "[renderWorker] Job re-queued for retry");

@@ -85,7 +85,10 @@ export default function CreateImageVideo() {
     }
     if (voiceText.trim()) parts.push(`Narration: "${voiceText.trim()}"`);
     if (negativePrompt.trim()) parts.push(`Avoid: ${negativePrompt.trim()}`);
-    if (endFrame) parts.push("Animate smoothly to the end frame provided.");
+    // No longer append an "end frame" hint to the prompt — when the user
+    // provides one, it's now passed as a real second keyframe to Kling
+    // (tail_image_url) and the model genuinely interpolates between the
+    // two images. The prompt should describe *motion*, not the end state.
     return parts.join(". ");
   }
 
@@ -93,7 +96,11 @@ export default function CreateImageVideo() {
     if (!canGenerate || !startFrame) return;
     setLoading(true); setError(null); setIsQuotaError(false); setResult(null);
     try {
-      const r = await imageToVideo(startFrame, buildPrompt(), { aspect, durationSec: duration });
+      const r = await imageToVideo(startFrame, buildPrompt(), {
+        aspect,
+        durationSec: duration,
+        endImageUrl: endFrame ?? undefined,
+      });
       setResult(r);
     } catch (err: unknown) {
       const e = err as { message?: string; code?: string };

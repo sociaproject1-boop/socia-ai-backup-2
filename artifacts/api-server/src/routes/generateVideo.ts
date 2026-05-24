@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { imageToVideo, FalError } from "../lib/fal.js";
+import { imageToVideo, interpolateKling, isMockMode, FalError } from "../lib/fal.js";
 import { enhancePrompt } from "../lib/promptEnhancer.js";
 import { uploadUrlToCloudinary } from "../lib/cloudinaryServer.js";
 import { videoSemaphore } from "../lib/queue.js";
@@ -32,15 +32,33 @@ router.post("/generate-video", requireAuth, async (req, res) => {
 
   const {
     imageUrl,
+    endImageUrl,
     prompt = "",
     aspect = "9:16",
     durationSec = 5,
     hd: hdReq = true,
   } = req.body as {
-    imageUrl?: string; prompt?: string; aspect?: string; durationSec?: number; hd?: boolean;
+    imageUrl?: string; endImageUrl?: string; prompt?: string; aspect?: string; durationSec?: number; hd?: boolean;
   };
 
   if (!imageUrl) return res.status(400).json({ error: "imageUrl is required for video generation" });
+  // Validate endImageUrl is a public URL if provided; reject early instead
+  // of letting fal.ai 422 us. Empty/undefined is fine — single-frame path.
+  const tailUrl = typeof endImageUrl === "string" && /^https?:\/\//.test(endImageUrl)
+    ? endImageUrl : undefined;
+
+  // FAL mock-mode guard (CRITICAL): if the provider key is missing, fal.ts
+  // silently returns sample MP4s. In production that means we'd charge a
+  // real user real credits for a fake video. Refuse the request *before*
+  // gateAndConsume so nothing is deducted. In dev, we let it through so
+  // the pipeline stays exercisable.
+  if (isMockMode() && process.env["NODE_ENV"] === "production") {
+    logger.error({ userId: user.id }, "[generateVideo] Refusing request — FAL_KEY missing in production");
+    return res.status(503).json({
+      error: "Video generation is temporarily unavailable. No credits were charged.",
+      code:  "PROVIDER_NOT_CONFIGURED",
+    });
+  }
 
   const dur: 5 | 10 = durationSec >= 10 ? 10 : 5;
   const gate = await gateAndConsume(req, sb, {
@@ -60,7 +78,18 @@ router.post("/generate-video", requireAuth, async (req, res) => {
   logger.info({ userId: user.id, plan: gate.plan, aspect, durationSec: dur, cost: gate.cost }, "Video generation started");
 
   try {
-    const rawVideoUrl = await videoSemaphore.run(() => imageToVideo(imageUrl, videoPrompt, aspect, dur));
+    // If the user supplied an end frame, route to Kling's keyframe
+    // interpolation model (start + tail). It is currently locked to a
+    // 5s clip on fal.ai; we keep dur=5 even if the user asked for 10s
+    // and surface that in the response so the UI can show "5s (keyframe
+    // mode)" — better than silently dropping the second frame.
+    const usedKeyframes = Boolean(tailUrl);
+    const effectiveDur: 5 | 10 = usedKeyframes ? 5 : dur;
+    const rawVideoUrl = await videoSemaphore.run(() =>
+      usedKeyframes
+        ? interpolateKling(imageUrl, tailUrl!, videoPrompt, aspect)
+        : imageToVideo(imageUrl, videoPrompt, aspect, dur),
+    );
     const videoUrl    = await uploadUrlToCloudinary(rawVideoUrl, "video", prompt);
 
     logger.info({ userId: user.id, plan: gate.plan }, "Video generation succeeded");
@@ -77,7 +106,9 @@ router.post("/generate-video", requireAuth, async (req, res) => {
     }).catch(() => {});
 
     return res.json({
-      videoUrl, thumbnailUrl: imageUrl, type: "video", durationSec: dur,
+      videoUrl, thumbnailUrl: imageUrl, type: "video",
+      durationSec: effectiveDur,
+      keyframeMode: usedKeyframes,
       billing: {
         plan: gate.plan, cost: gate.cost, balance: gate.balance,
         smart_saver: gate.smart_saver, cooldown_until: gate.cooldown_until,

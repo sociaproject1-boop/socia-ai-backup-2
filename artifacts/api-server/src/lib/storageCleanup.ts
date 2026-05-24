@@ -18,7 +18,12 @@ import { tmpdir }             from "node:os";
 import { logger }             from "./logger.js";
 import { getServiceClient }   from "./renderJobsDb.js";
 
-const STALE_TEMP_MS    = 60 * 60 * 1_000;         // 1 h
+// Raised from 1 h → 6 h to avoid the race where a long cinematic render
+// (multi-segment Kling/Luma + FFmpeg xfade encode) takes >1 h and the
+// cleanup pass deletes its working directory mid-flight, silently
+// breaking the job. recoverAbandonedJobs (heartbeat <2 h) still acts
+// as the dead-letter handler for genuinely stuck workers.
+const STALE_TEMP_MS    = 6 * 60 * 60 * 1_000;     // 6 h
 const ABANDONED_JOB_MS = 2  * 60 * 60 * 1_000;   // 2 h
 const CLEANUP_INTERVAL = 30 * 60 * 1_000;          // 30 min
 
