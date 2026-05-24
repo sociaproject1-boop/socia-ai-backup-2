@@ -19,7 +19,8 @@ const HEAVY_PATTERNS: RegExp[] = [
   /\b(debug|debugging|fix\s+(this|the)\s+(bug|error)|stack\s*trace)\b/i,
   /\b(code|function|class|api|script|program|implement|refactor|algorithm|architecture)\b/i,
   /\b(complex|complicated|intricate|in[\s-]depth|comprehensive|thorough)\b/i,
-  /\b(cinematic|storyboard|shot\s+list|scene\s+breakdown|director|cinematograph)\b/i,
+  /\b(cinematic|storyboard|shot\s+list|scene\s+breakdown|director|cinematograph|runway|sora|veo|kling|pika)\b/i,
+  /\b(anamorphic|dolly|pan\s+(left|right)|tracking\s+shot|crane\s+shot|close[\s-]up|wide\s+shot|aspect\s+ratio|24\s*fps|seed|negative\s+prompt)\b/i,
   /\b(math|equation|derive|theorem|proof|calculate|formula)\b/i,
   /\b(explain\s+(deeply|in\s+detail|thoroughly|why|how))\b/i,
   /```/, // any fenced code block in the prompt
