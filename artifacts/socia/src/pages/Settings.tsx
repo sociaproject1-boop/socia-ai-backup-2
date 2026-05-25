@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ChevronRight, LogOut, User, Bell, Palette, Shield, Info, Check, MessageCircle, KeyRound, Trash2, AlertTriangle, Sparkles, Wallet } from "lucide-react";
+import { ArrowLeft, ChevronRight, LogOut, User, Bell, Palette, Shield, Info, Check, MessageCircle, KeyRound, Trash2, AlertTriangle, Sparkles, Wallet, ShieldCheck } from "lucide-react";
+import { BusinessVerificationModal } from "@/components/BusinessVerificationModal";
 import { useAppStore } from "@/lib/store";
 import { useAuth } from "@/lib/authContext";
 import { usePreferences } from "@/lib/PreferencesContext";
@@ -35,6 +36,11 @@ export default function Settings() {
   const [section, setSection] = useState<Section>("main");
   const [confirm, setConfirm] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  // Standalone Business Verification overlay. Lives outside the
+  // setSection() flow because it's a credential artefact, not a
+  // settings sub-screen — keeps it visually distinct from the rest of
+  // the menu and lets us swap its presentation independently.
+  const [verificationOpen, setVerificationOpen] = useState(false);
 
   const [pwd, setPwd]               = useState("");
   const [pwdBusy, setPwdBusy]       = useState(false);
@@ -229,27 +235,85 @@ export default function Settings() {
 
               {SECTION_MENU.map((s, i) => {
                 const Icon = s.icon;
+                // Insert the standalone Business Verification card
+                // BETWEEN Privacy and About — visually distinct from
+                // the rest of the menu so it reads as a separate
+                // trust artefact, not a settings sub-screen. Keyed by
+                // SECTION_MENU index so it survives reordering as
+                // long as About stays last.
+                const isAbout = s.id === "about";
                 return (
-                  <motion.button
-                    key={s.id}
-                    initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setSection(s.id)}
-                    className="app-card flex w-full items-center gap-3.5 rounded-[18px] p-3.5 text-left"
-                  >
-                    <span
-                      className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
-                      style={{ background: "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))" }}
+                  <>
+                    {isAbout && (
+                      <motion.button
+                        key="business-verification"
+                        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.03 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setVerificationOpen(true)}
+                        className="flex w-full items-center gap-3.5 rounded-[18px] p-3.5 text-left"
+                        style={{
+                          /* Premium blue/purple gradient surface — distinct
+                             from the standard app-card so the row reads
+                             as a trust credential rather than another
+                             settings link. */
+                          background:
+                            "linear-gradient(135deg, rgba(59,130,246,0.10), rgba(139,92,246,0.10))",
+                          border: "1px solid rgba(139,92,246,0.32)",
+                          boxShadow:
+                            "0 8px 28px -10px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.05)",
+                        }}
+                      >
+                        <span
+                          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
+                          style={{
+                            background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
+                            boxShadow: "0 0 16px rgba(99,102,241,0.55), inset 0 1px 0 rgba(255,255,255,0.18)",
+                          }}
+                        >
+                          <ShieldCheck className="text-white" style={{ width: 16, height: 16, strokeWidth: 2.1 }} />
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <p className="app-text text-[13.5px] font-semibold">Business Verification</p>
+                            {/* Tiny verified dot — purely decorative, signals
+                                that this row links to a verified credential
+                                without using another icon component. */}
+                            <span
+                              aria-hidden
+                              style={{
+                                width: 6, height: 6, borderRadius: "50%",
+                                background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
+                                boxShadow: "0 0 6px rgba(99,102,241,0.7)",
+                              }}
+                            />
+                          </div>
+                          <p className="app-text-muted text-[11px] mt-0.5">Verified Philippine Business Registration</p>
+                        </div>
+                        <ChevronRight className="app-text-muted shrink-0" style={{ width: 16, height: 16 }} />
+                      </motion.button>
+                    )}
+                    <motion.button
+                      key={s.id}
+                      initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.03 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setSection(s.id)}
+                      className="app-card flex w-full items-center gap-3.5 rounded-[18px] p-3.5 text-left"
                     >
-                      <Icon className="text-white" style={{ width: 16, height: 16, strokeWidth: 2.1 }} />
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="app-text text-[13.5px] font-semibold">{s.label}</p>
-                      <p className="app-text-muted text-[11px] mt-0.5">{s.desc}</p>
-                    </div>
-                    <ChevronRight className="app-text-muted shrink-0" style={{ width: 16, height: 16 }} />
-                  </motion.button>
+                      <span
+                        className="grid h-10 w-10 shrink-0 place-items-center rounded-xl"
+                        style={{ background: "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))" }}
+                      >
+                        <Icon className="text-white" style={{ width: 16, height: 16, strokeWidth: 2.1 }} />
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="app-text text-[13.5px] font-semibold">{s.label}</p>
+                        <p className="app-text-muted text-[11px] mt-0.5">{s.desc}</p>
+                      </div>
+                      <ChevronRight className="app-text-muted shrink-0" style={{ width: 16, height: 16 }} />
+                    </motion.button>
+                  </>
                 );
               })}
 
@@ -581,6 +645,14 @@ export default function Settings() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Business Verification — standalone fullscreen overlay, mounted
+          at the Settings root so it floats above the section animator
+          and the bottom nav. Its own AnimatePresence handles enter/exit. */}
+      <BusinessVerificationModal
+        open={verificationOpen}
+        onClose={() => setVerificationOpen(false)}
+      />
     </div>
   );
 }
