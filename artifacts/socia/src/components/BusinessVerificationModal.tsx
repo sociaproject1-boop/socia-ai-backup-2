@@ -18,10 +18,11 @@
  *  - Body scroll is locked while the modal is open.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ShieldCheck, BadgeCheck, ZoomIn, ZoomOut } from "lucide-react";
+import { X, ShieldCheck, BadgeCheck } from "lucide-react";
 import dtiCertificate from "@/assets/dti-certificate.png";
+import { SecureDocumentViewer } from "./SecureDocumentViewer";
 
 interface Props {
   open: boolean;
@@ -46,13 +47,6 @@ export function BusinessVerificationModal({ open, onClose }: Props) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
-
-  /* Programmatic 1x ⇄ 2x zoom toggle. Pinch-to-zoom is handled by the
-     browser via `touch-action: pinch-zoom` on the image wrapper — this
-     button is the affordance for users who don't realise pinch works. */
-  const [zoomed, setZoomed] = useState(false);
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (open) setZoomed(false); }, [open]);
 
   return (
     <AnimatePresence>
@@ -140,7 +134,6 @@ export function BusinessVerificationModal({ open, onClose }: Props) {
 
             {/* ── Scrollable body ──────────────────────────────── */}
             <div
-              ref={scrollerRef}
               style={{
                 flex: 1,
                 minHeight: 0,
@@ -172,71 +165,16 @@ export function BusinessVerificationModal({ open, onClose }: Props) {
                 </div>
               </div>
 
-              {/* Certificate card — glowing bordered container.
-                  `touch-action: pinch-zoom` on the inner wrapper lets
-                  Chrome Android handle native pinch gestures without us
-                  shipping a gesture library. */}
-              <div style={{ padding: "18px 16px 0", position: "relative" }}>
-                <div style={{
-                  position: "relative",
-                  borderRadius: 22,
-                  padding: 1.5,
-                  background: "linear-gradient(135deg, rgba(59,130,246,0.55), rgba(139,92,246,0.55), rgba(236,72,153,0.35))",
-                  boxShadow: "0 24px 60px -10px rgba(99,102,241,0.35), 0 0 40px rgba(139,92,246,0.25)",
-                }}>
-                  <div style={{
-                    borderRadius: 21,
-                    overflow: "hidden",
-                    background: "#0a0a14",
-                    border: "1px solid rgba(255,255,255,0.04)",
-                  }}>
-                    <div style={{
-                      /* Native pinch on Chrome Android / iOS Safari. */
-                      touchAction: "pinch-zoom",
-                      overflow: "auto",
-                      WebkitOverflowScrolling: "touch",
-                      background: "#fff",
-                      maxHeight: "70dvh",
-                    }}>
-                      <img
-                        src={dtiCertificate}
-                        alt="DTI Certificate of Business Name Registration for Socia Software Development Services"
-                        draggable={false}
-                        style={{
-                          display: "block",
-                          width: zoomed ? "200%" : "100%",
-                          height: "auto",
-                          transition: "width 0.28s ease",
-                          userSelect: "none",
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Zoom control */}
-                <button
-                  onClick={() => setZoomed(z => !z)}
-                  aria-label={zoomed ? "Zoom out" : "Zoom in"}
-                  style={{
-                    position: "absolute",
-                    right: 24, bottom: 12,
-                    display: "inline-flex", alignItems: "center", gap: 6,
-                    padding: "8px 12px", borderRadius: 999,
-                    background: "rgba(15,15,25,0.92)",
-                    border: "1px solid rgba(139,92,246,0.4)",
-                    color: "white",
-                    fontSize: 11, fontWeight: 700, letterSpacing: "0.04em",
-                    cursor: "pointer",
-                    touchAction: "manipulation",
-                    backdropFilter: "blur(8px)",
-                  }}
-                >
-                  {zoomed
-                    ? <ZoomOut style={{ width: 13, height: 13 }} />
-                    : <ZoomIn  style={{ width: 13, height: 13 }} />}
-                  {zoomed ? "1×" : "2×"}
-                </button>
+              {/* Secure document viewer — pinch/pan/zoom + screenshot
+                  deterrents live in SecureDocumentViewer. The viewer
+                  only arms its security listeners while `active` is
+                  true, so closing the modal tears everything down. */}
+              <div style={{ padding: "18px 16px 0" }}>
+                <SecureDocumentViewer
+                  src={dtiCertificate}
+                  alt="DTI Certificate of Business Name Registration for Socia Software Development Services"
+                  active={open}
+                />
               </div>
 
               {/* Caption */}
