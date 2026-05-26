@@ -7,6 +7,13 @@ import { useAppStore } from "@/lib/store";
 import { AuthProvider, useAuth } from "@/lib/authContext";
 import { PreferencesProvider } from "@/lib/PreferencesContext";
 import UpdateGate from "@/components/UpdateGate";
+import { ComingSoonGuard } from "@/components/ComingSoonGuard";
+import { Toaster } from "@/components/ui/toaster";
+import {
+  adminFetchSession,
+  hasAdminToken,
+  useAdminStore,
+} from "@/lib/adminAuth";
 import { GlobalLoaderProvider } from "@/components/loader/GlobalLoaderProvider";
 import { CinematicLoadingOverlay } from "@/components/loader/CinematicLoadingOverlay";
 
@@ -134,8 +141,20 @@ function Router() {
       <Route path="/create/prompt-image"  component={CreatePromptImage} />
       <Route path="/create/prompt-video"  component={CreatePromptVideo} />
       <Route path="/create/image-video"   component={CreateImageVideo} />
-      <Route path="/create/multi-frame"   component={CreateMultiFrame} />
-      <Route path="/studio"               component={Studio} />
+      {/* AI Cinematic Studio + AI Preset Studio are locked behind an
+          admin check until their backend models/API keys are wired up.
+          ComingSoonGuard prevents the heavy page from mounting for
+          non-admins, so no API calls / sockets leak from these routes. */}
+      <Route path="/create/multi-frame">
+        <ComingSoonGuard title="AI Cinematic Studio">
+          <CreateMultiFrame />
+        </ComingSoonGuard>
+      </Route>
+      <Route path="/studio">
+        <ComingSoonGuard title="AI Preset Studio">
+          <Studio />
+        </ComingSoonGuard>
+      </Route>
       <Route path="/studio/creations"     component={MyCreations} />
       <Route path="/studio/:presetId"     component={StudioPreset} />
       <Route path="/socia-gpt"             component={SociaGpt} />
@@ -178,6 +197,29 @@ function Router() {
   );
 }
 
+/**
+ * Bootstraps the super-admin session once at app startup. If a token
+ * exists in localStorage we round-trip `adminFetchSession()` to
+ * rehydrate the profile into `useAdminStore`; either way we flip
+ * `hydrated` so gated routes (`ComingSoonGuard`) know admin status
+ * has been resolved and stop holding the screen blank. Runs in a
+ * `useEffect` so it never blocks first paint.
+ */
+function AdminSessionBootstrap() {
+  useEffect(() => {
+    const setHydrated = useAdminStore.getState().setHydrated;
+    let cancelled = false;
+    (async () => {
+      if (hasAdminToken()) {
+        try { await adminFetchSession(); } catch { /* invalid token already cleared */ }
+      }
+      if (!cancelled) setHydrated(true);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  return null;
+}
+
 function App() {
   return (
     /* UpdateGate is the OUTERMOST wrapper so the force-update screen renders
@@ -192,6 +234,7 @@ function App() {
                   at the app root so every page can call useGlobalLoader()
                   for a unified, on-brand loading experience. */}
               <GlobalLoaderProvider>
+                <AdminSessionBootstrap />
                 <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
                   <AuthGuard>
                     <AppShell>
@@ -204,6 +247,10 @@ function App() {
                     </AppShell>
                   </AuthGuard>
                 </WouterRouter>
+                {/* Single Toaster mounted at the root so any page (e.g.
+                    CreateHub's coming-soon locked taps) can dispatch
+                    toasts through `useToast()`. */}
+                <Toaster />
               </GlobalLoaderProvider>
             </AuthProvider>
           </TooltipProvider>
