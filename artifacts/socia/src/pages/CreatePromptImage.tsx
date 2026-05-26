@@ -321,55 +321,86 @@ export default function CreatePromptImage() {
   const activeAspect = ASPECTS.find((a) => a.id === aspect) || ASPECTS[2];
 
   return (
-    <div className="relative flex h-full flex-col bg-[#090909]">
+    <div className="relative flex h-full flex-col overflow-hidden bg-[#050509]">
+
+      {/* Cinematic style + keyframe layer — scoped here so the rest of
+          the app stays untouched. All effects animate transform/opacity
+          only (GPU compositor path) to keep 60fps on mid-tier Android. */}
+      <CinematicStyles />
+
+      {/* ── LIVE GALAXY BACKGROUND ──────────────────────────── */}
+      <GalaxyBackdrop />
 
       {/* ── HEADER ──────────────────────────────────────────── */}
       <div
-        className="flex items-center gap-3 border-b border-white/[0.05] bg-[#090909] px-4"
-        style={{ paddingTop: `calc(env(safe-area-inset-top,0px) + 12px)`, paddingBottom: 12 }}
+        className="relative z-10 flex items-center gap-3 px-4"
+        style={{
+          paddingTop: `calc(env(safe-area-inset-top,0px) + 14px)`,
+          paddingBottom: 14,
+          background: "linear-gradient(180deg, rgba(5,5,10,0.92) 0%, rgba(5,5,10,0.55) 80%, transparent 100%)",
+          backdropFilter: "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
+        }}
       >
-        <button
+        <motion.button
+          whileTap={{ scale: 0.92 }}
           onClick={() => navigate("/create")}
-          className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-white/60 transition hover:bg-white/[0.08]"
+          className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white/75 backdrop-blur-md transition hover:bg-white/[0.09]"
         >
           <ArrowLeft className="h-4 w-4" />
-        </button>
+        </motion.button>
         <div className="min-w-0 flex-1">
-          <h2 className="text-[14px] font-semibold tracking-tight text-white">Prompt to Image</h2>
-          <p className="text-[11px] text-white/30">AI generation · gpt-image-1</p>
+          <h2 className="text-[17px] font-semibold tracking-tight text-white leading-tight">
+            Prompt to Image
+          </h2>
+          <p className="text-[11px] text-white/45 leading-tight">
+            Turn your ideas into stunning visuals
+          </p>
         </div>
-        <button
+        <motion.button
+          whileTap={{ scale: 0.94 }}
           onClick={() => setShowPro((v) => !v)}
-          className={`flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[11px] font-medium transition ${
+          className={`flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-[11.5px] font-medium transition-all ${
             showPro
-              ? "border-violet-500/40 bg-violet-900/25 text-violet-200"
-              : "border-white/[0.07] bg-transparent text-white/40 hover:border-white/[0.12] hover:text-white/60"
+              ? "border-violet-400/50 bg-violet-500/15 text-violet-100 shadow-[0_0_20px_-6px_rgba(167,139,250,0.55)]"
+              : "border-white/12 bg-white/[0.04] text-white/65 backdrop-blur-md hover:border-white/20 hover:text-white/85"
           }`}
         >
-          <SlidersHorizontal className="h-3 w-3" />
+          <SlidersHorizontal className="h-3.5 w-3.5" />
           Controls
-        </button>
+        </motion.button>
       </div>
 
       {/* ── SCROLL BODY ─────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto pb-40 hide-scrollbar">
+      <div className="relative z-10 flex-1 overflow-y-auto pb-40 hide-scrollbar">
 
-        {/* PROMPT EDITOR */}
+        {/* PROMPT EDITOR — glassmorphism panel with animated neon border */}
         <div className="px-4 pt-5">
-          <div className="rounded-xl border border-white/[0.11] bg-white/[0.04] [&:focus-within]:border-violet-500/35 transition-colors duration-200">
+          <div className="cs-prompt-card relative rounded-[26px] [&:focus-within]:scale-[1.005] transition-transform duration-300">
+            {/* Animated conic gradient border + soft internal glow.
+                pointer-events-none keeps the textarea fully tappable. */}
+            <div aria-hidden className="cs-prompt-glow pointer-events-none absolute -inset-[1px] rounded-[27px]" />
+            <div aria-hidden className="cs-prompt-inner-glow pointer-events-none absolute inset-0 rounded-[26px]" />
+
+            <div className="relative rounded-[26px] border border-white/[0.09] bg-[rgba(15,12,28,0.62)] backdrop-blur-2xl">
 
             {/* Top bar */}
-            <div className="flex items-center justify-between border-b border-white/[0.05] px-4 py-2.5">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-white/30">Prompt</span>
+            <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
+              <div className="flex items-center gap-2">
+                <span className="grid h-5 w-5 place-items-center rounded-md bg-gradient-to-br from-violet-500/30 to-fuchsia-500/20 shadow-[inset_0_0_6px_rgba(167,139,250,0.4)]">
+                  <Sparkles className="h-3 w-3 text-violet-200" />
+                </span>
+                <span className="text-[12px] font-semibold tracking-tight text-white/85">Your Prompt</span>
+              </div>
               <div className="flex items-center gap-3">
-                <span className={`text-[10px] tabular-nums ${wordCount > 60 ? "text-amber-500/70" : "text-white/20"}`}>
+                <span className={`text-[10px] tabular-nums ${wordCount > 60 ? "text-amber-400/80" : "text-white/35"}`}>
                   {wordCount} words
                 </span>
                 <button
                   onClick={() => setShowExamples((v) => !v)}
-                  className="flex items-center gap-1 rounded-md border border-white/[0.06] bg-white/[0.03] px-2 py-1 text-[10px] text-white/40 transition hover:bg-white/[0.06]"
+                  className="flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-2.5 py-1 text-[10.5px] text-white/65 transition hover:border-violet-400/30 hover:bg-violet-500/10 hover:text-violet-200"
                 >
-                  <Lightbulb className="h-2.5 w-2.5" />
+                  <Lightbulb className="h-3 w-3" />
                   Examples
                 </button>
               </div>
@@ -445,14 +476,16 @@ export default function CreatePromptImage() {
             </div>
 
             {/* Negative prompt toggle */}
-            <div className="border-t border-white/[0.05] px-4 py-2.5">
+            <div className="border-t border-white/[0.06] px-5 py-3">
               <button
                 onClick={() => setShowNeg((v) => !v)}
-                className="flex w-full items-center gap-1.5 text-[10px] text-white/25 transition hover:text-white/45"
+                className="flex w-full items-center gap-1.5 text-[11px] text-white/45 transition hover:text-white/70"
               >
                 <ChevronDown className={`h-3 w-3 transition-transform ${showNeg ? "rotate-180" : ""}`} />
-                Negative prompt
-                <span className="ml-auto text-[9px]">{showNeg ? "hide" : "add"}</span>
+                Negative prompt <span className="text-white/30">(optional)</span>
+                <span className="ml-auto flex items-center gap-0.5 text-[10px] text-violet-300/80">
+                  {showNeg ? "hide" : "Add"} {!showNeg && <span className="text-[12px] leading-none">+</span>}
+                </span>
               </button>
               <AnimatePresence>
                 {showNeg && (
@@ -467,82 +500,52 @@ export default function CreatePromptImage() {
                       onChange={(e) => setNegPrompt(e.target.value)}
                       rows={2}
                       placeholder="What to exclude: blurry, watermark, distorted face…"
-                      className="mt-2.5 w-full resize-none rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-[12px] leading-relaxed text-white/55 placeholder:text-white/18 focus:outline-none focus:border-white/[0.1]"
+                      className="mt-2.5 w-full resize-none rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-[12px] leading-relaxed text-white/65 placeholder:text-white/25 focus:outline-none focus:border-violet-400/30"
                     />
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
+            </div>
           </div>
         </div>
 
-        {/* STYLE SELECTOR */}
-        <div className="mt-6 px-4">
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-white/30">Style</p>
+        {/* STYLE SELECTOR — live cinematic cards */}
+        <div className="mt-7 px-4">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span aria-hidden className="h-[10px] w-[3px] rounded-full bg-gradient-to-b from-fuchsia-400 to-violet-500 shadow-[0_0_8px_rgba(217,70,239,0.7)]" />
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">Create Style</p>
+            </div>
+            <span className="text-[11px] font-medium text-white/45">See all ›</span>
+          </div>
         </div>
-        <div className="hide-scrollbar flex gap-2 overflow-x-auto px-4 pb-0.5">
-          {STYLES.map(({ id, label, desc, Icon }) => {
-            const active = style === id;
-            return (
-              <motion.button
-                key={id}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setStyle(id)}
-                className={`relative flex shrink-0 flex-col items-center gap-1.5 rounded-xl border px-3 py-3 transition-all ${
-                  active
-                    ? "border-violet-500/40 bg-gradient-to-b from-violet-900/30 to-indigo-900/20 text-white"
-                    : "border-white/[0.07] bg-white/[0.03] text-white/40 hover:border-white/[0.13] hover:bg-white/[0.05] hover:text-white/65"
-                }`}
-                style={{ minWidth: 72 }}
-              >
-                <Icon className={`h-[18px] w-[18px] ${active ? "text-violet-300" : ""}`} strokeWidth={active ? 2 : 1.5} />
-                <span className="text-center text-[11px] font-medium leading-none">{label}</span>
-                <span className={`text-center text-[9px] leading-none ${active ? "text-violet-300/60" : "text-white/20"}`}>{desc}</span>
-                {active && (
-                  <motion.div
-                    layoutId="style-indicator"
-                    className="absolute inset-0 rounded-xl border border-violet-500/40"
-                    style={{ boxShadow: "0 0 16px -4px rgba(139,92,246,0.25), inset 0 0 0 1px rgba(139,92,246,0.1)" }}
-                    transition={{ type: "spring", stiffness: 400, damping: 32 }}
-                  />
-                )}
-              </motion.button>
-            );
-          })}
+        <div className="hide-scrollbar flex gap-3 overflow-x-auto px-4 pb-1">
+          {STYLES.map((s) => (
+            <StyleCard
+              key={s.id}
+              s={s}
+              active={style === s.id}
+              onClick={() => setStyle(s.id)}
+            />
+          ))}
         </div>
 
-        {/* ASPECT RATIO — segmented control */}
-        <div className="mt-6 px-4">
-          <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-white/30">Aspect Ratio</p>
-          <div className="relative flex rounded-xl border border-white/[0.07] bg-white/[0.02] p-1">
-            {ASPECTS.map((a) => {
-              const active = aspect === a.id;
-              return (
-                <button
-                  key={a.id}
-                  onClick={() => setAspect(a.id)}
-                  className="relative flex flex-1 flex-col items-center gap-2 rounded-lg py-3 transition-all"
-                >
-                  {active && (
-                    <motion.div
-                      layoutId="aspect-bg"
-                      className="absolute inset-0 rounded-lg border border-violet-500/35 bg-gradient-to-b from-violet-900/25 to-indigo-900/15"
-                      style={{ boxShadow: "0 0 12px -4px rgba(139,92,246,0.2)" }}
-                      transition={{ type: "spring", stiffness: 420, damping: 32 }}
-                    />
-                  )}
-                  <span className="relative z-10 flex items-center justify-center" style={{ height: 28, width: "100%" }}>
-                    <AspectRect w={a.w} h={a.h} active={active} />
-                  </span>
-                  <span className={`relative z-10 text-[11px] font-semibold leading-none tabular-nums transition-colors ${active ? "text-white" : "text-white/35"}`}>
-                    {a.label}
-                  </span>
-                  <span className={`relative z-10 text-[9px] leading-none transition-colors ${active ? "text-violet-300/70" : "text-white/18"}`}>
-                    {a.name}
-                  </span>
-                </button>
-              );
-            })}
+        {/* ASPECT RATIO — floating neon cards */}
+        <div className="mt-7 px-4">
+          <div className="mb-3 flex items-center gap-2">
+            <span aria-hidden className="h-[10px] w-[3px] rounded-full bg-gradient-to-b from-violet-400 to-indigo-500 shadow-[0_0_8px_rgba(139,92,246,0.7)]" />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">Aspect Ratio</p>
+          </div>
+          <div className="grid grid-cols-4 gap-2.5">
+            {ASPECTS.map((a) => (
+              <AspectCard
+                key={a.id}
+                a={a}
+                active={aspect === a.id}
+                onClick={() => setAspect(a.id)}
+              />
+            ))}
           </div>
         </div>
 
@@ -722,16 +725,21 @@ export default function CreatePromptImage() {
 
       {/* ── GENERATE BAR ────────────────────────────────────── */}
       <div
-        className="border-t border-white/[0.06] bg-[#090909] px-4 pt-3"
-        style={{ paddingBottom: `calc(env(safe-area-inset-bottom,0px) + 16px)` }}
+        className="relative z-10 px-4 pt-3"
+        style={{
+          paddingBottom: `calc(env(safe-area-inset-bottom,0px) + 16px)`,
+          background: "linear-gradient(0deg, rgba(5,5,10,0.96) 0%, rgba(5,5,10,0.78) 60%, rgba(5,5,10,0.0) 100%)",
+          backdropFilter: "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
+        }}
       >
         {/* Settings summary chips */}
         {(style !== "Cinematic" || aspect !== "9:16" || lighting || lens) && (
           <div className="mb-2.5 flex flex-wrap gap-1.5">
-            <span className="rounded-md border border-violet-500/20 bg-violet-900/15 px-2 py-0.5 text-[10px] text-violet-300/70">{style}</span>
-            <span className="rounded-md border border-indigo-500/20 bg-indigo-900/15 px-2 py-0.5 text-[10px] text-indigo-300/70">{aspect}</span>
-            {lighting && <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-2 py-0.5 text-[10px] text-white/40">{lighting}</span>}
-            {lens && <span className="rounded-md border border-white/[0.07] bg-white/[0.03] px-2 py-0.5 text-[10px] text-white/40">{lens.split(" ")[0]}</span>}
+            <span className="rounded-md border border-violet-500/25 bg-violet-900/15 px-2 py-0.5 text-[10px] text-violet-200/80 backdrop-blur-sm">{style}</span>
+            <span className="rounded-md border border-indigo-500/25 bg-indigo-900/15 px-2 py-0.5 text-[10px] text-indigo-200/80 backdrop-blur-sm">{aspect}</span>
+            {lighting && <span className="rounded-md border border-white/12 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/55">{lighting}</span>}
+            {lens && <span className="rounded-md border border-white/12 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/55">{lens.split(" ")[0]}</span>}
           </div>
         )}
 
@@ -739,25 +747,39 @@ export default function CreatePromptImage() {
           whileTap={{ scale: canGenerate ? 0.97 : 1 }}
           disabled={!canGenerate}
           onClick={handleGenerate}
-          className={`relative flex h-13 w-full items-center justify-center gap-2.5 overflow-hidden rounded-xl text-[15px] font-semibold tracking-tight transition-all duration-200 ${
-            canGenerate
-              ? "bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 text-white shadow-[0_4px_28px_-6px_rgba(139,92,246,0.55)] hover:shadow-[0_4px_36px_-4px_rgba(139,92,246,0.7)] hover:brightness-110"
-              : "bg-white/[0.05] text-white/20 cursor-not-allowed border border-white/[0.05]"
+          className={`cs-generate-btn relative flex w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl text-[15px] font-semibold tracking-tight transition-all duration-200 ${
+            canGenerate ? "cs-generate-active text-white" : "cursor-not-allowed border border-white/[0.06] bg-white/[0.03] text-white/25"
           }`}
-          style={{ height: 52 }}
+          style={{ height: 56 }}
         >
-          {loading ? (
+          {/* Layered cinematic effects — pointer-events-none so they never
+              block the tap target. Only mounted when the button is enabled. */}
+          {canGenerate && (
             <>
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
-              Generating…
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4" />
-              Generate Image
+              <span aria-hidden className="cs-gen-energy pointer-events-none absolute inset-0" />
+              <span aria-hidden className="cs-gen-shimmer pointer-events-none absolute inset-0" />
+              <span aria-hidden className="cs-gen-glow pointer-events-none absolute -inset-[2px] rounded-2xl" />
             </>
           )}
+          <span className="relative z-10 flex items-center gap-2.5">
+            {loading ? (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/25 border-t-white" />
+                Generating…
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4 drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]" />
+                Generate Image
+              </>
+            )}
+          </span>
         </motion.button>
+        <div className="mt-2 flex justify-center gap-4 text-[10px] text-white/40">
+          <span className="flex items-center gap-1"><span className="h-1 w-1 rounded-full bg-violet-400/80" /> High quality</span>
+          <span className="flex items-center gap-1"><span className="h-1 w-1 rounded-full bg-indigo-400/80" /> Fast generation</span>
+          <span className="flex items-center gap-1"><span className="h-1 w-1 rounded-full bg-fuchsia-400/80" /> Private &amp; secure</span>
+        </div>
       </div>
 
       {/* ── OVERLAYS ─────────────────────────────────────────── */}
@@ -817,50 +839,424 @@ function LoadingOverlay() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.25 }}
-      className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-8"
-      style={{ background: "rgba(9,9,9,0.97)" }}
+      transition={{ duration: 0.3 }}
+      className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-9 overflow-hidden"
+      style={{ background: "radial-gradient(120% 90% at 50% 50%, rgba(20,8,40,0.96) 0%, rgba(5,5,12,0.99) 70%)" }}
     >
-      {/* Spinner ring */}
-      <div className="relative" style={{ width: 64, height: 64 }}>
-        <svg className="absolute inset-0 -rotate-90" width={64} height={64} viewBox="0 0 64 64">
-          <circle cx={32} cy={32} r={27} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={3} />
-          <circle
-            cx={32} cy={32} r={27} fill="none"
-            stroke="url(#ringGrad)" strokeWidth={3}
-            strokeLinecap="round"
-            strokeDasharray={`${2 * Math.PI * 27}`}
-            strokeDashoffset={`${2 * Math.PI * 27 * (1 - progress)}`}
-            style={{ transition: "stroke-dashoffset 0.5s ease-out" }}
-          />
-          <defs>
-            <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#a78bfa" />
-              <stop offset="100%" stopColor="#818cf8" />
-            </linearGradient>
-          </defs>
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-[11px] font-semibold tabular-nums text-white/60">{pct}%</span>
+      {/* Galaxy / energy layers — purely decorative, pointer-events:none,
+          animates only opacity + transform so it stays on the compositor. */}
+      <span aria-hidden className="cs-load-nebula pointer-events-none absolute inset-0" />
+      <span aria-hidden className="cs-load-streaks pointer-events-none absolute inset-0" />
+      <span aria-hidden className="cs-load-particles pointer-events-none absolute inset-0" />
+
+      {/* Pulse rings behind the dial — communicate "AI is actively working". */}
+      <div className="relative" style={{ width: 140, height: 140 }}>
+        <span aria-hidden className="cs-load-ring cs-load-ring-1 absolute inset-0 rounded-full" />
+        <span aria-hidden className="cs-load-ring cs-load-ring-2 absolute inset-0 rounded-full" />
+        <span aria-hidden className="cs-load-ring cs-load-ring-3 absolute inset-0 rounded-full" />
+
+        {/* Spinner ring — same SVG, kept for accurate % progress feedback. */}
+        <div className="absolute inset-0 grid place-items-center">
+          <div className="relative" style={{ width: 84, height: 84 }}>
+            <svg className="absolute inset-0 -rotate-90" width={84} height={84} viewBox="0 0 84 84">
+              <circle cx={42} cy={42} r={37} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={3} />
+              <circle
+                cx={42} cy={42} r={37} fill="none"
+                stroke="url(#ringGrad)" strokeWidth={3}
+                strokeLinecap="round"
+                strokeDasharray={`${2 * Math.PI * 37}`}
+                strokeDashoffset={`${2 * Math.PI * 37 * (1 - progress)}`}
+                style={{ transition: "stroke-dashoffset 0.5s ease-out", filter: "drop-shadow(0 0 6px rgba(167,139,250,0.55))" }}
+              />
+              <defs>
+                <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#f0abfc" />
+                  <stop offset="50%" stopColor="#a78bfa" />
+                  <stop offset="100%" stopColor="#60a5fa" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-[15px] font-semibold tabular-nums text-white/95 drop-shadow-[0_0_10px_rgba(167,139,250,0.65)]">{pct}%</span>
+              <span className="text-[8.5px] font-medium uppercase tracking-[0.2em] text-violet-300/70">AI</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="flex flex-col items-center gap-2">
+      <div className="relative z-10 flex flex-col items-center gap-2">
         <AnimatePresence mode="wait" initial={false}>
           <motion.p
             key={stage.key}
-            initial={{ opacity: 0, y: 4 }}
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.25 }}
-            className="text-[14px] font-medium text-white/70"
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.3 }}
+            className="text-[15px] font-semibold tracking-tight text-white/90 drop-shadow-[0_0_12px_rgba(167,139,250,0.35)]"
           >
             {stage.label}
           </motion.p>
         </AnimatePresence>
-        <p className="text-[11px] text-white/22">This typically takes 8–15 seconds</p>
+        <p className="text-[11px] text-white/35">This typically takes 8–15 seconds</p>
       </div>
     </motion.div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   CINEMATIC VISUAL LAYER — pure CSS keyframes + decorative components.
+   No event handlers, no state, no API touch points. Safe to remove or
+   restyle without affecting the generation pipeline.
+══════════════════════════════════════════════════════════ */
+
+/**
+ * Per-style "vibe" — drives the live overlay on each Create Style card.
+ * Keyed by the same `id` used by `setStyle()` and the `LOCAL_HINTS` map,
+ * so the active card visual always matches what the AI actually receives.
+ */
+type Vibe = "cinema" | "crystal" | "luxury" | "editorial" | "anime" | "neon" | "moody" | "dreamy" | "minimal" | "vintage";
+const STYLE_VIBE: Record<string, Vibe> = {
+  "Cinematic": "cinema", "Hyper Realistic": "crystal", "Luxury Ad": "luxury",
+  "Fashion Editorial": "editorial", "Anime": "anime", "Pixar 3D": "dreamy",
+  "Korean Aesthetic": "dreamy", "Dark Moody": "moody", "Cyberpunk": "neon",
+  "Minimalist": "minimal", "Street Photo": "moody", "Product Photo": "minimal",
+  "Jewelry Macro": "crystal", "Beauty Campaign": "luxury", "Magazine Cover": "editorial",
+  "Futuristic": "neon", "Dreamy": "dreamy", "Vintage Film": "vintage",
+  "AI Influencer": "luxury", "TikTok Viral": "neon",
+  "Apple Commercial": "minimal", "Nike Ad": "cinema",
+};
+
+/* Vibe-specific gradient backdrops. Each card composites this base + an
+   animated overlay specific to the vibe (defined in CinematicStyles). */
+const VIBE_BG: Record<Vibe, string> = {
+  cinema:    "linear-gradient(140deg, #2a0e3a 0%, #0a0612 50%, #1a0926 100%)",
+  crystal:   "linear-gradient(140deg, #0e1e3a 0%, #061018 50%, #0a2540 100%)",
+  luxury:    "linear-gradient(140deg, #3a1a06 0%, #100806 50%, #2a1208 100%)",
+  editorial: "linear-gradient(140deg, #1a0a1f 0%, #08060a 50%, #2a1234 100%)",
+  anime:     "linear-gradient(140deg, #3a0a3a 0%, #0e0820 50%, #1a0a50 100%)",
+  neon:      "linear-gradient(140deg, #28004a 0%, #06081a 50%, #001a2a 100%)",
+  moody:     "linear-gradient(140deg, #0a0a12 0%, #050508 50%, #14141c 100%)",
+  dreamy:    "linear-gradient(140deg, #2a1a3a 0%, #14102a 50%, #1a1a3a 100%)",
+  minimal:   "linear-gradient(140deg, #1a1a22 0%, #0a0a12 50%, #181820 100%)",
+  vintage:   "linear-gradient(140deg, #2a1a0a 0%, #100a06 50%, #1a1208 100%)",
+};
+
+/**
+ * Live cinematic Style card. Visual only — the click handler is whatever
+ * the parent passes (still `setStyle(id)`), so the style → AI pipeline is
+ * unchanged. Active card gets motion.layoutId for the spring transition.
+ */
+function StyleCard({
+  s, active, onClick,
+}: { s: StyleDef; active: boolean; onClick: () => void }) {
+  const vibe = STYLE_VIBE[s.id] ?? "cinema";
+  return (
+    <motion.button
+      whileTap={{ scale: 0.94 }}
+      onClick={onClick}
+      className={`relative shrink-0 overflow-hidden rounded-2xl transition-all ${active ? "ring-1 ring-violet-400/60" : ""}`}
+      style={{ width: 112, height: 144, background: VIBE_BG[vibe] }}
+    >
+      {/* Animated vibe layer — lives behind the icon/label. Each vibe has
+          its own keyframe block in CinematicStyles. */}
+      <span aria-hidden className={`cs-vibe cs-vibe-${vibe} absolute inset-0`} />
+      {/* Bottom darkening so the label text always stays readable. */}
+      <span aria-hidden className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
+
+      {/* Icon (top-left) */}
+      <span className="absolute top-3 left-3 grid h-8 w-8 place-items-center rounded-lg bg-white/8 backdrop-blur-md ring-1 ring-white/10">
+        <s.Icon className={`h-4 w-4 ${active ? "text-white" : "text-white/80"}`} strokeWidth={1.8} />
+      </span>
+
+      {/* Check mark when active */}
+      {active && (
+        <motion.span
+          layoutId="style-check"
+          className="absolute top-2.5 right-2.5 grid h-5 w-5 place-items-center rounded-full bg-gradient-to-br from-fuchsia-500 to-violet-600 shadow-[0_0_12px_rgba(217,70,239,0.7)]"
+        >
+          <Check className="h-3 w-3 text-white" strokeWidth={3} />
+        </motion.span>
+      )}
+
+      {/* Labels */}
+      <div className="absolute inset-x-0 bottom-0 px-2.5 pb-2.5">
+        <p className="truncate text-[12px] font-semibold leading-tight text-white drop-shadow">{s.label}</p>
+        <p className={`truncate text-[9.5px] leading-tight ${active ? "text-violet-200/85" : "text-white/55"}`}>{s.desc}</p>
+      </div>
+
+      {/* Outer neon glow on active */}
+      {active && (
+        <motion.span
+          layoutId="style-glow"
+          aria-hidden
+          className="pointer-events-none absolute -inset-[1px] rounded-2xl"
+          style={{ boxShadow: "0 0 0 1px rgba(167,139,250,0.55), 0 0 24px -2px rgba(167,139,250,0.45), inset 0 0 18px -6px rgba(217,70,239,0.45)" }}
+        />
+      )}
+    </motion.button>
+  );
+}
+
+/**
+ * Aspect ratio card — replaces the segmented control with floating cards
+ * matching the reference. Same data (id/w/h/name) wired to the same
+ * `setAspect`, so generation params don't change at all.
+ */
+function AspectCard({
+  a, active, onClick,
+}: { a: typeof ASPECTS[number]; active: boolean; onClick: () => void }) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.94 }}
+      onClick={onClick}
+      className={`relative flex h-[92px] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl border transition-all ${
+        active
+          ? "border-violet-400/55 bg-gradient-to-b from-violet-600/20 via-violet-700/10 to-indigo-900/10 text-white"
+          : "border-white/10 bg-white/[0.03] text-white/70 hover:border-white/20"
+      }`}
+    >
+      {active && (
+        <>
+          <motion.span
+            layoutId="aspect-glow"
+            aria-hidden
+            className="pointer-events-none absolute -inset-[1px] rounded-2xl"
+            style={{ boxShadow: "0 0 0 1px rgba(167,139,250,0.6), 0 0 18px -2px rgba(139,92,246,0.55), inset 0 0 14px -4px rgba(217,70,239,0.4)" }}
+          />
+          <span aria-hidden className="cs-aspect-pulse pointer-events-none absolute inset-0 rounded-2xl" />
+          <span className="absolute top-1.5 right-1.5 grid h-4 w-4 place-items-center rounded-full bg-violet-500 shadow-[0_0_10px_rgba(167,139,250,0.8)]">
+            <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
+          </span>
+        </>
+      )}
+      <span className="relative z-10 flex items-center justify-center" style={{ height: 30 }}>
+        <AspectRect w={a.w} h={a.h} active={active} />
+      </span>
+      <span className={`relative z-10 text-[12px] font-bold leading-none tabular-nums ${active ? "text-white" : "text-white/85"}`}>
+        {a.label}
+      </span>
+      <span className={`relative z-10 text-[9.5px] leading-none ${active ? "text-violet-200/80" : "text-white/40"}`}>
+        {a.name}
+      </span>
+    </motion.button>
+  );
+}
+
+/** Galaxy backdrop — three layered animated gradients (nebula, energy,
+ *  dust). Uses transform/opacity only so the compositor handles it. */
+function GalaxyBackdrop() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="cs-galaxy-nebula absolute inset-0" />
+      <div className="cs-galaxy-energy absolute inset-0" />
+      <div className="cs-galaxy-dust absolute inset-0" />
+      {/* Vignette to keep edges dark on bright phones. */}
+      <div
+        className="absolute inset-0"
+        style={{ background: "radial-gradient(120% 90% at 50% 30%, transparent 0%, rgba(0,0,0,0.55) 70%, rgba(0,0,0,0.8) 100%)" }}
+      />
+    </div>
+  );
+}
+
+/** Single injected stylesheet for the cinematic layer. Inlined so this
+ *  page owns its visual upgrade end-to-end — no shared CSS edits. */
+function CinematicStyles() {
+  return (
+    <style>{`
+      @keyframes cs-galaxy-pan-1 { 0% { transform: translate3d(-4%, -2%, 0) scale(1.05); } 50% { transform: translate3d(4%, 3%, 0) scale(1.1); } 100% { transform: translate3d(-4%, -2%, 0) scale(1.05); } }
+      @keyframes cs-galaxy-pan-2 { 0% { transform: translate3d(3%, 4%, 0) scale(1.08); opacity: .55; } 50% { transform: translate3d(-3%, -4%, 0) scale(1.12); opacity: .85; } 100% { transform: translate3d(3%, 4%, 0) scale(1.08); opacity: .55; } }
+      @keyframes cs-galaxy-dust { 0% { background-position: 0 0, 0 0; } 100% { background-position: 600px 800px, -400px 600px; } }
+
+      .cs-galaxy-nebula {
+        background:
+          radial-gradient(60% 50% at 18% 22%, rgba(167,139,250,0.42) 0%, transparent 60%),
+          radial-gradient(55% 45% at 85% 30%, rgba(96,165,250,0.30) 0%, transparent 60%),
+          radial-gradient(70% 55% at 30% 85%, rgba(217,70,239,0.28) 0%, transparent 60%),
+          radial-gradient(60% 50% at 80% 90%, rgba(56,189,248,0.18) 0%, transparent 60%);
+        animation: cs-galaxy-pan-1 28s ease-in-out infinite;
+        will-change: transform;
+      }
+      .cs-galaxy-energy {
+        background:
+          radial-gradient(45% 35% at 65% 50%, rgba(139,92,246,0.35) 0%, transparent 70%),
+          radial-gradient(40% 30% at 25% 60%, rgba(244,114,182,0.20) 0%, transparent 70%);
+        mix-blend-mode: screen;
+        animation: cs-galaxy-pan-2 22s ease-in-out infinite;
+        will-change: transform, opacity;
+      }
+      .cs-galaxy-dust {
+        background-image:
+          radial-gradient(1px 1px at 20px 30px, rgba(255,255,255,0.55), transparent),
+          radial-gradient(1px 1px at 120px 80px, rgba(167,139,250,0.55), transparent),
+          radial-gradient(1px 1px at 200px 150px, rgba(255,255,255,0.45), transparent),
+          radial-gradient(1px 1px at 60px 220px, rgba(96,165,250,0.55), transparent),
+          radial-gradient(1px 1px at 280px 60px, rgba(217,70,239,0.4), transparent),
+          radial-gradient(1px 1px at 340px 200px, rgba(255,255,255,0.5), transparent);
+        background-size: 400px 320px, 400px 320px;
+        opacity: .6;
+        animation: cs-galaxy-dust 60s linear infinite;
+        will-change: background-position;
+      }
+
+      /* PROMPT CARD — conic gradient border + soft inner glow. */
+      @keyframes cs-prompt-spin { to { transform: rotate(360deg); } }
+      @keyframes cs-prompt-pulse { 0%, 100% { opacity: .55; } 50% { opacity: .95; } }
+      .cs-prompt-glow {
+        background: conic-gradient(from 180deg at 50% 50%,
+          rgba(167,139,250,0.55), rgba(96,165,250,0.45), rgba(217,70,239,0.55),
+          rgba(167,139,250,0.55));
+        filter: blur(10px);
+        opacity: .55;
+        animation: cs-prompt-spin 14s linear infinite, cs-prompt-pulse 6s ease-in-out infinite;
+        z-index: 0;
+        will-change: transform, opacity;
+      }
+      .cs-prompt-card:focus-within .cs-prompt-glow { opacity: .85; filter: blur(14px); }
+      .cs-prompt-inner-glow {
+        background: radial-gradient(60% 70% at 50% 0%, rgba(167,139,250,0.18) 0%, transparent 70%);
+        pointer-events: none;
+      }
+
+      /* GENERATE button — moving gradient + shimmer sweep + outer glow. */
+      @keyframes cs-gen-energy { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+      @keyframes cs-gen-shimmer { 0% { transform: translateX(-120%); } 100% { transform: translateX(220%); } }
+      @keyframes cs-gen-glow-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+      .cs-generate-active {
+        background: linear-gradient(120deg, #7c3aed 0%, #a855f7 25%, #ec4899 50%, #8b5cf6 75%, #4f46e5 100%);
+        background-size: 220% 220%;
+        animation: cs-gen-energy 6s ease-in-out infinite;
+        box-shadow: 0 10px 36px -10px rgba(139,92,246,0.7), inset 0 1px 0 rgba(255,255,255,0.15);
+        will-change: background-position;
+      }
+      .cs-gen-energy {
+        background: radial-gradient(60% 120% at 50% 50%, rgba(255,255,255,0.18) 0%, transparent 70%);
+        mix-blend-mode: screen;
+      }
+      .cs-gen-shimmer {
+        background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.55) 50%, transparent 70%);
+        animation: cs-gen-shimmer 3.2s ease-in-out infinite;
+        will-change: transform;
+      }
+      .cs-gen-glow {
+        background: linear-gradient(120deg, #a855f7, #ec4899, #6366f1);
+        filter: blur(14px);
+        z-index: -1;
+        animation: cs-gen-glow-pulse 4s ease-in-out infinite;
+        will-change: opacity;
+      }
+
+      /* ASPECT CARD — pulsing neon ring when active. */
+      @keyframes cs-aspect-pulse { 0%, 100% { box-shadow: inset 0 0 8px rgba(167,139,250,0.25); } 50% { box-shadow: inset 0 0 18px rgba(217,70,239,0.45); } }
+      .cs-aspect-pulse { animation: cs-aspect-pulse 2.6s ease-in-out infinite; will-change: box-shadow; }
+
+      /* STYLE CARD VIBES — each one is a unique looping cinematic overlay.
+         All animate transform/opacity, none use filter blur on hot path. */
+      .cs-vibe { mix-blend-mode: screen; opacity: .9; }
+
+      @keyframes cs-vibe-cinema { 0% { transform: translate3d(-15%, 0, 0); opacity: .35; } 50% { opacity: .8; } 100% { transform: translate3d(15%, 0, 0); opacity: .35; } }
+      .cs-vibe-cinema { background:
+        linear-gradient(110deg, transparent 30%, rgba(255,180,120,0.35) 50%, transparent 70%),
+        radial-gradient(60% 40% at 50% 60%, rgba(0,0,0,0.4) 0%, transparent 70%);
+        animation: cs-vibe-cinema 7s ease-in-out infinite; will-change: transform, opacity; }
+
+      @keyframes cs-vibe-crystal { 0%,100% { transform: rotate(0deg) scale(1); opacity: .7; } 50% { transform: rotate(180deg) scale(1.1); opacity: 1; } }
+      .cs-vibe-crystal { background:
+        conic-gradient(from 0deg at 50% 50%, rgba(96,165,250,0.55), rgba(255,255,255,0.4), rgba(167,139,250,0.55), rgba(96,165,250,0.55));
+        filter: blur(8px); animation: cs-vibe-crystal 8s linear infinite; will-change: transform, opacity; }
+
+      @keyframes cs-vibe-luxury { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+      .cs-vibe-luxury { background:
+        linear-gradient(110deg, transparent 35%, rgba(255,200,120,0.55) 50%, transparent 65%);
+        background-size: 200% 100%; animation: cs-vibe-luxury 5s ease-in-out infinite; will-change: background-position; }
+
+      @keyframes cs-vibe-editorial { 0%,100% { transform: translate3d(0,0,0); } 50% { transform: translate3d(0,-6%,0); } }
+      .cs-vibe-editorial { background:
+        linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 40%),
+        linear-gradient(20deg, transparent 60%, rgba(217,70,239,0.35) 100%);
+        animation: cs-vibe-editorial 6s ease-in-out infinite; will-change: transform; }
+
+      @keyframes cs-vibe-anime { 0%,100% { opacity: .6; } 50% { opacity: 1; } }
+      .cs-vibe-anime { background:
+        radial-gradient(40% 30% at 30% 30%, rgba(244,114,182,0.55) 0%, transparent 70%),
+        radial-gradient(40% 30% at 70% 70%, rgba(96,165,250,0.55) 0%, transparent 70%);
+        animation: cs-vibe-anime 4.5s ease-in-out infinite; will-change: opacity; }
+
+      @keyframes cs-vibe-neon { 0% { transform: translate3d(0, -10%, 0); } 100% { transform: translate3d(0, 110%, 0); } }
+      .cs-vibe-neon { background:
+        repeating-linear-gradient(180deg, transparent 0px, transparent 8px, rgba(217,70,239,0.4) 9px, transparent 10px),
+        radial-gradient(60% 40% at 50% 50%, rgba(96,165,250,0.45) 0%, transparent 70%);
+        animation: cs-vibe-neon 5s linear infinite; will-change: transform; }
+
+      @keyframes cs-vibe-moody { 0%,100% { opacity: .5; } 50% { opacity: .85; } }
+      .cs-vibe-moody { background:
+        radial-gradient(60% 50% at 30% 40%, rgba(255,255,255,0.18) 0%, transparent 70%);
+        animation: cs-vibe-moody 6s ease-in-out infinite; will-change: opacity; }
+
+      @keyframes cs-vibe-dreamy { 0% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(2%,-2%,0) scale(1.05); } 100% { transform: translate3d(0,0,0) scale(1); } }
+      .cs-vibe-dreamy { background:
+        radial-gradient(50% 40% at 50% 50%, rgba(244,114,182,0.4) 0%, transparent 70%),
+        radial-gradient(40% 30% at 20% 80%, rgba(167,139,250,0.35) 0%, transparent 70%);
+        animation: cs-vibe-dreamy 9s ease-in-out infinite; will-change: transform; }
+
+      @keyframes cs-vibe-minimal { 0%,100% { opacity: .35; } 50% { opacity: .55; } }
+      .cs-vibe-minimal { background:
+        linear-gradient(180deg, rgba(255,255,255,0.12) 0%, transparent 60%);
+        animation: cs-vibe-minimal 7s ease-in-out infinite; will-change: opacity; }
+
+      @keyframes cs-vibe-vintage { 0%,100% { opacity: .5; } 50% { opacity: .85; } }
+      .cs-vibe-vintage { background:
+        radial-gradient(60% 50% at 50% 50%, rgba(255,200,120,0.5) 0%, transparent 70%);
+        animation: cs-vibe-vintage 5s ease-in-out infinite; will-change: opacity; }
+
+      /* LOADING OVERLAY cinematic layers. */
+      @keyframes cs-load-ring { 0% { transform: scale(.6); opacity: .9; } 100% { transform: scale(1.4); opacity: 0; } }
+      .cs-load-ring { border: 1.5px solid rgba(167,139,250,0.6); will-change: transform, opacity; }
+      .cs-load-ring-1 { animation: cs-load-ring 2.4s ease-out infinite; }
+      .cs-load-ring-2 { animation: cs-load-ring 2.4s ease-out infinite .8s; }
+      .cs-load-ring-3 { animation: cs-load-ring 2.4s ease-out infinite 1.6s; }
+
+      @keyframes cs-load-nebula { 0%,100% { transform: translate3d(-3%, -2%, 0) scale(1.1); } 50% { transform: translate3d(3%, 2%, 0) scale(1.2); } }
+      .cs-load-nebula {
+        background:
+          radial-gradient(50% 40% at 30% 30%, rgba(167,139,250,0.6) 0%, transparent 60%),
+          radial-gradient(60% 50% at 70% 70%, rgba(217,70,239,0.45) 0%, transparent 60%),
+          radial-gradient(40% 30% at 50% 50%, rgba(96,165,250,0.4) 0%, transparent 60%);
+        opacity: .8; mix-blend-mode: screen;
+        animation: cs-load-nebula 12s ease-in-out infinite;
+        will-change: transform;
+      }
+
+      @keyframes cs-load-streaks { 0% { transform: translate3d(-30%, 0, 0); opacity: 0; } 20% { opacity: .7; } 80% { opacity: .7; } 100% { transform: translate3d(30%, 0, 0); opacity: 0; } }
+      .cs-load-streaks {
+        background:
+          linear-gradient(95deg, transparent 40%, rgba(255,255,255,0.4) 50%, transparent 60%),
+          linear-gradient(85deg, transparent 30%, rgba(167,139,250,0.35) 50%, transparent 70%);
+        background-size: 200% 100%, 200% 100%;
+        animation: cs-load-streaks 4s ease-in-out infinite;
+        will-change: transform, opacity;
+      }
+
+      @keyframes cs-load-particles { 0% { background-position: 0 0, 0 0, 0 0; } 100% { background-position: 200px 400px, -300px 500px, 400px -300px; } }
+      .cs-load-particles {
+        background-image:
+          radial-gradient(1.5px 1.5px at 30px 60px, rgba(255,255,255,0.8), transparent),
+          radial-gradient(1.5px 1.5px at 180px 220px, rgba(217,70,239,0.7), transparent),
+          radial-gradient(1.5px 1.5px at 320px 100px, rgba(96,165,250,0.7), transparent);
+        background-size: 360px 360px, 360px 360px, 360px 360px;
+        opacity: .9;
+        animation: cs-load-particles 18s linear infinite;
+        will-change: background-position;
+      }
+
+      /* Honour the user's reduced-motion preference — kill all animation. */
+      @media (prefers-reduced-motion: reduce) {
+        .cs-galaxy-nebula, .cs-galaxy-energy, .cs-galaxy-dust,
+        .cs-prompt-glow, .cs-generate-active, .cs-gen-shimmer, .cs-gen-glow,
+        .cs-aspect-pulse, .cs-vibe, .cs-load-ring, .cs-load-nebula,
+        .cs-load-streaks, .cs-load-particles { animation: none !important; }
+      }
+    `}</style>
   );
 }
 
