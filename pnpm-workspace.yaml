@@ -6,7 +6,7 @@ packages:
 
 allowBuilds:
   '@firebase/util': false
-  esbuild: set this to true or false
+  esbuild: true
   ffmpeg-static: false
   protobufjs: false
   tesseract.js: false
