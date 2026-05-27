@@ -9,7 +9,7 @@ import {
   Share2, SlidersHorizontal, Sun, Lightbulb, Sunrise, Moon, Zap,
   Film, Camera, Gem, Palette, Box, Leaf, Cpu, Square,
   Building2, Package, Newspaper, Rocket, Cloud, Bot,
-  TrendingUp, Monitor, Activity, Clapperboard, Focus, Aperture,
+  TrendingUp, Monitor, Activity, Clapperboard, Focus, Aperture, Shield,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { generateImage, GenResult } from "@/lib/ai";
@@ -53,6 +53,7 @@ const ASPECTS = [
   { id: "4:5",  label: "4:5",  w: 4,  h: 5,  name: "Portrait" },
   { id: "9:16", label: "9:16", w: 9,  h: 16, name: "Story"    },
   { id: "16:9", label: "16:9", w: 16, h: 9,  name: "Wide"     },
+  { id: "3:4",  label: "3:4",  w: 3,  h: 4,  name: "Vertical" },
 ] as const;
 type AspectId = typeof ASPECTS[number]["id"];
 
@@ -234,7 +235,7 @@ export default function CreatePromptImage() {
   useEffect(() => () => setActivePrompt(""), [setActivePrompt]);
   useEffect(() => { localStorage.setItem("socia_last_aspect", aspect); }, [aspect]);
 
-  const wordCount = prompt.trim() ? prompt.trim().split(/\s+/).length : 0;
+  const charCount = prompt.length;
   const canGenerate = !loading && prompt.trim().length > 0;
 
   /* enhance */
@@ -393,8 +394,8 @@ export default function CreatePromptImage() {
                 <span className="text-[12px] font-semibold tracking-tight text-white/85">Your Prompt</span>
               </div>
               <div className="flex items-center gap-3">
-                <span className={`text-[10px] tabular-nums ${wordCount > 60 ? "text-amber-400/80" : "text-white/35"}`}>
-                  {wordCount} words
+                <span className={`text-[10px] tabular-nums ${charCount > 900 ? "text-amber-400/80" : "text-white/35"}`}>
+                  {charCount} / 1000
                 </span>
                 <button
                   onClick={() => setShowExamples((v) => !v)}
@@ -438,6 +439,7 @@ export default function CreatePromptImage() {
                 onChange={(e) => setPrompt(e.target.value)}
                 rows={4}
                 placeholder="Describe the image you want to create…"
+                maxLength={1000}
                 className="w-full resize-none bg-transparent text-[14px] leading-[1.65] text-white/85 placeholder:text-white/20 focus:outline-none"
               />
               {isEnhancing && (
@@ -461,9 +463,10 @@ export default function CreatePromptImage() {
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={handleShuffle}
-                className="flex h-7 w-7 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.04] text-white/40 transition hover:bg-white/[0.07]"
+                className="flex h-7 items-center gap-1.5 rounded-md border border-white/[0.08] bg-white/[0.04] px-3 text-[11px] font-medium text-white/50 transition hover:bg-white/[0.07] hover:text-white/70"
               >
-                <Shuffle className="h-3 w-3" />
+                <TrendingUp className="h-3 w-3" />
+                Improve Prompt
               </motion.button>
               {prompt.trim() && (
                 <button
@@ -537,7 +540,7 @@ export default function CreatePromptImage() {
             <span aria-hidden className="h-[10px] w-[3px] rounded-full bg-gradient-to-b from-violet-400 to-indigo-500 shadow-[0_0_8px_rgba(139,92,246,0.7)]" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">Aspect Ratio</p>
           </div>
-          <div className="grid grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-5 gap-2">
             {ASPECTS.map((a) => (
               <AspectCard
                 key={a.id}
@@ -747,38 +750,82 @@ export default function CreatePromptImage() {
           whileTap={{ scale: canGenerate ? 0.97 : 1 }}
           disabled={!canGenerate}
           onClick={handleGenerate}
-          className={`cs-generate-btn relative flex w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl text-[15px] font-semibold tracking-tight transition-all duration-200 ${
-            canGenerate ? "cs-generate-active text-white" : "cursor-not-allowed border border-white/[0.06] bg-white/[0.03] text-white/25"
+          className={`relative flex w-full items-center overflow-hidden rounded-[22px] transition-all duration-200 ${
+            canGenerate
+              ? "cs-generate-active text-white"
+              : "cursor-not-allowed border border-white/[0.06] bg-white/[0.03] text-white/25"
           }`}
-          style={{ height: 56 }}
+          style={{ height: 68 }}
         >
-          {/* Layered cinematic effects — pointer-events-none so they never
-              block the tap target. Only mounted when the button is enabled. */}
           {canGenerate && (
             <>
               <span aria-hidden className="cs-gen-energy pointer-events-none absolute inset-0" />
               <span aria-hidden className="cs-gen-shimmer pointer-events-none absolute inset-0" />
-              <span aria-hidden className="cs-gen-glow pointer-events-none absolute -inset-[2px] rounded-2xl" />
+              <span aria-hidden className="cs-gen-glow pointer-events-none absolute -inset-[2px] rounded-[22px]" />
             </>
           )}
-          <span className="relative z-10 flex items-center gap-2.5">
+
+          {/* Main content — centred with flex-1 */}
+          <span className="relative z-10 flex flex-1 flex-col items-center justify-center gap-0.5">
             {loading ? (
-              <>
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/25 border-t-white" />
+              <span className="flex items-center gap-2 text-[16px] font-bold">
+                <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 Generating…
-              </>
+              </span>
             ) : (
               <>
-                <Sparkles className="h-4 w-4 drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]" />
-                Generate Image
+                <span
+                  className="flex items-center gap-2 text-[18px] font-bold tracking-tight"
+                  style={{ textShadow: "0 0 28px rgba(255,255,255,0.35)" }}
+                >
+                  <Sparkles
+                    style={{ width: 20, height: 20, filter: "drop-shadow(0 0 10px rgba(255,255,255,0.7))" }}
+                    strokeWidth={2.2}
+                  />
+                  Generate Image
+                </span>
+                {canGenerate && (
+                  <span className="text-[11px] font-medium text-white/60">
+                    High quality · Fast generation · Private & secure
+                  </span>
+                )}
               </>
             )}
           </span>
+
+          {/* Right circle badge */}
+          {canGenerate && !loading && (
+            <span
+              aria-hidden
+              className="absolute right-4 grid h-11 w-11 place-items-center rounded-full"
+              style={{
+                background: "rgba(255,255,255,0.12)",
+                border: "1.5px solid rgba(255,255,255,0.22)",
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              <Sparkles
+                style={{ width: 20, height: 20, color: "white", filter: "drop-shadow(0 0 6px rgba(255,255,255,0.5))" }}
+                strokeWidth={2}
+              />
+            </span>
+          )}
         </motion.button>
-        <div className="mt-2 flex justify-center gap-4 text-[10px] text-white/40">
-          <span className="flex items-center gap-1"><span className="h-1 w-1 rounded-full bg-violet-400/80" /> High quality</span>
-          <span className="flex items-center gap-1"><span className="h-1 w-1 rounded-full bg-indigo-400/80" /> Fast generation</span>
-          <span className="flex items-center gap-1"><span className="h-1 w-1 rounded-full bg-fuchsia-400/80" /> Private &amp; secure</span>
+
+        {/* ── Bottom info strip (matches reference) ── */}
+        <div className="mt-3 grid grid-cols-3 divide-x divide-white/[0.055] overflow-hidden rounded-2xl border border-white/[0.055]"
+          style={{ background: "rgba(255,255,255,0.025)" }}>
+          {([
+            { Icon: Crown,  title: "High Quality",     sub: "Best results"      },
+            { Icon: Zap,    title: "Fast Generation",  sub: "No long waiting"   },
+            { Icon: Shield, title: "Private & Secure", sub: "Your data is safe" },
+          ] as const).map(({ Icon, title, sub }) => (
+            <div key={title} className="flex flex-col items-center gap-1 py-2.5 px-1">
+              <Icon style={{ width: 13, height: 13, color: "rgba(196,180,255,0.65)", strokeWidth: 1.5 }} />
+              <span className="text-center text-[9px] font-semibold leading-tight text-white/62">{title}</span>
+              <span className="text-center text-[8.5px] leading-tight text-white/30">{sub}</span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -926,19 +973,79 @@ const STYLE_VIBE: Record<string, Vibe> = {
   "Apple Commercial": "minimal", "Nike Ad": "cinema",
 };
 
-/* Vibe-specific gradient backdrops. Each card composites this base + an
-   animated overlay specific to the vibe (defined in CinematicStyles). */
+/* Vibe-specific gradient backdrops — rich cinematic base tones. */
 const VIBE_BG: Record<Vibe, string> = {
-  cinema:    "linear-gradient(140deg, #2a0e3a 0%, #0a0612 50%, #1a0926 100%)",
-  crystal:   "linear-gradient(140deg, #0e1e3a 0%, #061018 50%, #0a2540 100%)",
-  luxury:    "linear-gradient(140deg, #3a1a06 0%, #100806 50%, #2a1208 100%)",
-  editorial: "linear-gradient(140deg, #1a0a1f 0%, #08060a 50%, #2a1234 100%)",
-  anime:     "linear-gradient(140deg, #3a0a3a 0%, #0e0820 50%, #1a0a50 100%)",
-  neon:      "linear-gradient(140deg, #28004a 0%, #06081a 50%, #001a2a 100%)",
-  moody:     "linear-gradient(140deg, #0a0a12 0%, #050508 50%, #14141c 100%)",
-  dreamy:    "linear-gradient(140deg, #2a1a3a 0%, #14102a 50%, #1a1a3a 100%)",
-  minimal:   "linear-gradient(140deg, #1a1a22 0%, #0a0a12 50%, #181820 100%)",
-  vintage:   "linear-gradient(140deg, #2a1a0a 0%, #100a06 50%, #1a1208 100%)",
+  cinema:    "linear-gradient(155deg, #1c0a04 0%, #080302 50%, #140804 100%)",
+  crystal:   "linear-gradient(155deg, #061220 0%, #030810 55%, #07182a 100%)",
+  luxury:    "linear-gradient(155deg, #18090200 0%, #180902 40%, #100602 100%)",
+  editorial: "linear-gradient(155deg, #10060e 0%, #050306 55%, #160a18 100%)",
+  anime:     "linear-gradient(155deg, #16022e 0%, #060110 55%, #100826 100%)",
+  neon:      "linear-gradient(155deg, #040010 0%, #020108 55%, #000610 100%)",
+  moody:     "linear-gradient(155deg, #050508 0%, #020204 55%, #060610 100%)",
+  dreamy:    "linear-gradient(155deg, #100622 0%, #070414 55%, #100a22 100%)",
+  minimal:   "linear-gradient(155deg, #101014 0%, #060608 55%, #0e0e12 100%)",
+  vintage:   "linear-gradient(155deg, #1c0e04 0%, #0a0602 55%, #160e04 100%)",
+};
+
+/* Per-style CSS art — rich multi-layer backgrounds that visually suggest
+   the photographic content of each style. Composited below cs-vibe overlay. */
+const STYLE_ART: Partial<Record<string, string>> = {
+  "Cinematic": `
+    radial-gradient(9% 11% at 50% 52%, rgba(255,210,110,0.65) 0%, rgba(180,110,28,0.28) 45%, transparent 72%),
+    radial-gradient(55% 62% at 48% 54%, rgba(40,14,4,0.8) 0%, transparent 68%),
+    radial-gradient(30% 18% at 32% 50%, rgba(70,42,16,0.45) 0%, transparent 55%),
+    linear-gradient(152deg, rgba(190,110,35,0.06) 0%, transparent 38%)
+  `,
+  "Hyper Realistic": `
+    conic-gradient(from 40deg at 50% 46%, rgba(215,240,255,0.55) 0deg, transparent 38deg, rgba(90,190,255,0.35) 85deg, transparent 160deg, rgba(195,232,255,0.45) 240deg, transparent 295deg, rgba(215,240,255,0.55) 360deg),
+    radial-gradient(28% 36% at 50% 46%, rgba(255,255,255,0.72) 0%, rgba(95,195,255,0.32) 48%, transparent 80%),
+    radial-gradient(52% 62% at 50% 50%, rgba(22,72,155,0.45) 0%, transparent 72%)
+  `,
+  "Luxury Ad": `
+    radial-gradient(11% 58% at 54% 46%, rgba(255,200,72,0.72) 0%, rgba(200,138,26,0.38) 44%, transparent 76%),
+    radial-gradient(55% 24% at 54% 90%, rgba(255,178,44,0.2) 0%, transparent 66%),
+    radial-gradient(62% 55% at 50% 50%, rgba(75,30,6,0.6) 0%, transparent 66%),
+    linear-gradient(155deg, rgba(120,60,8,0.12) 0%, transparent 45%)
+  `,
+  "Fashion Editorial": `
+    linear-gradient(92deg, rgba(0,0,0,0.38) 0%, transparent 42%, rgba(0,0,0,0.14) 100%),
+    radial-gradient(76% 40% at 50% 0%, rgba(238,218,200,0.16) 0%, transparent 62%),
+    radial-gradient(50% 32% at 68% 100%, rgba(148,76,128,0.2) 0%, transparent 62%),
+    linear-gradient(176deg, rgba(218,198,182,0.07) 0%, transparent 52%)
+  `,
+  "Anime": `
+    repeating-linear-gradient(90deg, transparent 0px, transparent 20px, rgba(255,36,178,0.045) 21px, transparent 22px),
+    radial-gradient(40% 50% at 52% 44%, rgba(255,55,195,0.45) 0%, rgba(200,18,150,0.22) 46%, transparent 76%),
+    radial-gradient(22% 26% at 36% 30%, rgba(55,185,255,0.32) 0%, transparent 62%),
+    radial-gradient(52% 64% at 50% 72%, rgba(95,0,155,0.32) 0%, transparent 68%)
+  `,
+  "Dark Moody": `
+    radial-gradient(28% 42% at 42% 44%, rgba(195,195,215,0.26) 0%, rgba(145,145,175,0.12) 52%, transparent 76%),
+    radial-gradient(62% 52% at 50% 55%, rgba(8,6,12,0.85) 28%, transparent 100%)
+  `,
+  "Cyberpunk": `
+    repeating-linear-gradient(0deg, transparent 0px, transparent 22px, rgba(0,215,255,0.05) 23px, transparent 24px),
+    repeating-linear-gradient(90deg, transparent 0px, transparent 22px, rgba(255,0,185,0.04) 23px, transparent 24px),
+    radial-gradient(48% 52% at 50% 52%, rgba(0,145,255,0.22) 0%, transparent 66%),
+    radial-gradient(32% 28% at 65% 36%, rgba(255,0,195,0.2) 0%, transparent 62%)
+  `,
+  "Korean Aesthetic": `
+    radial-gradient(58% 62% at 50% 42%, rgba(255,198,218,0.28) 0%, rgba(198,178,210,0.14) 56%, transparent 82%),
+    radial-gradient(44% 36% at 55% 68%, rgba(178,218,255,0.16) 0%, transparent 62%)
+  `,
+  "Jewelry Macro": `
+    conic-gradient(from 22deg at 50% 50%, rgba(255,245,225,0.4) 0deg, transparent 30deg, rgba(255,220,130,0.45) 70deg, transparent 140deg, rgba(255,245,225,0.35) 220deg, transparent 290deg),
+    radial-gradient(32% 38% at 50% 50%, rgba(255,240,200,0.6) 0%, rgba(255,200,80,0.3) 50%, transparent 80%)
+  `,
+  "Minimalist": `
+    radial-gradient(68% 58% at 50% 30%, rgba(255,255,255,0.18) 0%, transparent 66%),
+    linear-gradient(180deg, rgba(255,255,255,0.07) 0%, transparent 42%)
+  `,
+  "Vintage Film": `
+    radial-gradient(60% 56% at 50% 52%, rgba(255,195,115,0.28) 0%, transparent 72%),
+    linear-gradient(155deg, rgba(200,140,60,0.12) 0%, transparent 48%),
+    radial-gradient(45% 38% at 32% 36%, rgba(255,200,100,0.16) 0%, transparent 60%)
+  `,
 };
 
 /**
@@ -950,96 +1057,123 @@ function StyleCard({
   s, active, onClick,
 }: { s: StyleDef; active: boolean; onClick: () => void }) {
   const vibe = STYLE_VIBE[s.id] ?? "cinema";
+  const artBg = STYLE_ART[s.id];
+
   return (
     <motion.button
       whileTap={{ scale: 0.93 }}
       onClick={onClick}
-      className="relative shrink-0 overflow-hidden rounded-[20px]"
-      style={{ width: 116, height: 160, background: VIBE_BG[vibe] }}
+      className="relative shrink-0 overflow-hidden rounded-[18px]"
+      style={{ width: 118, height: 158, background: VIBE_BG[vibe] }}
     >
-      {/* Animated vibe layer */}
-      <span aria-hidden className={`cs-vibe cs-vibe-${vibe} absolute inset-0`} />
+      {/* ── Layer 1: per-style CSS art background ── */}
+      {artBg && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{ background: artBg }}
+        />
+      )}
 
-      {/* Shimmer sweep across the card */}
+      {/* ── Layer 2: animated cinematic vibe overlay ── */}
+      <span aria-hidden className={`cs-vibe cs-vibe-${vibe} pointer-events-none absolute inset-0`} />
+
+      {/* ── Layer 3: card shimmer sweep ── */}
       <span aria-hidden className="cs-card-shimmer pointer-events-none absolute inset-0" />
 
-      {/* Bottom gradient — text legibility */}
-      <span aria-hidden className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
+      {/* ── Layer 4: bottom dark gradient for text legibility ── */}
+      <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-3/4"
+        style={{ background: "linear-gradient(0deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.55) 45%, transparent 100%)" }} />
 
-      {/* Top subtle vignette */}
-      <span aria-hidden className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-black/40 to-transparent" />
+      {/* ── Layer 5: top vignette ── */}
+      <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-1/3"
+        style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.38) 0%, transparent 100%)" }} />
 
-      {/* Icon orb */}
+      {/* ── Icon orb (top-left) ── */}
       <span
-        className="absolute top-3 left-3 grid h-9 w-9 place-items-center rounded-xl"
+        className="absolute top-2.5 left-2.5 grid h-8 w-8 place-items-center rounded-xl"
         style={{
           background: "rgba(255,255,255,0.10)",
-          backdropFilter: "blur(12px)",
-          WebkitBackdropFilter: "blur(12px)",
+          backdropFilter: "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
           boxShadow: active
-            ? "0 0 0 1px rgba(255,255,255,0.22), 0 0 14px rgba(167,139,250,0.65)"
-            : "0 0 0 1px rgba(255,255,255,0.10)",
+            ? "0 0 0 1px rgba(255,255,255,0.25), 0 0 16px rgba(167,139,250,0.7), inset 0 1px 0 rgba(255,255,255,0.15)"
+            : "0 0 0 1px rgba(255,255,255,0.09), inset 0 1px 0 rgba(255,255,255,0.05)",
         }}
       >
         <s.Icon
-          className={`h-[18px] w-[18px] ${active ? "text-white" : "text-white/82"}`}
-          strokeWidth={active ? 2.1 : 1.8}
-          style={{ filter: active ? "drop-shadow(0 0 6px rgba(255,255,255,0.55))" : "none" }}
+          style={{
+            width: 15, height: 15,
+            color: active ? "white" : "rgba(255,255,255,0.78)",
+            strokeWidth: active ? 2.2 : 1.8,
+            filter: active ? "drop-shadow(0 0 5px rgba(255,255,255,0.6))" : "none",
+          }}
         />
       </span>
 
-      {/* Active check badge */}
+      {/* ── Active check badge (top-right) ── */}
       {active && (
         <motion.span
           layoutId="style-check"
-          initial={{ scale: 0.5 }}
-          animate={{ scale: 1 }}
-          className="absolute top-2.5 right-2.5 grid h-[18px] w-[18px] place-items-center rounded-full"
+          initial={{ scale: 0.4, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="absolute top-2 right-2 grid h-5 w-5 place-items-center rounded-full"
           style={{
-            background: "linear-gradient(135deg, #d946ef, #7c3aed)",
-            boxShadow: "0 0 12px rgba(217,70,239,0.85), 0 0 24px rgba(167,139,250,0.45)",
+            background: "linear-gradient(135deg, #d946ef 0%, #7c3aed 100%)",
+            boxShadow: "0 0 14px rgba(217,70,239,0.9), 0 0 28px rgba(167,139,250,0.5)",
           }}
         >
-          <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
+          <Check style={{ width: 10, height: 10, color: "white", strokeWidth: 3.2 }} />
         </motion.span>
       )}
 
-      {/* Labels */}
-      <div className="absolute inset-x-0 bottom-0 px-2.5 pb-3">
+      {/* ── Labels (bottom) ── */}
+      <div className="absolute inset-x-0 bottom-0 px-2.5 pb-2.5">
         <p
-          className="truncate font-semibold leading-tight text-white"
+          className="truncate font-bold leading-snug text-white"
           style={{
-            fontSize: 12.5,
-            textShadow: "0 1px 8px rgba(0,0,0,0.8)",
+            fontSize: 12,
+            textShadow: "0 1px 10px rgba(0,0,0,0.9), 0 0 6px rgba(0,0,0,0.7)",
             letterSpacing: "-0.01em",
           }}
         >
           {s.label}
         </p>
         <p
-          className={`mt-0.5 truncate text-[9.5px] leading-tight ${active ? "text-violet-200/90" : "text-white/52"}`}
-          style={{ textShadow: "0 1px 6px rgba(0,0,0,0.7)" }}
+          style={{
+            fontSize: 9.5,
+            marginTop: 1,
+            color: active ? "rgba(196,180,255,0.92)" : "rgba(255,255,255,0.48)",
+            textShadow: "0 1px 6px rgba(0,0,0,0.8)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
         >
           {s.desc}
         </p>
       </div>
 
-      {/* Outer neon border + glow on active */}
+      {/* ── Outer neon border ── */}
       {active ? (
         <motion.span
           layoutId="style-glow"
           aria-hidden
-          className="pointer-events-none absolute -inset-[1px] rounded-[20px]"
+          className="pointer-events-none absolute -inset-[1.5px] rounded-[18px]"
           style={{
-            boxShadow:
-              "0 0 0 1.5px rgba(167,139,250,0.7), 0 0 28px -4px rgba(167,139,250,0.6), 0 0 50px -8px rgba(217,70,239,0.4), inset 0 0 20px -8px rgba(217,70,239,0.5)",
+            boxShadow: [
+              "0 0 0 1.5px rgba(167,139,250,0.75)",
+              "0 0 22px -4px rgba(167,139,250,0.65)",
+              "0 0 44px -10px rgba(217,70,239,0.45)",
+              "inset 0 0 22px -8px rgba(217,70,239,0.55)",
+            ].join(", "),
           }}
         />
       ) : (
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-[20px]"
-          style={{ boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.07)" }}
+          className="pointer-events-none absolute inset-0 rounded-[18px]"
+          style={{ boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.06)" }}
         />
       )}
     </motion.button>
@@ -1120,158 +1254,270 @@ function GalaxyBackdrop() {
 function CinematicStyles() {
   return (
     <style>{`
-      @keyframes cs-galaxy-pan-1 { 0% { transform: translate3d(-4%, -2%, 0) scale(1.05); } 50% { transform: translate3d(4%, 3%, 0) scale(1.1); } 100% { transform: translate3d(-4%, -2%, 0) scale(1.05); } }
-      @keyframes cs-galaxy-pan-2 { 0% { transform: translate3d(3%, 4%, 0) scale(1.08); opacity: .55; } 50% { transform: translate3d(-3%, -4%, 0) scale(1.12); opacity: .85; } 100% { transform: translate3d(3%, 4%, 0) scale(1.08); opacity: .55; } }
-      @keyframes cs-galaxy-dust { 0% { background-position: 0 0, 0 0; } 100% { background-position: 600px 800px, -400px 600px; } }
+      /* ── GALAXY BACKGROUND ─────────────────────────────────────── */
+      @keyframes cs-galaxy-pan-1 {
+        0%   { transform: translate3d(-5%, -3%, 0) scale(1.06); }
+        50%  { transform: translate3d(5%, 4%, 0) scale(1.12); }
+        100% { transform: translate3d(-5%, -3%, 0) scale(1.06); }
+      }
+      @keyframes cs-galaxy-pan-2 {
+        0%   { transform: translate3d(4%, 5%, 0) scale(1.09); opacity: .50; }
+        50%  { transform: translate3d(-4%, -5%, 0) scale(1.14); opacity: .90; }
+        100% { transform: translate3d(4%, 5%, 0) scale(1.09); opacity: .50; }
+      }
+      @keyframes cs-galaxy-dust { 0% { background-position: 0 0, 0 0, 0 0; } 100% { background-position: 700px 900px, -500px 700px, 300px -500px; } }
 
       .cs-galaxy-nebula {
         background:
-          radial-gradient(60% 50% at 18% 22%, rgba(167,139,250,0.42) 0%, transparent 60%),
-          radial-gradient(55% 45% at 85% 30%, rgba(96,165,250,0.30) 0%, transparent 60%),
-          radial-gradient(70% 55% at 30% 85%, rgba(217,70,239,0.28) 0%, transparent 60%),
-          radial-gradient(60% 50% at 80% 90%, rgba(56,189,248,0.18) 0%, transparent 60%);
+          radial-gradient(62% 52% at 16% 20%, rgba(167,139,250,0.52) 0%, transparent 62%),
+          radial-gradient(58% 48% at 84% 28%, rgba(96,165,250,0.38) 0%, transparent 62%),
+          radial-gradient(72% 58% at 28% 86%, rgba(217,70,239,0.34) 0%, transparent 62%),
+          radial-gradient(62% 52% at 78% 88%, rgba(56,189,248,0.22) 0%, transparent 62%),
+          radial-gradient(45% 38% at 52% 52%, rgba(139,92,246,0.28) 0%, transparent 62%);
         animation: cs-galaxy-pan-1 28s ease-in-out infinite;
         will-change: transform;
       }
       .cs-galaxy-energy {
         background:
-          radial-gradient(45% 35% at 65% 50%, rgba(139,92,246,0.35) 0%, transparent 70%),
-          radial-gradient(40% 30% at 25% 60%, rgba(244,114,182,0.20) 0%, transparent 70%);
+          radial-gradient(48% 38% at 66% 52%, rgba(139,92,246,0.42) 0%, transparent 72%),
+          radial-gradient(42% 32% at 24% 62%, rgba(244,114,182,0.26) 0%, transparent 72%),
+          radial-gradient(35% 28% at 50% 22%, rgba(96,165,250,0.22) 0%, transparent 72%);
         mix-blend-mode: screen;
         animation: cs-galaxy-pan-2 22s ease-in-out infinite;
         will-change: transform, opacity;
       }
       .cs-galaxy-dust {
         background-image:
-          radial-gradient(1px 1px at 20px 30px, rgba(255,255,255,0.55), transparent),
-          radial-gradient(1px 1px at 120px 80px, rgba(167,139,250,0.55), transparent),
-          radial-gradient(1px 1px at 200px 150px, rgba(255,255,255,0.45), transparent),
-          radial-gradient(1px 1px at 60px 220px, rgba(96,165,250,0.55), transparent),
-          radial-gradient(1px 1px at 280px 60px, rgba(217,70,239,0.4), transparent),
-          radial-gradient(1px 1px at 340px 200px, rgba(255,255,255,0.5), transparent);
-        background-size: 400px 320px, 400px 320px;
-        opacity: .6;
-        animation: cs-galaxy-dust 60s linear infinite;
+          radial-gradient(1px 1px at 20px 30px, rgba(255,255,255,0.65), transparent),
+          radial-gradient(1px 1px at 120px 80px, rgba(196,180,255,0.65), transparent),
+          radial-gradient(1px 1px at 200px 150px, rgba(255,255,255,0.55), transparent),
+          radial-gradient(1px 1px at 60px 220px, rgba(96,165,250,0.65), transparent),
+          radial-gradient(1px 1px at 280px 60px, rgba(217,70,239,0.5), transparent),
+          radial-gradient(1px 1px at 340px 200px, rgba(255,255,255,0.6), transparent),
+          radial-gradient(1.5px 1.5px at 160px 140px, rgba(167,139,250,0.5), transparent),
+          radial-gradient(1px 1px at 420px 80px, rgba(255,255,255,0.45), transparent);
+        background-size: 480px 380px;
+        opacity: .7;
+        animation: cs-galaxy-dust 80s linear infinite;
         will-change: background-position;
       }
 
-      /* PROMPT CARD — conic gradient border + soft inner glow. */
-      @keyframes cs-prompt-spin { to { transform: rotate(360deg); } }
-      @keyframes cs-prompt-pulse { 0%, 100% { opacity: .55; } 50% { opacity: .95; } }
+      /* ── PROMPT CARD — spinning conic border + inner glow ──────── */
+      @keyframes cs-prompt-spin  { to { transform: rotate(360deg); } }
+      @keyframes cs-prompt-pulse { 0%, 100% { opacity: .52; } 50% { opacity: 1; } }
       .cs-prompt-glow {
         background: conic-gradient(from 180deg at 50% 50%,
-          rgba(167,139,250,0.55), rgba(96,165,250,0.45), rgba(217,70,239,0.55),
-          rgba(167,139,250,0.55));
-        filter: blur(10px);
-        opacity: .55;
-        animation: cs-prompt-spin 14s linear infinite, cs-prompt-pulse 6s ease-in-out infinite;
+          rgba(167,139,250,0.65), rgba(96,165,250,0.52), rgba(217,70,239,0.65),
+          rgba(56,189,248,0.45), rgba(167,139,250,0.65));
+        filter: blur(12px);
+        opacity: .52;
+        animation: cs-prompt-spin 12s linear infinite, cs-prompt-pulse 5s ease-in-out infinite;
         z-index: 0;
         will-change: transform, opacity;
       }
-      .cs-prompt-card:focus-within .cs-prompt-glow { opacity: .85; filter: blur(14px); }
+      .cs-prompt-card:focus-within .cs-prompt-glow { opacity: 1; filter: blur(16px); }
       .cs-prompt-inner-glow {
-        background: radial-gradient(60% 70% at 50% 0%, rgba(167,139,250,0.18) 0%, transparent 70%);
+        background:
+          radial-gradient(65% 75% at 50% 0%, rgba(167,139,250,0.22) 0%, transparent 72%),
+          radial-gradient(40% 30% at 20% 100%, rgba(217,70,239,0.10) 0%, transparent 60%);
         pointer-events: none;
       }
 
-      /* GENERATE button — moving gradient + shimmer sweep + outer glow. */
-      @keyframes cs-gen-energy { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-      @keyframes cs-gen-shimmer { 0% { transform: translateX(-120%); } 100% { transform: translateX(220%); } }
-      @keyframes cs-gen-glow-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+      /* ── GENERATE BUTTON — premium aurora gradient ──────────────── */
+      @keyframes cs-gen-energy    { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+      @keyframes cs-gen-shimmer   { 0% { transform: translateX(-130%) skewX(-12deg); } 100% { transform: translateX(230%) skewX(-12deg); } }
+      @keyframes cs-gen-glow-pulse { 0%, 100% { opacity: .52; } 50% { opacity: 1; } }
+
       .cs-generate-active {
-        background: linear-gradient(120deg, #7c3aed 0%, #a855f7 25%, #ec4899 50%, #8b5cf6 75%, #4f46e5 100%);
-        background-size: 220% 220%;
-        animation: cs-gen-energy 6s ease-in-out infinite;
-        box-shadow: 0 10px 36px -10px rgba(139,92,246,0.7), inset 0 1px 0 rgba(255,255,255,0.15);
+        background: linear-gradient(118deg,
+          #5b21b6 0%, #7c3aed 18%, #a855f7 32%,
+          #c026d3 52%, #ec4899 70%, #be185d 88%, #7c3aed 100%);
+        background-size: 240% 240%;
+        animation: cs-gen-energy 5s ease-in-out infinite;
+        box-shadow:
+          0 12px 40px -10px rgba(139,92,246,0.75),
+          0 4px 16px -6px rgba(236,72,153,0.55),
+          inset 0 1px 0 rgba(255,255,255,0.18);
         will-change: background-position;
       }
       .cs-gen-energy {
-        background: radial-gradient(60% 120% at 50% 50%, rgba(255,255,255,0.18) 0%, transparent 70%);
+        background: radial-gradient(65% 130% at 50% 50%, rgba(255,255,255,0.20) 0%, transparent 72%);
         mix-blend-mode: screen;
       }
       .cs-gen-shimmer {
-        background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.55) 50%, transparent 70%);
-        animation: cs-gen-shimmer 3.2s ease-in-out infinite;
+        background: linear-gradient(112deg, transparent 28%, rgba(255,255,255,0.65) 50%, transparent 72%);
+        animation: cs-gen-shimmer 2.8s ease-in-out infinite;
         will-change: transform;
       }
       .cs-gen-glow {
-        background: linear-gradient(120deg, #a855f7, #ec4899, #6366f1);
-        filter: blur(14px);
+        background: linear-gradient(118deg, #a855f7, #ec4899, #6366f1, #a855f7);
+        background-size: 200% 200%;
+        filter: blur(16px);
         z-index: -1;
-        animation: cs-gen-glow-pulse 4s ease-in-out infinite;
-        will-change: opacity;
+        animation: cs-gen-energy 5s ease-in-out infinite, cs-gen-glow-pulse 3.5s ease-in-out infinite;
+        will-change: opacity, background-position;
       }
 
-      /* ASPECT CARD — pulsing neon ring when active. */
-      @keyframes cs-aspect-pulse { 0%, 100% { box-shadow: inset 0 0 8px rgba(167,139,250,0.25); } 50% { box-shadow: inset 0 0 18px rgba(217,70,239,0.45); } }
+      /* ── ASPECT CARD ────────────────────────────────────────────── */
+      @keyframes cs-aspect-pulse {
+        0%, 100% { box-shadow: inset 0 0 10px rgba(167,139,250,0.28); }
+        50%       { box-shadow: inset 0 0 22px rgba(217,70,239,0.52); }
+      }
       .cs-aspect-pulse { animation: cs-aspect-pulse 2.6s ease-in-out infinite; will-change: box-shadow; }
 
-      /* STYLE CARD — diagonal shimmer sweep across each card */
-      @keyframes cs-card-shimmer { 0% { transform: translateX(-180%) skewX(-16deg); opacity: 0; } 12% { opacity: .7; } 88% { opacity: .7; } 100% { transform: translateX(240%) skewX(-16deg); opacity: 0; } }
+      /* ── STYLE CARD SHIMMER ─────────────────────────────────────── */
+      @keyframes cs-card-shimmer {
+        0%   { transform: translateX(-200%) skewX(-16deg); opacity: 0;   }
+        10%  { opacity: .9; }
+        90%  { opacity: .9; }
+        100% { transform: translateX(260%) skewX(-16deg);  opacity: 0;   }
+      }
       .cs-card-shimmer {
-        background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.07) 50%, transparent 70%);
-        animation: cs-card-shimmer 6s ease-in-out infinite;
+        background: linear-gradient(108deg, transparent 28%, rgba(255,255,255,0.09) 50%, transparent 72%);
+        animation: cs-card-shimmer 7s ease-in-out infinite;
         will-change: transform, opacity;
       }
 
-      /* STYLE CARD VIBES — each one is a unique looping cinematic overlay.
-         All animate transform/opacity, none use filter blur on hot path. */
-      .cs-vibe { mix-blend-mode: screen; opacity: .9; }
+      /* ── STYLE CARD VIBES ──────────────────────────────────────── */
+      /* All vibes use mix-blend-mode: screen so they punch through the art bg.
+         Animations: transform + opacity only → pure GPU compositor path. */
+      .cs-vibe { mix-blend-mode: screen; }
 
-      @keyframes cs-vibe-cinema { 0% { transform: translate3d(-15%, 0, 0); opacity: .35; } 50% { opacity: .8; } 100% { transform: translate3d(15%, 0, 0); opacity: .35; } }
-      .cs-vibe-cinema { background:
-        linear-gradient(110deg, transparent 30%, rgba(255,180,120,0.35) 50%, transparent 70%),
-        radial-gradient(60% 40% at 50% 60%, rgba(0,0,0,0.4) 0%, transparent 70%);
-        animation: cs-vibe-cinema 7s ease-in-out infinite; will-change: transform, opacity; }
+      /* Cinema — anamorphic lens flare sweeping left→right */
+      @keyframes cs-vibe-cinema {
+        0%   { transform: translate3d(-22%, 0, 0) skewX(-4deg); opacity: .20; }
+        40%  { opacity: .82; }
+        60%  { opacity: .72; }
+        100% { transform: translate3d(22%, 0, 0) skewX(-4deg); opacity: .20; }
+      }
+      .cs-vibe-cinema {
+        background:
+          linear-gradient(108deg, transparent 28%, rgba(255,190,90,0.55) 50%, transparent 72%),
+          radial-gradient(25% 30% at 50% 52%, rgba(255,210,130,0.22) 0%, transparent 70%);
+        animation: cs-vibe-cinema 6.5s ease-in-out infinite;
+        will-change: transform, opacity;
+      }
 
-      @keyframes cs-vibe-crystal { 0%,100% { transform: rotate(0deg) scale(1); opacity: .7; } 50% { transform: rotate(180deg) scale(1.1); opacity: 1; } }
-      .cs-vibe-crystal { background:
-        conic-gradient(from 0deg at 50% 50%, rgba(96,165,250,0.55), rgba(255,255,255,0.4), rgba(167,139,250,0.55), rgba(96,165,250,0.55));
-        filter: blur(8px); animation: cs-vibe-crystal 8s linear infinite; will-change: transform, opacity; }
+      /* Crystal — rotating diamond conic gradient */
+      @keyframes cs-vibe-crystal {
+        0%   { transform: rotate(0deg) scale(1.04); opacity: .60; }
+        50%  { transform: rotate(180deg) scale(1.14); opacity: 1; }
+        100% { transform: rotate(360deg) scale(1.04); opacity: .60; }
+      }
+      .cs-vibe-crystal {
+        background: conic-gradient(from 0deg at 50% 46%,
+          rgba(215,240,255,0.65), rgba(255,255,255,0.50), rgba(90,195,255,0.70),
+          rgba(215,240,255,0.50), rgba(255,255,255,0.65), rgba(90,195,255,0.60),
+          rgba(215,240,255,0.65));
+        filter: blur(3px);
+        animation: cs-vibe-crystal 10s linear infinite;
+        will-change: transform, opacity;
+      }
 
-      @keyframes cs-vibe-luxury { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
-      .cs-vibe-luxury { background:
-        linear-gradient(110deg, transparent 35%, rgba(255,200,120,0.55) 50%, transparent 65%);
-        background-size: 200% 100%; animation: cs-vibe-luxury 5s ease-in-out infinite; will-change: background-position; }
+      /* Luxury — golden vertical light column breathing */
+      @keyframes cs-vibe-luxury {
+        0%, 100% { transform: scaleY(1) translateY(0);  opacity: .60; }
+        50%       { transform: scaleY(1.06) translateY(-2%); opacity: 1;   }
+      }
+      .cs-vibe-luxury {
+        background:
+          radial-gradient(14% 65% at 54% 46%, rgba(255,210,75,0.80) 0%, rgba(200,145,28,0.42) 42%, transparent 72%),
+          radial-gradient(55% 22% at 54% 90%, rgba(255,185,50,0.22) 0%, transparent 68%);
+        animation: cs-vibe-luxury 4s ease-in-out infinite;
+        will-change: transform, opacity;
+      }
 
-      @keyframes cs-vibe-editorial { 0%,100% { transform: translate3d(0,0,0); } 50% { transform: translate3d(0,-6%,0); } }
-      .cs-vibe-editorial { background:
-        linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 40%),
-        linear-gradient(20deg, transparent 60%, rgba(217,70,239,0.35) 100%);
-        animation: cs-vibe-editorial 6s ease-in-out infinite; will-change: transform; }
+      /* Editorial — soft page-light sweep upward */
+      @keyframes cs-vibe-editorial {
+        0%, 100% { transform: translate3d(0, 4%, 0); opacity: .42; }
+        50%       { transform: translate3d(0, -4%, 0); opacity: .82; }
+      }
+      .cs-vibe-editorial {
+        background:
+          linear-gradient(178deg, rgba(240,220,200,0.38) 0%, transparent 48%),
+          linear-gradient(18deg, transparent 58%, rgba(200,95,160,0.30) 100%),
+          radial-gradient(72% 38% at 50% 0%, rgba(235,215,195,0.18) 0%, transparent 62%);
+        animation: cs-vibe-editorial 7.5s ease-in-out infinite;
+        will-change: transform, opacity;
+      }
 
-      @keyframes cs-vibe-anime { 0%,100% { opacity: .6; } 50% { opacity: 1; } }
-      .cs-vibe-anime { background:
-        radial-gradient(40% 30% at 30% 30%, rgba(244,114,182,0.55) 0%, transparent 70%),
-        radial-gradient(40% 30% at 70% 70%, rgba(96,165,250,0.55) 0%, transparent 70%);
-        animation: cs-vibe-anime 4.5s ease-in-out infinite; will-change: opacity; }
+      /* Anime — pulsing hot-pink + cyan neon glow */
+      @keyframes cs-vibe-anime {
+        0%, 100% { opacity: .52; transform: scale(1); }
+        50%       { opacity: 1;   transform: scale(1.05); }
+      }
+      .cs-vibe-anime {
+        background:
+          radial-gradient(42% 50% at 52% 44%, rgba(255,55,195,0.60) 0%, rgba(200,18,150,0.28) 48%, transparent 74%),
+          radial-gradient(24% 28% at 36% 30%, rgba(55,185,255,0.42) 0%, transparent 62%),
+          radial-gradient(30% 22% at 72% 68%, rgba(140,0,255,0.28) 0%, transparent 62%);
+        animation: cs-vibe-anime 3.8s ease-in-out infinite;
+        will-change: opacity, transform;
+      }
 
-      @keyframes cs-vibe-neon { 0% { transform: translate3d(0, -10%, 0); } 100% { transform: translate3d(0, 110%, 0); } }
-      .cs-vibe-neon { background:
-        repeating-linear-gradient(180deg, transparent 0px, transparent 8px, rgba(217,70,239,0.4) 9px, transparent 10px),
-        radial-gradient(60% 40% at 50% 50%, rgba(96,165,250,0.45) 0%, transparent 70%);
-        animation: cs-vibe-neon 5s linear infinite; will-change: transform; }
+      /* Neon — scrolling horizontal scanlines + blue core */
+      @keyframes cs-vibe-neon { 0% { transform: translate3d(0, -15%, 0); } 100% { transform: translate3d(0, 115%, 0); } }
+      .cs-vibe-neon {
+        background:
+          repeating-linear-gradient(180deg, transparent 0px, transparent 10px, rgba(0,215,255,0.30) 11px, transparent 12px),
+          radial-gradient(58% 42% at 50% 50%, rgba(0,180,255,0.38) 0%, transparent 68%),
+          radial-gradient(35% 30% at 65% 35%, rgba(255,0,195,0.22) 0%, transparent 60%);
+        animation: cs-vibe-neon 5s linear infinite;
+        will-change: transform;
+      }
 
-      @keyframes cs-vibe-moody { 0%,100% { opacity: .5; } 50% { opacity: .85; } }
-      .cs-vibe-moody { background:
-        radial-gradient(60% 50% at 30% 40%, rgba(255,255,255,0.18) 0%, transparent 70%);
-        animation: cs-vibe-moody 6s ease-in-out infinite; will-change: opacity; }
+      /* Moody — drifting studio spotlight */
+      @keyframes cs-vibe-moody {
+        0%   { transform: translate3d(-6%, -4%, 0); opacity: .42; }
+        50%  { transform: translate3d(6%, 4%, 0);  opacity: .85; }
+        100% { transform: translate3d(-6%, -4%, 0); opacity: .42; }
+      }
+      .cs-vibe-moody {
+        background:
+          radial-gradient(55% 48% at 36% 40%, rgba(220,220,240,0.28) 0%, transparent 72%),
+          radial-gradient(38% 28% at 64% 62%, rgba(160,140,200,0.18) 0%, transparent 62%);
+        animation: cs-vibe-moody 8s ease-in-out infinite;
+        will-change: transform, opacity;
+      }
 
-      @keyframes cs-vibe-dreamy { 0% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(2%,-2%,0) scale(1.05); } 100% { transform: translate3d(0,0,0) scale(1); } }
-      .cs-vibe-dreamy { background:
-        radial-gradient(50% 40% at 50% 50%, rgba(244,114,182,0.4) 0%, transparent 70%),
-        radial-gradient(40% 30% at 20% 80%, rgba(167,139,250,0.35) 0%, transparent 70%);
-        animation: cs-vibe-dreamy 9s ease-in-out infinite; will-change: transform; }
+      /* Dreamy — soft pink + lavender breathing orbs */
+      @keyframes cs-vibe-dreamy {
+        0%   { transform: translate3d(0, 0, 0) scale(1); opacity: .52; }
+        50%  { transform: translate3d(3%, -3%, 0) scale(1.07); opacity: 1; }
+        100% { transform: translate3d(0, 0, 0) scale(1); opacity: .52; }
+      }
+      .cs-vibe-dreamy {
+        background:
+          radial-gradient(52% 44% at 50% 52%, rgba(244,114,182,0.48) 0%, transparent 72%),
+          radial-gradient(42% 32% at 22% 78%, rgba(167,139,250,0.42) 0%, transparent 72%),
+          radial-gradient(32% 26% at 78% 30%, rgba(56,189,248,0.28) 0%, transparent 62%);
+        animation: cs-vibe-dreamy 9s ease-in-out infinite;
+        will-change: transform, opacity;
+      }
 
-      @keyframes cs-vibe-minimal { 0%,100% { opacity: .35; } 50% { opacity: .55; } }
-      .cs-vibe-minimal { background:
-        linear-gradient(180deg, rgba(255,255,255,0.12) 0%, transparent 60%);
-        animation: cs-vibe-minimal 7s ease-in-out infinite; will-change: opacity; }
+      /* Minimal — ultra-subtle white top-light */
+      @keyframes cs-vibe-minimal { 0%, 100% { opacity: .32; } 50% { opacity: .58; } }
+      .cs-vibe-minimal {
+        background:
+          linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 55%),
+          radial-gradient(60% 35% at 50% 0%, rgba(255,255,255,0.12) 0%, transparent 62%);
+        animation: cs-vibe-minimal 8s ease-in-out infinite;
+        will-change: opacity;
+      }
 
-      @keyframes cs-vibe-vintage { 0%,100% { opacity: .5; } 50% { opacity: .85; } }
-      .cs-vibe-vintage { background:
-        radial-gradient(60% 50% at 50% 50%, rgba(255,200,120,0.5) 0%, transparent 70%);
-        animation: cs-vibe-vintage 5s ease-in-out infinite; will-change: opacity; }
+      /* Vintage — warm amber pulsing core */
+      @keyframes cs-vibe-vintage {
+        0%, 100% { transform: scale(1); opacity: .48; }
+        50%       { transform: scale(1.06); opacity: .88; }
+      }
+      .cs-vibe-vintage {
+        background:
+          radial-gradient(58% 52% at 50% 52%, rgba(255,195,110,0.55) 0%, transparent 72%),
+          radial-gradient(42% 32% at 28% 32%, rgba(255,165,60,0.22) 0%, transparent 62%),
+          linear-gradient(155deg, rgba(200,140,55,0.08) 0%, transparent 48%);
+        animation: cs-vibe-vintage 5.5s ease-in-out infinite;
+        will-change: transform, opacity;
+      }
 
       /* LOADING OVERLAY cinematic layers. */
       @keyframes cs-load-ring { 0% { transform: scale(.6); opacity: .9; } 100% { transform: scale(1.4); opacity: 0; } }
