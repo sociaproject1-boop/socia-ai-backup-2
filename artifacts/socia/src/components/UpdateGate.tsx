@@ -57,11 +57,12 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
       // Re-validate in the background so the cache stays warm
       void (async () => {
         try {
-          const { data, error } = await supabase
+          const { data } = await supabase
             .from("app_config")
             .select("min_version")
-            .single();
-          if (!error && data?.min_version) {
+            .limit(1)
+            .maybeSingle();
+          if (data?.min_version) {
             writeCache(String(data.min_version));
           }
         } catch {}
@@ -80,12 +81,15 @@ export default function UpdateGate({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        const { data, error } = await supabase
+        /* .maybeSingle() returns null (no error) when the row is missing —
+         * unlike .single() which throws a 406 when there are 0 rows.       */
+        const { data } = await supabase
           .from("app_config")
           .select("min_version")
-          .single();
+          .limit(1)
+          .maybeSingle();
         if (cancelled) return;
-        const mv = (!error && data?.min_version) ? String(data.min_version) : null;
+        const mv = data?.min_version ? String(data.min_version) : null;
         writeCache(mv);
         if (mv) setMinVersion(mv);
       } catch (err) {
