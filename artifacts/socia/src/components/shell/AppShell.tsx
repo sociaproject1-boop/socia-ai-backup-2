@@ -126,7 +126,7 @@ export function AppShell({ children }: Props) {
                   ? { opacity: 0, y: 8, scale: 0.99 }
                   : { opacity: 0, x: dir.current * -8 }
               }
-              transition={{ duration: 0.13, ease: [0.32, 0.72, 0, 1] }}
+              transition={{ duration: 0.18, ease: [0.25, 0.46, 0.45, 0.94] }}
               className="scroll-native gpu absolute inset-0"
               style={{ pointerEvents: "auto" }}
             >

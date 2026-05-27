@@ -952,45 +952,94 @@ function StyleCard({
   const vibe = STYLE_VIBE[s.id] ?? "cinema";
   return (
     <motion.button
-      whileTap={{ scale: 0.94 }}
+      whileTap={{ scale: 0.93 }}
       onClick={onClick}
-      className={`relative shrink-0 overflow-hidden rounded-2xl transition-all ${active ? "ring-1 ring-violet-400/60" : ""}`}
-      style={{ width: 112, height: 144, background: VIBE_BG[vibe] }}
+      className="relative shrink-0 overflow-hidden rounded-[20px]"
+      style={{ width: 116, height: 160, background: VIBE_BG[vibe] }}
     >
-      {/* Animated vibe layer — lives behind the icon/label. Each vibe has
-          its own keyframe block in CinematicStyles. */}
+      {/* Animated vibe layer */}
       <span aria-hidden className={`cs-vibe cs-vibe-${vibe} absolute inset-0`} />
-      {/* Bottom darkening so the label text always stays readable. */}
-      <span aria-hidden className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
 
-      {/* Icon (top-left) */}
-      <span className="absolute top-3 left-3 grid h-8 w-8 place-items-center rounded-lg bg-white/8 backdrop-blur-md ring-1 ring-white/10">
-        <s.Icon className={`h-4 w-4 ${active ? "text-white" : "text-white/80"}`} strokeWidth={1.8} />
+      {/* Shimmer sweep across the card */}
+      <span aria-hidden className="cs-card-shimmer pointer-events-none absolute inset-0" />
+
+      {/* Bottom gradient — text legibility */}
+      <span aria-hidden className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
+
+      {/* Top subtle vignette */}
+      <span aria-hidden className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-black/40 to-transparent" />
+
+      {/* Icon orb */}
+      <span
+        className="absolute top-3 left-3 grid h-9 w-9 place-items-center rounded-xl"
+        style={{
+          background: "rgba(255,255,255,0.10)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          boxShadow: active
+            ? "0 0 0 1px rgba(255,255,255,0.22), 0 0 14px rgba(167,139,250,0.65)"
+            : "0 0 0 1px rgba(255,255,255,0.10)",
+        }}
+      >
+        <s.Icon
+          className={`h-[18px] w-[18px] ${active ? "text-white" : "text-white/82"}`}
+          strokeWidth={active ? 2.1 : 1.8}
+          style={{ filter: active ? "drop-shadow(0 0 6px rgba(255,255,255,0.55))" : "none" }}
+        />
       </span>
 
-      {/* Check mark when active */}
+      {/* Active check badge */}
       {active && (
         <motion.span
           layoutId="style-check"
-          className="absolute top-2.5 right-2.5 grid h-5 w-5 place-items-center rounded-full bg-gradient-to-br from-fuchsia-500 to-violet-600 shadow-[0_0_12px_rgba(217,70,239,0.7)]"
+          initial={{ scale: 0.5 }}
+          animate={{ scale: 1 }}
+          className="absolute top-2.5 right-2.5 grid h-[18px] w-[18px] place-items-center rounded-full"
+          style={{
+            background: "linear-gradient(135deg, #d946ef, #7c3aed)",
+            boxShadow: "0 0 12px rgba(217,70,239,0.85), 0 0 24px rgba(167,139,250,0.45)",
+          }}
         >
-          <Check className="h-3 w-3 text-white" strokeWidth={3} />
+          <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
         </motion.span>
       )}
 
       {/* Labels */}
-      <div className="absolute inset-x-0 bottom-0 px-2.5 pb-2.5">
-        <p className="truncate text-[12px] font-semibold leading-tight text-white drop-shadow">{s.label}</p>
-        <p className={`truncate text-[9.5px] leading-tight ${active ? "text-violet-200/85" : "text-white/55"}`}>{s.desc}</p>
+      <div className="absolute inset-x-0 bottom-0 px-2.5 pb-3">
+        <p
+          className="truncate font-semibold leading-tight text-white"
+          style={{
+            fontSize: 12.5,
+            textShadow: "0 1px 8px rgba(0,0,0,0.8)",
+            letterSpacing: "-0.01em",
+          }}
+        >
+          {s.label}
+        </p>
+        <p
+          className={`mt-0.5 truncate text-[9.5px] leading-tight ${active ? "text-violet-200/90" : "text-white/52"}`}
+          style={{ textShadow: "0 1px 6px rgba(0,0,0,0.7)" }}
+        >
+          {s.desc}
+        </p>
       </div>
 
-      {/* Outer neon glow on active */}
-      {active && (
+      {/* Outer neon border + glow on active */}
+      {active ? (
         <motion.span
           layoutId="style-glow"
           aria-hidden
-          className="pointer-events-none absolute -inset-[1px] rounded-2xl"
-          style={{ boxShadow: "0 0 0 1px rgba(167,139,250,0.55), 0 0 24px -2px rgba(167,139,250,0.45), inset 0 0 18px -6px rgba(217,70,239,0.45)" }}
+          className="pointer-events-none absolute -inset-[1px] rounded-[20px]"
+          style={{
+            boxShadow:
+              "0 0 0 1.5px rgba(167,139,250,0.7), 0 0 28px -4px rgba(167,139,250,0.6), 0 0 50px -8px rgba(217,70,239,0.4), inset 0 0 20px -8px rgba(217,70,239,0.5)",
+          }}
+        />
+      ) : (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-[20px]"
+          style={{ boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.07)" }}
         />
       )}
     </motion.button>
@@ -1042,18 +1091,25 @@ function AspectCard({
   );
 }
 
-/** Galaxy backdrop — three layered animated gradients (nebula, energy,
- *  dust). Uses transform/opacity only so the compositor handles it. */
+/** Galaxy backdrop — layered animated gradients + dust particles.
+ *  Uses transform/opacity only → GPU compositor. */
 function GalaxyBackdrop() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      {/* Deep base */}
+      <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, #06010f 0%, #090118 55%, #040012 100%)" }} />
+      {/* Nebula + energy layers */}
       <div className="cs-galaxy-nebula absolute inset-0" />
       <div className="cs-galaxy-energy absolute inset-0" />
       <div className="cs-galaxy-dust absolute inset-0" />
-      {/* Vignette to keep edges dark on bright phones. */}
+      {/* Subtle horizontal scan line */}
+      <span className="scan-line absolute inset-x-0 top-0 h-[1.5px]" style={{
+        background: "linear-gradient(90deg, transparent 0%, rgba(167,139,250,0.35) 25%, rgba(217,70,239,0.55) 50%, rgba(167,139,250,0.35) 75%, transparent 100%)",
+      }} />
+      {/* Radial vignette */}
       <div
         className="absolute inset-0"
-        style={{ background: "radial-gradient(120% 90% at 50% 30%, transparent 0%, rgba(0,0,0,0.55) 70%, rgba(0,0,0,0.8) 100%)" }}
+        style={{ background: "radial-gradient(120% 90% at 50% 25%, transparent 0%, rgba(0,0,0,0.48) 65%, rgba(0,0,0,0.82) 100%)" }}
       />
     </div>
   );
@@ -1149,6 +1205,14 @@ function CinematicStyles() {
       /* ASPECT CARD — pulsing neon ring when active. */
       @keyframes cs-aspect-pulse { 0%, 100% { box-shadow: inset 0 0 8px rgba(167,139,250,0.25); } 50% { box-shadow: inset 0 0 18px rgba(217,70,239,0.45); } }
       .cs-aspect-pulse { animation: cs-aspect-pulse 2.6s ease-in-out infinite; will-change: box-shadow; }
+
+      /* STYLE CARD — diagonal shimmer sweep across each card */
+      @keyframes cs-card-shimmer { 0% { transform: translateX(-180%) skewX(-16deg); opacity: 0; } 12% { opacity: .7; } 88% { opacity: .7; } 100% { transform: translateX(240%) skewX(-16deg); opacity: 0; } }
+      .cs-card-shimmer {
+        background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.07) 50%, transparent 70%);
+        animation: cs-card-shimmer 6s ease-in-out infinite;
+        will-change: transform, opacity;
+      }
 
       /* STYLE CARD VIBES — each one is a unique looping cinematic overlay.
          All animate transform/opacity, none use filter blur on hot path. */

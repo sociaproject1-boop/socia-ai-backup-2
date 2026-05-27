@@ -4,11 +4,31 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 
 const TABS = [
-  { path: "/",          label: "Home",   icon: Home,          match: (l: string) => l === "/" },
+  { path: "/",         label: "Home",   icon: Home,          match: (l: string) => l === "/" },
   { path: "/create",   label: "Create", icon: Sparkles,      match: (l: string) => l.startsWith("/create") },
   { path: "/messages", label: "Inbox",  icon: MessageCircle, match: (l: string) => l.startsWith("/messages") },
   { path: "/profile",  label: "Me",     icon: User,          match: (l: string) => l.startsWith("/profile") },
 ] as const;
+
+/* Per-tab accent colors for the active glow */
+const TAB_COLORS: Record<string, string> = {
+  "/":         "rgba(168,85,247,0.9)",
+  "/create":   "rgba(217,70,239,0.9)",
+  "/messages": "rgba(96,165,250,0.9)",
+  "/profile":  "rgba(168,85,247,0.9)",
+};
+const TAB_GLOW: Record<string, string> = {
+  "/":         "rgba(168,85,247,0.55)",
+  "/create":   "rgba(217,70,239,0.55)",
+  "/messages": "rgba(96,165,250,0.55)",
+  "/profile":  "rgba(168,85,247,0.55)",
+};
+
+const GPU: React.CSSProperties = {
+  willChange: "transform, opacity",
+  transform: "translateZ(0)",
+  backfaceVisibility: "hidden",
+};
 
 export function BottomNav() {
   const [location, navigate] = useLocation();
@@ -23,72 +43,98 @@ export function BottomNav() {
         right: 0,
         paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)",
         paddingTop: "10px",
-        paddingLeft: "16px",
-        paddingRight: "16px",
+        paddingLeft: "12px",
+        paddingRight: "12px",
         background: "transparent",
         zIndex: 50,
+        ...GPU,
       }}
     >
-      {/* Floating glass dock — lighter, more premium, no chunky fill */}
+      {/* Floating glass dock */}
       <ul
         className="grid grid-cols-4"
         style={{
-          background: "rgba(12,12,14,0.72)",
-          backdropFilter: "blur(24px) saturate(140%)",
-          WebkitBackdropFilter: "blur(24px) saturate(140%)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          borderRadius: "28px",
+          background: "rgba(8,6,16,0.78)",
+          backdropFilter: "blur(28px) saturate(160%)",
+          WebkitBackdropFilter: "blur(28px) saturate(160%)",
+          border: "1px solid rgba(255,255,255,0.065)",
+          borderRadius: "30px",
           boxShadow:
-            "0 10px 32px -8px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04)",
-          padding: "6px 6px",
+            "0 12px 40px -10px rgba(0,0,0,0.7), 0 4px 16px -4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)",
+          padding: "6px 4px",
         }}
       >
         {TABS.map((tab) => {
           const active  = tab.match(location);
           const isInbox = tab.path === "/messages";
           const Icon    = tab.icon;
+          const color   = TAB_COLORS[tab.path];
+          const glow    = TAB_GLOW[tab.path];
 
           return (
             <li key={tab.path} className="flex justify-center">
               <motion.button
-                whileTap={{ scale: 0.9 }}
-                transition={{ type: "spring", stiffness: 600, damping: 26 }}
+                whileTap={{ scale: 0.88 }}
+                transition={{ type: "spring", stiffness: 620, damping: 28 }}
                 onClick={() => navigate(tab.path)}
                 aria-label={tab.label}
                 aria-current={active ? "page" : undefined}
                 className="relative flex w-full flex-col items-center justify-center gap-1 py-2 select-none"
               >
-                {/* Icon + badge — subtle scale + neon glow on active, no filled background */}
+                {/* Active background pill */}
+                <AnimatePresence>
+                  {active && (
+                    <motion.span
+                      key="active-pill"
+                      layoutId="navActivePill"
+                      initial={{ opacity: 0, scaleX: 0.5 }}
+                      animate={{ opacity: 1, scaleX: 1 }}
+                      exit={{ opacity: 0, scaleX: 0.5 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 32 }}
+                      style={{
+                        position: "absolute",
+                        inset: "2px 8px",
+                        borderRadius: 20,
+                        background: `linear-gradient(135deg, ${color}18 0%, ${color}0c 100%)`,
+                        border: `1px solid ${color}28`,
+                        boxShadow: `0 0 16px -4px ${glow}`,
+                        ...GPU,
+                      }}
+                    />
+                  )}
+                </AnimatePresence>
+
+                {/* Icon */}
                 <motion.span
                   className="relative"
-                  animate={{ scale: active ? 1.06 : 1, y: active ? -1 : 0 }}
-                  transition={{ type: "spring", stiffness: 500, damping: 28 }}
+                  animate={{
+                    scale: active ? 1.08 : 1,
+                    y: active ? -1 : 0,
+                  }}
+                  transition={{ type: "spring", stiffness: 520, damping: 28 }}
                 >
                   <Icon
                     style={{
                       width: 22,
                       height: 22,
-                      color: active ? "#ffffff" : "rgba(255,255,255,0.42)",
-                      strokeWidth: active ? 2 : 1.7,
-                      transition: "color 0.2s ease, stroke-width 0.2s ease",
-                      /* Subtle monochrome lift — no chunky purple halo.
-                         Apple/Linear/Arc keep the active state typographic,
-                         not glowing. A faint white drop-shadow gives just
-                         enough depth without painting the whole icon purple. */
+                      color: active ? color : "rgba(255,255,255,0.38)",
+                      strokeWidth: active ? 2.1 : 1.7,
+                      transition: "color 0.22s ease, stroke-width 0.22s ease",
                       filter: active
-                        ? "drop-shadow(0 1px 6px rgba(255,255,255,0.18))"
+                        ? `drop-shadow(0 0 8px ${glow}) drop-shadow(0 0 20px ${glow})`
                         : "none",
                     }}
                   />
+                  {/* Badge */}
                   {isInbox && unreadCount > 0 && !active && (
                     <motion.span
                       key={unreadCount}
-                      initial={{ scale: 0.5, opacity: 0 }}
+                      initial={{ scale: 0.4, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       className="absolute -right-1.5 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full px-0.5 text-[9px] font-bold text-white"
                       style={{
                         background: "linear-gradient(135deg,#a855f7,#ec4899)",
-                        boxShadow: "0 0 8px rgba(168,85,247,0.6)",
+                        boxShadow: "0 0 8px rgba(168,85,247,0.7)",
                         lineHeight: 1,
                       }}
                     >
@@ -101,35 +147,14 @@ export function BottomNav() {
                 <span
                   className="text-[10px] font-semibold tracking-wide"
                   style={{
-                    color: active ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.36)",
-                    letterSpacing: active ? "0.03em" : "0.02em",
-                    transition: "color 0.2s ease, letter-spacing 0.2s ease",
+                    color: active ? color : "rgba(255,255,255,0.32)",
+                    letterSpacing: active ? "0.04em" : "0.02em",
+                    transition: "color 0.22s ease, letter-spacing 0.22s ease",
+                    textShadow: active ? `0 0 10px ${glow}` : "none",
                   }}
                 >
                   {tab.label}
                 </span>
-
-                {/* Tiny glow dot under active tab — the only active "indicator" */}
-                <AnimatePresence>
-                  {active && (
-                    <motion.span
-                      key="active-dot"
-                      layoutId="navActiveDot"
-                      initial={{ opacity: 0, scale: 0.4 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.4 }}
-                      transition={{ type: "spring", stiffness: 520, damping: 30 }}
-                      className="absolute -bottom-0.5 h-1 w-1 rounded-full"
-                      style={{
-                        /* Single muted accent dot — soft purple at low
-                           opacity so it reads as "active" without
-                           dominating the dock. */
-                        background: "rgba(176,38,255,0.85)",
-                        boxShadow: "0 0 4px rgba(176,38,255,0.45)",
-                      }}
-                    />
-                  )}
-                </AnimatePresence>
               </motion.button>
             </li>
           );

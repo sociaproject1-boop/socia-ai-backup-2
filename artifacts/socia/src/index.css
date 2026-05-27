@@ -331,4 +331,92 @@ html.light {
   /* Safe area helpers */
   .safe-pt { padding-top: env(safe-area-inset-top, 0px); }
   .safe-pb { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+  /* ── Galaxy Background orb drift animations ─────────────────────────── */
+  @keyframes galaxy-orb-1 {
+    0%, 100% { transform: translate3d(-2%, -3%, 0) scale(1); }
+    33%       { transform: translate3d(4%, 2%, 0) scale(1.07); }
+    66%       { transform: translate3d(-1%, 5%, 0) scale(0.97); }
+  }
+  @keyframes galaxy-orb-2 {
+    0%, 100% { transform: translate3d(3%, 4%, 0) scale(1.04); opacity: 0.82; }
+    50%       { transform: translate3d(-4%, -3%, 0) scale(0.96); opacity: 1; }
+  }
+  @keyframes galaxy-orb-3 {
+    0%, 100% { transform: translate3d(0, -3%, 0) scale(1); }
+    60%       { transform: translate3d(-3%, 4%, 0) scale(1.09); }
+  }
+  @keyframes galaxy-orb-4 {
+    0%, 100% { transform: translate3d(-4%, 0, 0) scale(1.04); }
+    50%       { transform: translate3d(4%, -4%, 0) scale(0.95); }
+  }
+  @keyframes galaxy-orb-5 {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.5; }
+    50%       { transform: translate3d(3%, -2%, 0) scale(1.12); opacity: 0.9; }
+  }
+  .galaxy-orb-1 { animation: galaxy-orb-1 28s ease-in-out infinite; will-change: transform; }
+  .galaxy-orb-2 { animation: galaxy-orb-2 22s ease-in-out infinite; will-change: transform, opacity; }
+  .galaxy-orb-3 { animation: galaxy-orb-3 31s ease-in-out infinite; will-change: transform; }
+  .galaxy-orb-4 { animation: galaxy-orb-4 19s ease-in-out infinite; will-change: transform; }
+  .galaxy-orb-5 { animation: galaxy-orb-5 25s ease-in-out infinite; will-change: transform, opacity; }
+
+  /* ── Premium card aurora gradient animation ──────────────────────────── */
+  @keyframes aurora-card {
+    0%   { background-position: 0% 50%;   }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%;   }
+  }
+  .card-aurora { animation: aurora-card 9s ease-in-out infinite; will-change: background-position; }
+
+  /* ── Neon border pulse ───────────────────────────────────────────────── */
+  @keyframes neon-border-pulse {
+    0%, 100% { opacity: 0.55; }
+    50%       { opacity: 1;    }
+  }
+  .neon-border-pulse { animation: neon-border-pulse 2.4s ease-in-out infinite; will-change: opacity; }
+
+  /* ── Orbit (loading overlay rings) ──────────────────────────────────── */
+  @keyframes orbit-cw  { to { transform: rotate(360deg);  } }
+  @keyframes orbit-ccw { to { transform: rotate(-360deg); } }
+
+  /* ── Cinematic scan line ─────────────────────────────────────────────── */
+  @keyframes scan-line-sweep {
+    0%   { transform: translate3d(0, -110%, 0); opacity: 0;    }
+    8%   { opacity: 0.7;                                       }
+    92%  { opacity: 0.7;                                       }
+    100% { transform: translate3d(0, 110%, 0);  opacity: 0;    }
+  }
+  .scan-line { animation: scan-line-sweep 5s ease-in-out infinite; will-change: transform, opacity; }
+
+  /* ── Loading overlay progress bar fill ──────────────────────────────── */
+  @keyframes progress-shimmer {
+    0%   { background-position: -200% 0; }
+    100% { background-position:  200% 0; }
+  }
+  .progress-shimmer {
+    background: linear-gradient(90deg,
+      rgba(167,139,250,0.0) 0%,
+      rgba(217,70,239,0.9)  30%,
+      rgba(167,139,250,1.0) 50%,
+      rgba(96,165,250,0.9)  70%,
+      rgba(167,139,250,0.0) 100%);
+    background-size: 200% 100%;
+    animation: progress-shimmer 2.2s ease-in-out infinite;
+    will-change: background-position;
+  }
+
+  /* ── Live floating particles (auth page) ────────────────────────────── */
+  @keyframes particle-float {
+    0%   { transform: translate3d(0, 0, 0)     scale(1);    opacity: 0;   }
+    10%  { opacity: 1;                                                      }
+    90%  { opacity: 0.6;                                                    }
+    100% { transform: translate3d(var(--px, 20px), -120px, 0) scale(0.6); opacity: 0; }
+  }
+  .particle-float { animation: particle-float var(--p-dur, 6s) ease-in-out infinite var(--p-delay, 0s); will-change: transform, opacity; }
+
+  /* ── Ultra-smooth page transitions ──────────────────────────────────── */
+  @keyframes page-enter {
+    from { opacity: 0; transform: translate3d(0, 6px, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0);   }
+  }
 }
