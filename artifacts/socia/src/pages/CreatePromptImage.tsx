@@ -977,7 +977,7 @@ const STYLE_VIBE: Record<string, Vibe> = {
 const VIBE_BG: Record<Vibe, string> = {
   cinema:    "linear-gradient(155deg, #1c0a04 0%, #080302 50%, #140804 100%)",
   crystal:   "linear-gradient(155deg, #061220 0%, #030810 55%, #07182a 100%)",
-  luxury:    "linear-gradient(155deg, #18090200 0%, #180902 40%, #100602 100%)",
+  luxury:    "linear-gradient(155deg, #180e03 0%, #100602 40%, #0c0401 100%)",
   editorial: "linear-gradient(155deg, #10060e 0%, #050306 55%, #160a18 100%)",
   anime:     "linear-gradient(155deg, #16022e 0%, #060110 55%, #100826 100%)",
   neon:      "linear-gradient(155deg, #040010 0%, #020108 55%, #000610 100%)",
@@ -1192,7 +1192,7 @@ function AspectCard({
     <motion.button
       whileTap={{ scale: 0.94 }}
       onClick={onClick}
-      className={`relative flex h-[92px] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl border transition-all ${
+      className={`relative flex h-[82px] flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl border transition-all ${
         active
           ? "border-violet-400/55 bg-gradient-to-b from-violet-600/20 via-violet-700/10 to-indigo-900/10 text-white"
           : "border-white/10 bg-white/[0.03] text-white/70 hover:border-white/20"
@@ -1212,13 +1212,13 @@ function AspectCard({
           </span>
         </>
       )}
-      <span className="relative z-10 flex items-center justify-center" style={{ height: 30 }}>
+      <span className="relative z-10 flex items-center justify-center" style={{ height: 26 }}>
         <AspectRect w={a.w} h={a.h} active={active} />
       </span>
-      <span className={`relative z-10 text-[12px] font-bold leading-none tabular-nums ${active ? "text-white" : "text-white/85"}`}>
+      <span className={`relative z-10 text-[11px] font-bold leading-none tabular-nums ${active ? "text-white" : "text-white/85"}`}>
         {a.label}
       </span>
-      <span className={`relative z-10 text-[9.5px] leading-none ${active ? "text-violet-200/80" : "text-white/40"}`}>
+      <span className={`relative z-10 text-[9px] leading-none ${active ? "text-violet-200/80" : "text-white/40"}`}>
         {a.name}
       </span>
     </motion.button>
@@ -1563,7 +1563,8 @@ function CinematicStyles() {
       @media (prefers-reduced-motion: reduce) {
         .cs-galaxy-nebula, .cs-galaxy-energy, .cs-galaxy-dust,
         .cs-prompt-glow, .cs-generate-active, .cs-gen-shimmer, .cs-gen-glow,
-        .cs-aspect-pulse, .cs-vibe, .cs-load-ring, .cs-load-nebula,
+        .cs-aspect-pulse, .cs-card-shimmer, .cs-vibe,
+        .cs-load-ring, .cs-load-nebula,
         .cs-load-streaks, .cs-load-particles { animation: none !important; }
       }
     `}</style>
