@@ -350,15 +350,10 @@ export default function CreatePromptImage() {
   const activeAspect = ASPECTS.find((a) => a.id === aspect) || ASPECTS[2];
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden bg-[#050509]">
+    <div className="relative flex h-full flex-col overflow-hidden" style={{ background: "#000" }}>
 
-      {/* Cinematic style + keyframe layer — scoped here so the rest of
-          the app stays untouched. All effects animate transform/opacity
-          only (GPU compositor path) to keep 60fps on mid-tier Android. */}
+      {/* Cinematic style + keyframe layer */}
       <CinematicStyles />
-
-      {/* ── LIVE GALAXY BACKGROUND ──────────────────────────── */}
-      <GalaxyBackdrop />
 
       {/* ── HEADER ──────────────────────────────────────────── */}
       <div
@@ -366,15 +361,14 @@ export default function CreatePromptImage() {
         style={{
           paddingTop: `calc(env(safe-area-inset-top,0px) + 14px)`,
           paddingBottom: 14,
-          background: "linear-gradient(180deg, rgba(5,5,10,0.92) 0%, rgba(5,5,10,0.55) 80%, transparent 100%)",
-          backdropFilter: "blur(14px)",
-          WebkitBackdropFilter: "blur(14px)",
+          background: "#000",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
         }}
       >
         <motion.button
           whileTap={{ scale: 0.92 }}
           onClick={() => navigate("/create")}
-          className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white/75 backdrop-blur-md transition hover:bg-white/[0.09]"
+          className="grid h-9 w-9 place-items-center rounded-xl border border-white/[0.10] bg-white/[0.04] text-white/70 transition hover:bg-white/[0.08]"
         >
           <ArrowLeft className="h-4 w-4" />
         </motion.button>
@@ -391,8 +385,8 @@ export default function CreatePromptImage() {
           onClick={() => setShowPro((v) => !v)}
           className={`flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-[11.5px] font-medium transition-all ${
             showPro
-              ? "border-violet-400/50 bg-violet-500/15 text-violet-100 shadow-[0_0_20px_-6px_rgba(167,139,250,0.55)]"
-              : "border-white/12 bg-white/[0.04] text-white/65 backdrop-blur-md hover:border-white/20 hover:text-white/85"
+              ? "border-white/20 bg-white/[0.10] text-white/90"
+              : "border-white/10 bg-white/[0.04] text-white/55 hover:border-white/18 hover:text-white/80"
           }`}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -403,21 +397,19 @@ export default function CreatePromptImage() {
       {/* ── SCROLL BODY ─────────────────────────────────────── */}
       <div className="relative z-10 flex-1 overflow-y-auto pb-40 hide-scrollbar">
 
-        {/* PROMPT EDITOR — glassmorphism panel with animated neon border */}
+        {/* PROMPT EDITOR — clean dark card */}
         <div className="px-4 pt-5">
-          <div className="cs-prompt-card relative rounded-[26px] [&:focus-within]:scale-[1.005] transition-transform duration-300">
-            {/* Animated conic gradient border + soft internal glow.
-                pointer-events-none keeps the textarea fully tappable. */}
-            <div aria-hidden className="cs-prompt-glow pointer-events-none absolute -inset-[1px] rounded-[27px]" />
-            <div aria-hidden className="cs-prompt-inner-glow pointer-events-none absolute inset-0 rounded-[26px]" />
-
-            <div className="relative rounded-[26px] border border-white/[0.09] bg-[rgba(15,12,28,0.62)] backdrop-blur-2xl">
+          <div
+            className="relative overflow-hidden rounded-[20px] transition-all duration-200 focus-within:border-white/[0.16]"
+            style={{ border: "1px solid rgba(255,255,255,0.09)", background: "#0d0d0d" }}
+          >
+            <div className="relative">
 
             {/* Top bar */}
             <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-3">
               <div className="flex items-center gap-2">
-                <span className="grid h-5 w-5 place-items-center rounded-md bg-gradient-to-br from-violet-500/30 to-fuchsia-500/20 shadow-[inset_0_0_6px_rgba(167,139,250,0.4)]">
-                  <Sparkles className="h-3 w-3 text-violet-200" />
+                <span className="grid h-5 w-5 place-items-center rounded-md bg-white/[0.06]">
+                  <Sparkles className="h-3 w-3 text-white/60" />
                 </span>
                 <span className="text-[12px] font-semibold tracking-tight text-white/85">Your Prompt</span>
               </div>
@@ -756,42 +748,41 @@ export default function CreatePromptImage() {
 
       {/* ── GENERATE BAR ────────────────────────────────────── */}
       <div
-        className="relative z-10 px-4 pt-3"
+        className="relative z-20 px-4 pt-3"
         style={{
           paddingBottom: `calc(env(safe-area-inset-bottom,0px) + 16px)`,
-          background: "linear-gradient(0deg, rgba(5,5,10,0.96) 0%, rgba(5,5,10,0.78) 60%, rgba(5,5,10,0.0) 100%)",
-          backdropFilter: "blur(14px)",
-          WebkitBackdropFilter: "blur(14px)",
+          background: "#000",
+          borderTop: "1px solid rgba(255,255,255,0.06)",
         }}
       >
         {/* Settings summary chips */}
         {(style !== "Cinematic" || aspect !== "9:16" || lighting || lens) && (
           <div className="mb-2.5 flex flex-wrap gap-1.5">
-            <span className="rounded-md border border-violet-500/25 bg-violet-900/15 px-2 py-0.5 text-[10px] text-violet-200/80 backdrop-blur-sm">{style}</span>
-            <span className="rounded-md border border-indigo-500/25 bg-indigo-900/15 px-2 py-0.5 text-[10px] text-indigo-200/80 backdrop-blur-sm">{aspect}</span>
-            {lighting && <span className="rounded-md border border-white/12 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/55">{lighting}</span>}
-            {lens && <span className="rounded-md border border-white/12 bg-white/[0.04] px-2 py-0.5 text-[10px] text-white/55">{lens.split(" ")[0]}</span>}
+            <span className="rounded-md border border-white/[0.12] bg-white/[0.06] px-2 py-0.5 text-[10px] text-white/70">{style}</span>
+            <span className="rounded-md border border-white/[0.12] bg-white/[0.06] px-2 py-0.5 text-[10px] text-white/70">{aspect}</span>
+            {lighting && <span className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[10px] text-white/50">{lighting}</span>}
+            {lens && <span className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[10px] text-white/50">{lens.split(" ")[0]}</span>}
           </div>
         )}
 
         <motion.button
           whileTap={{ scale: canGenerate ? 0.97 : 1 }}
+          transition={{ type: "spring", stiffness: 500, damping: 32 }}
           disabled={!canGenerate}
           onClick={handleGenerate}
-          className={`relative flex w-full items-center overflow-hidden rounded-[22px] transition-all duration-200 ${
-            canGenerate
-              ? "cs-generate-active text-white"
-              : "cursor-not-allowed border border-white/[0.06] bg-white/[0.03] text-white/25"
-          }`}
-          style={{ height: 68 }}
+          className="relative flex w-full items-center overflow-hidden rounded-[16px] transition-all duration-200"
+          style={{
+            height: 58,
+            background: canGenerate
+              ? "linear-gradient(135deg, #5b21b6 0%, #7c3aed 38%, #a855f7 72%, #c026d3 100%)"
+              : "rgba(255,255,255,0.04)",
+            border: canGenerate ? "none" : "1px solid rgba(255,255,255,0.06)",
+            boxShadow: canGenerate ? "0 6px 28px -8px rgba(124,58,237,0.60)" : "none",
+            color: canGenerate ? "#fff" : "rgba(255,255,255,0.22)",
+            cursor: canGenerate ? "pointer" : "not-allowed",
+            willChange: "transform",
+          }}
         >
-          {canGenerate && (
-            <>
-              <span aria-hidden className="cs-gen-energy pointer-events-none absolute inset-0" />
-              <span aria-hidden className="cs-gen-shimmer pointer-events-none absolute inset-0" />
-              <span aria-hidden className="cs-gen-glow pointer-events-none absolute -inset-[2px] rounded-[22px]" />
-            </>
-          )}
 
           {/* Main content — centred with flex-1 */}
           <span className="relative z-10 flex flex-1 flex-col items-center justify-center gap-0.5">
@@ -825,11 +816,10 @@ export default function CreatePromptImage() {
           {canGenerate && !loading && (
             <span
               aria-hidden
-              className="absolute right-4 grid h-11 w-11 place-items-center rounded-full"
+              className="absolute right-4 grid h-10 w-10 place-items-center rounded-full"
               style={{
-                background: "rgba(255,255,255,0.12)",
-                border: "1.5px solid rgba(255,255,255,0.22)",
-                backdropFilter: "blur(8px)",
+                background: "rgba(255,255,255,0.14)",
+                border: "1.5px solid rgba(255,255,255,0.25)",
               }}
             >
               <Sparkles
@@ -840,9 +830,9 @@ export default function CreatePromptImage() {
           )}
         </motion.button>
 
-        {/* ── Bottom info strip (matches reference) ── */}
-        <div className="mt-3 grid grid-cols-3 divide-x divide-white/[0.055] overflow-hidden rounded-2xl border border-white/[0.055]"
-          style={{ background: "rgba(255,255,255,0.025)" }}>
+        {/* ── Bottom info strip ── */}
+        <div className="mt-3 grid grid-cols-3 divide-x divide-white/[0.06] overflow-hidden rounded-2xl border border-white/[0.07]"
+          style={{ background: "rgba(255,255,255,0.03)" }}>
           {([
             { Icon: Crown,  title: "High Quality",     sub: "Best results"      },
             { Icon: Zap,    title: "Fast Generation",  sub: "No long waiting"   },
@@ -1240,18 +1230,9 @@ function AspectCard({
       }`}
     >
       {active && (
-        <>
-          <motion.span
-            layoutId="aspect-glow"
-            aria-hidden
-            className="pointer-events-none absolute -inset-[1px] rounded-2xl"
-            style={{ boxShadow: "0 0 0 1px rgba(167,139,250,0.6), 0 0 18px -2px rgba(139,92,246,0.55), inset 0 0 14px -4px rgba(217,70,239,0.4)" }}
-          />
-          <span aria-hidden className="cs-aspect-pulse pointer-events-none absolute inset-0 rounded-2xl" />
-          <span className="absolute top-1.5 right-1.5 grid h-4 w-4 place-items-center rounded-full bg-violet-500 shadow-[0_0_10px_rgba(167,139,250,0.8)]">
-            <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
-          </span>
-        </>
+        <span className="absolute top-1.5 right-1.5 grid h-4 w-4 place-items-center rounded-full bg-violet-500">
+          <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
+        </span>
       )}
       <span className="relative z-10 flex items-center justify-center" style={{ height: 26 }}>
         <AspectRect w={a.w} h={a.h} active={active} />
@@ -1266,146 +1247,12 @@ function AspectCard({
   );
 }
 
-/** Galaxy backdrop — layered animated gradients + dust particles.
- *  Uses transform/opacity only → GPU compositor. */
-function GalaxyBackdrop() {
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-      {/* Deep base */}
-      <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, #06010f 0%, #090118 55%, #040012 100%)" }} />
-      {/* Nebula + energy layers */}
-      <div className="cs-galaxy-nebula absolute inset-0" />
-      <div className="cs-galaxy-energy absolute inset-0" />
-      <div className="cs-galaxy-dust absolute inset-0" />
-      {/* Subtle horizontal scan line */}
-      <span className="scan-line absolute inset-x-0 top-0 h-[1.5px]" style={{
-        background: "linear-gradient(90deg, transparent 0%, rgba(167,139,250,0.35) 25%, rgba(217,70,239,0.55) 50%, rgba(167,139,250,0.35) 75%, transparent 100%)",
-      }} />
-      {/* Radial vignette */}
-      <div
-        className="absolute inset-0"
-        style={{ background: "radial-gradient(120% 90% at 50% 25%, transparent 0%, rgba(0,0,0,0.48) 65%, rgba(0,0,0,0.82) 100%)" }}
-      />
-    </div>
-  );
-}
 
 /** Single injected stylesheet for the cinematic layer. Inlined so this
  *  page owns its visual upgrade end-to-end — no shared CSS edits. */
 function CinematicStyles() {
   return (
     <style>{`
-      /* ── GALAXY BACKGROUND ─────────────────────────────────────── */
-      @keyframes cs-galaxy-pan-1 {
-        0%   { transform: translate3d(-5%, -3%, 0) scale(1.06); }
-        50%  { transform: translate3d(5%, 4%, 0) scale(1.12); }
-        100% { transform: translate3d(-5%, -3%, 0) scale(1.06); }
-      }
-      @keyframes cs-galaxy-pan-2 {
-        0%   { transform: translate3d(4%, 5%, 0) scale(1.09); opacity: .50; }
-        50%  { transform: translate3d(-4%, -5%, 0) scale(1.14); opacity: .90; }
-        100% { transform: translate3d(4%, 5%, 0) scale(1.09); opacity: .50; }
-      }
-      @keyframes cs-galaxy-dust { 0% { background-position: 0 0, 0 0, 0 0; } 100% { background-position: 700px 900px, -500px 700px, 300px -500px; } }
-
-      .cs-galaxy-nebula {
-        background:
-          radial-gradient(62% 52% at 16% 20%, rgba(167,139,250,0.52) 0%, transparent 62%),
-          radial-gradient(58% 48% at 84% 28%, rgba(96,165,250,0.38) 0%, transparent 62%),
-          radial-gradient(72% 58% at 28% 86%, rgba(217,70,239,0.34) 0%, transparent 62%),
-          radial-gradient(62% 52% at 78% 88%, rgba(56,189,248,0.22) 0%, transparent 62%),
-          radial-gradient(45% 38% at 52% 52%, rgba(139,92,246,0.28) 0%, transparent 62%);
-        animation: cs-galaxy-pan-1 28s ease-in-out infinite;
-        will-change: transform;
-      }
-      .cs-galaxy-energy {
-        background:
-          radial-gradient(48% 38% at 66% 52%, rgba(139,92,246,0.42) 0%, transparent 72%),
-          radial-gradient(42% 32% at 24% 62%, rgba(244,114,182,0.26) 0%, transparent 72%),
-          radial-gradient(35% 28% at 50% 22%, rgba(96,165,250,0.22) 0%, transparent 72%);
-        mix-blend-mode: screen;
-        animation: cs-galaxy-pan-2 22s ease-in-out infinite;
-        will-change: transform, opacity;
-      }
-      .cs-galaxy-dust {
-        background-image:
-          radial-gradient(1px 1px at 20px 30px, rgba(255,255,255,0.65), transparent),
-          radial-gradient(1px 1px at 120px 80px, rgba(196,180,255,0.65), transparent),
-          radial-gradient(1px 1px at 200px 150px, rgba(255,255,255,0.55), transparent),
-          radial-gradient(1px 1px at 60px 220px, rgba(96,165,250,0.65), transparent),
-          radial-gradient(1px 1px at 280px 60px, rgba(217,70,239,0.5), transparent),
-          radial-gradient(1px 1px at 340px 200px, rgba(255,255,255,0.6), transparent),
-          radial-gradient(1.5px 1.5px at 160px 140px, rgba(167,139,250,0.5), transparent),
-          radial-gradient(1px 1px at 420px 80px, rgba(255,255,255,0.45), transparent);
-        background-size: 480px 380px;
-        opacity: .7;
-        animation: cs-galaxy-dust 80s linear infinite;
-        will-change: background-position;
-      }
-
-      /* ── PROMPT CARD — spinning conic border + inner glow ──────── */
-      @keyframes cs-prompt-spin  { to { transform: rotate(360deg); } }
-      @keyframes cs-prompt-pulse { 0%, 100% { opacity: .52; } 50% { opacity: 1; } }
-      .cs-prompt-glow {
-        background: conic-gradient(from 180deg at 50% 50%,
-          rgba(167,139,250,0.65), rgba(96,165,250,0.52), rgba(217,70,239,0.65),
-          rgba(56,189,248,0.45), rgba(167,139,250,0.65));
-        filter: blur(12px);
-        opacity: .52;
-        animation: cs-prompt-spin 12s linear infinite, cs-prompt-pulse 5s ease-in-out infinite;
-        z-index: 0;
-        will-change: transform, opacity;
-      }
-      .cs-prompt-card:focus-within .cs-prompt-glow { opacity: 1; filter: blur(16px); }
-      .cs-prompt-inner-glow {
-        background:
-          radial-gradient(65% 75% at 50% 0%, rgba(167,139,250,0.22) 0%, transparent 72%),
-          radial-gradient(40% 30% at 20% 100%, rgba(217,70,239,0.10) 0%, transparent 60%);
-        pointer-events: none;
-      }
-
-      /* ── GENERATE BUTTON — premium aurora gradient ──────────────── */
-      @keyframes cs-gen-energy    { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-      @keyframes cs-gen-shimmer   { 0% { transform: translateX(-130%) skewX(-12deg); } 100% { transform: translateX(230%) skewX(-12deg); } }
-      @keyframes cs-gen-glow-pulse { 0%, 100% { opacity: .52; } 50% { opacity: 1; } }
-
-      .cs-generate-active {
-        background: linear-gradient(118deg,
-          #5b21b6 0%, #7c3aed 18%, #a855f7 32%,
-          #c026d3 52%, #ec4899 70%, #be185d 88%, #7c3aed 100%);
-        background-size: 240% 240%;
-        animation: cs-gen-energy 5s ease-in-out infinite;
-        box-shadow:
-          0 12px 40px -10px rgba(139,92,246,0.75),
-          0 4px 16px -6px rgba(236,72,153,0.55),
-          inset 0 1px 0 rgba(255,255,255,0.18);
-        will-change: background-position;
-      }
-      .cs-gen-energy {
-        background: radial-gradient(65% 130% at 50% 50%, rgba(255,255,255,0.20) 0%, transparent 72%);
-        mix-blend-mode: screen;
-      }
-      .cs-gen-shimmer {
-        background: linear-gradient(112deg, transparent 28%, rgba(255,255,255,0.65) 50%, transparent 72%);
-        animation: cs-gen-shimmer 2.8s ease-in-out infinite;
-        will-change: transform;
-      }
-      .cs-gen-glow {
-        background: linear-gradient(118deg, #a855f7, #ec4899, #6366f1, #a855f7);
-        background-size: 200% 200%;
-        filter: blur(16px);
-        z-index: -1;
-        animation: cs-gen-energy 5s ease-in-out infinite, cs-gen-glow-pulse 3.5s ease-in-out infinite;
-        will-change: opacity, background-position;
-      }
-
-      /* ── ASPECT CARD ────────────────────────────────────────────── */
-      @keyframes cs-aspect-pulse {
-        0%, 100% { box-shadow: inset 0 0 10px rgba(167,139,250,0.28); }
-        50%       { box-shadow: inset 0 0 22px rgba(217,70,239,0.52); }
-      }
-      .cs-aspect-pulse { animation: cs-aspect-pulse 2.6s ease-in-out infinite; will-change: box-shadow; }
-
       /* ── STYLE CARD SHIMMER ─────────────────────────────────────── */
       @keyframes cs-card-shimmer {
         0%   { transform: translateX(-200%) skewX(-16deg); opacity: 0;   }
