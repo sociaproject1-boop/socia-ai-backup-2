@@ -10,12 +10,11 @@ const TABS = [
   { path: "/profile",  label: "Me",     icon: User,          match: (l: string) => l.startsWith("/profile") },
 ] as const;
 
-/* Active accent color per tab — simple color only, no glow */
 const TAB_COLOR: Record<string, string> = {
-  "/":         "rgba(168,85,247,1)",
-  "/create":   "rgba(217,70,239,1)",
-  "/messages": "rgba(96,165,250,1)",
-  "/profile":  "rgba(168,85,247,1)",
+  "/":         "#a855f7",
+  "/create":   "#d946ef",
+  "/messages": "#60a5fa",
+  "/profile":  "#a855f7",
 };
 
 const GPU: React.CSSProperties = {
@@ -35,28 +34,14 @@ export function BottomNav() {
         bottom: 0,
         left: 0,
         right: 0,
-        paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 10px)",
-        paddingTop: "10px",
-        paddingLeft: "12px",
-        paddingRight: "12px",
-        background: "transparent",
+        background: "#0a0a0a",
+        borderTop: "1px solid rgba(255,255,255,0.07)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
         zIndex: 50,
         ...GPU,
       }}
     >
-      {/* Floating glass dock */}
-      <ul
-        className="grid grid-cols-4"
-        style={{
-          background: "rgba(8,6,16,0.82)",
-          backdropFilter: "blur(24px) saturate(140%)",
-          WebkitBackdropFilter: "blur(24px) saturate(140%)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          borderRadius: "28px",
-          boxShadow: "0 8px 32px -8px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.04)",
-          padding: "6px 4px",
-        }}
-      >
+      <ul className="grid grid-cols-4" style={{ padding: "2px 0 4px" }}>
         {TABS.map((tab) => {
           const active  = tab.match(location);
           const isInbox = tab.path === "/messages";
@@ -66,51 +51,42 @@ export function BottomNav() {
           return (
             <li key={tab.path} className="flex justify-center">
               <motion.button
-                whileTap={{ scale: 0.88 }}
+                whileTap={{ scale: 0.86 }}
                 transition={{ type: "spring", stiffness: 620, damping: 28 }}
                 onClick={() => navigate(tab.path)}
                 aria-label={tab.label}
                 aria-current={active ? "page" : undefined}
-                className="relative flex w-full flex-col items-center justify-center gap-1 py-2 select-none"
+                className="relative flex w-full flex-col items-center justify-center gap-0.5 py-2 select-none"
               >
-                {/* Active background pill — subtle tint only */}
-                <AnimatePresence>
-                  {active && (
-                    <motion.span
-                      key="active-pill"
-                      layoutId="navActivePill"
-                      initial={{ opacity: 0, scaleX: 0.5 }}
-                      animate={{ opacity: 1, scaleX: 1 }}
-                      exit={{ opacity: 0, scaleX: 0.5 }}
-                      transition={{ type: "spring", stiffness: 500, damping: 32 }}
-                      style={{
-                        position: "absolute",
-                        inset: "2px 8px",
-                        borderRadius: 18,
-                        background: "rgba(168,85,247,0.12)",
-                        border: "1px solid rgba(168,85,247,0.18)",
-                        ...GPU,
-                      }}
-                    />
-                  )}
-                </AnimatePresence>
+                {/* Active top indicator line */}
+                {active && (
+                  <motion.span
+                    layoutId="navActiveLine"
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: "30%",
+                      right: "30%",
+                      height: 2,
+                      borderRadius: "0 0 3px 3px",
+                      background: color,
+                    }}
+                  />
+                )}
 
                 {/* Icon */}
                 <motion.span
                   className="relative"
-                  animate={{
-                    scale: active ? 1.06 : 1,
-                    y: active ? -1 : 0,
-                  }}
+                  animate={{ scale: active ? 1.08 : 1, y: active ? -1 : 0 }}
                   transition={{ type: "spring", stiffness: 520, damping: 28 }}
                 >
                   <Icon
                     style={{
                       width: 22,
                       height: 22,
-                      color: active ? color : "rgba(255,255,255,0.38)",
-                      strokeWidth: active ? 2.1 : 1.7,
-                      transition: "color 0.2s ease, stroke-width 0.2s ease",
+                      color: active ? color : "rgba(255,255,255,0.35)",
+                      strokeWidth: active ? 2.2 : 1.6,
+                      transition: "color 0.18s ease",
                     }}
                   />
                   {/* Unread badge */}
@@ -120,10 +96,7 @@ export function BottomNav() {
                       initial={{ scale: 0.4, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       className="absolute -right-1.5 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full px-0.5 text-[9px] font-bold text-white"
-                      style={{
-                        background: "linear-gradient(135deg,#a855f7,#ec4899)",
-                        lineHeight: 1,
-                      }}
+                      style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)", lineHeight: 1 }}
                     >
                       {unreadCount > 99 ? "99+" : unreadCount}
                     </motion.span>
@@ -132,10 +105,8 @@ export function BottomNav() {
 
                 {/* Label */}
                 <span
-                  className="text-[10px] font-semibold tracking-wide transition-colors duration-200"
-                  style={{
-                    color: active ? color : "rgba(255,255,255,0.32)",
-                  }}
+                  className="text-[10px] font-medium tracking-wide transition-colors duration-200"
+                  style={{ color: active ? color : "rgba(255,255,255,0.30)" }}
                 >
                   {tab.label}
                 </span>

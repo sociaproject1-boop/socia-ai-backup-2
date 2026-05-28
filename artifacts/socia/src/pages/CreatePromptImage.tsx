@@ -46,6 +46,34 @@ const STYLES: StyleDef[] = [
 ];
 
 /* ─────────────────────────────────────────────────────────────
+   STYLE THUMBNAIL IMAGES — real Unsplash photos per style
+───────────────────────────────────────────────────────────── */
+const STYLE_IMAGES: Record<string, string> = {
+  "Cinematic":         "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=280&h=380&fit=crop&q=75",
+  "Hyper Realistic":   "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=280&h=380&fit=crop&q=75",
+  "Luxury Ad":         "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=280&h=380&fit=crop&q=75",
+  "Fashion Editorial": "https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=280&h=380&fit=crop&q=75",
+  "Anime":             "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=280&h=380&fit=crop&q=75",
+  "Pixar 3D":          "https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=280&h=380&fit=crop&q=75",
+  "Korean Aesthetic":  "https://images.unsplash.com/photo-1586105251261-72a756497a11?w=280&h=380&fit=crop&q=75",
+  "Dark Moody":        "https://images.unsplash.com/photo-1515694346937-94d85e41e6f0?w=280&h=380&fit=crop&q=75",
+  "Cyberpunk":         "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=280&h=380&fit=crop&q=75",
+  "Minimalist":        "https://images.unsplash.com/photo-1487088678257-3a541e6e3922?w=280&h=380&fit=crop&q=75",
+  "Street Photo":      "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=280&h=380&fit=crop&q=75",
+  "Product Photo":     "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=280&h=380&fit=crop&q=75",
+  "Jewelry Macro":     "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=280&h=380&fit=crop&q=75",
+  "Beauty Campaign":   "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=280&h=380&fit=crop&q=75",
+  "Magazine Cover":    "https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=280&h=380&fit=crop&q=75",
+  "Futuristic":        "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=280&h=380&fit=crop&q=75",
+  "Dreamy":            "https://images.unsplash.com/photo-1518895949257-7621c3c786d7?w=280&h=380&fit=crop&q=75",
+  "Vintage Film":      "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=280&h=380&fit=crop&q=75",
+  "AI Influencer":     "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=280&h=380&fit=crop&q=75",
+  "TikTok Viral":      "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=280&h=380&fit=crop&q=75",
+  "Apple Commercial":  "https://images.unsplash.com/photo-1491933382434-500287f9b54b?w=280&h=380&fit=crop&q=75",
+  "Nike Ad":           "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=280&h=380&fit=crop&q=75",
+};
+
+/* ─────────────────────────────────────────────────────────────
    ASPECT RATIOS  — 4 core ratios as a segmented control
 ───────────────────────────────────────────────────────────── */
 const ASPECTS = [
@@ -1058,36 +1086,49 @@ function StyleCard({
 }: { s: StyleDef; active: boolean; onClick: () => void }) {
   const vibe = STYLE_VIBE[s.id] ?? "cinema";
   const artBg = STYLE_ART[s.id];
+  const imgUrl = STYLE_IMAGES[s.id];
 
   return (
     <motion.button
       whileTap={{ scale: 0.93 }}
       onClick={onClick}
       className="relative shrink-0 overflow-hidden rounded-[18px]"
-      style={{ width: 118, height: 158, background: VIBE_BG[vibe] }}
+      style={{
+        width: 118,
+        height: 158,
+        background: imgUrl ? "#000" : VIBE_BG[vibe],
+        ...(imgUrl ? {
+          backgroundImage: `url("${imgUrl}")`,
+          backgroundSize: "cover",
+          backgroundPosition: "center top",
+        } : {}),
+      }}
     >
-      {/* ── Layer 1: per-style CSS art background ── */}
-      {artBg && (
+      {/* ── CSS art layers — only when no real image ── */}
+      {!imgUrl && artBg && (
         <span
           aria-hidden
           className="pointer-events-none absolute inset-0"
           style={{ background: artBg }}
         />
       )}
+      {!imgUrl && (
+        <span aria-hidden className={`cs-vibe cs-vibe-${vibe} pointer-events-none absolute inset-0`} />
+      )}
 
-      {/* ── Layer 2: animated cinematic vibe overlay ── */}
-      <span aria-hidden className={`cs-vibe cs-vibe-${vibe} pointer-events-none absolute inset-0`} />
-
-      {/* ── Layer 3: card shimmer sweep ── */}
+      {/* ── Shimmer sweep — always ── */}
       <span aria-hidden className="cs-card-shimmer pointer-events-none absolute inset-0" />
 
-      {/* ── Layer 4: bottom dark gradient for text legibility ── */}
+      {/* ── Bottom dark gradient — stronger for real images ── */}
       <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-3/4"
-        style={{ background: "linear-gradient(0deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.55) 45%, transparent 100%)" }} />
+        style={{ background: imgUrl
+          ? "linear-gradient(0deg, rgba(0,0,0,0.96) 0%, rgba(0,0,0,0.70) 42%, rgba(0,0,0,0.08) 100%)"
+          : "linear-gradient(0deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.55) 45%, transparent 100%)"
+        }} />
 
-      {/* ── Layer 5: top vignette ── */}
+      {/* ── Top vignette ── */}
       <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-1/3"
-        style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.38) 0%, transparent 100%)" }} />
+        style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.50) 0%, transparent 100%)" }} />
 
       {/* ── Icon orb (top-left) ── */}
       <span
