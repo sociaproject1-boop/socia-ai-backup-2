@@ -10,18 +10,12 @@ const TABS = [
   { path: "/profile",  label: "Me",     icon: User,          match: (l: string) => l.startsWith("/profile") },
 ] as const;
 
-/* Per-tab accent colors for the active glow */
-const TAB_COLORS: Record<string, string> = {
-  "/":         "rgba(168,85,247,0.9)",
-  "/create":   "rgba(217,70,239,0.9)",
-  "/messages": "rgba(96,165,250,0.9)",
-  "/profile":  "rgba(168,85,247,0.9)",
-};
-const TAB_GLOW: Record<string, string> = {
-  "/":         "rgba(168,85,247,0.55)",
-  "/create":   "rgba(217,70,239,0.55)",
-  "/messages": "rgba(96,165,250,0.55)",
-  "/profile":  "rgba(168,85,247,0.55)",
+/* Active accent color per tab — simple color only, no glow */
+const TAB_COLOR: Record<string, string> = {
+  "/":         "rgba(168,85,247,1)",
+  "/create":   "rgba(217,70,239,1)",
+  "/messages": "rgba(96,165,250,1)",
+  "/profile":  "rgba(168,85,247,1)",
 };
 
 const GPU: React.CSSProperties = {
@@ -54,13 +48,12 @@ export function BottomNav() {
       <ul
         className="grid grid-cols-4"
         style={{
-          background: "rgba(8,6,16,0.78)",
-          backdropFilter: "blur(28px) saturate(160%)",
-          WebkitBackdropFilter: "blur(28px) saturate(160%)",
-          border: "1px solid rgba(255,255,255,0.065)",
-          borderRadius: "30px",
-          boxShadow:
-            "0 12px 40px -10px rgba(0,0,0,0.7), 0 4px 16px -4px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)",
+          background: "rgba(8,6,16,0.82)",
+          backdropFilter: "blur(24px) saturate(140%)",
+          WebkitBackdropFilter: "blur(24px) saturate(140%)",
+          border: "1px solid rgba(255,255,255,0.06)",
+          borderRadius: "28px",
+          boxShadow: "0 8px 32px -8px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.04)",
           padding: "6px 4px",
         }}
       >
@@ -68,8 +61,7 @@ export function BottomNav() {
           const active  = tab.match(location);
           const isInbox = tab.path === "/messages";
           const Icon    = tab.icon;
-          const color   = TAB_COLORS[tab.path];
-          const glow    = TAB_GLOW[tab.path];
+          const color   = TAB_COLOR[tab.path];
 
           return (
             <li key={tab.path} className="flex justify-center">
@@ -81,7 +73,7 @@ export function BottomNav() {
                 aria-current={active ? "page" : undefined}
                 className="relative flex w-full flex-col items-center justify-center gap-1 py-2 select-none"
               >
-                {/* Active background pill */}
+                {/* Active background pill — subtle tint only */}
                 <AnimatePresence>
                   {active && (
                     <motion.span
@@ -94,10 +86,9 @@ export function BottomNav() {
                       style={{
                         position: "absolute",
                         inset: "2px 8px",
-                        borderRadius: 20,
-                        background: `linear-gradient(135deg, ${color}18 0%, ${color}0c 100%)`,
-                        border: `1px solid ${color}28`,
-                        boxShadow: `0 0 16px -4px ${glow}`,
+                        borderRadius: 18,
+                        background: "rgba(168,85,247,0.12)",
+                        border: "1px solid rgba(168,85,247,0.18)",
                         ...GPU,
                       }}
                     />
@@ -108,7 +99,7 @@ export function BottomNav() {
                 <motion.span
                   className="relative"
                   animate={{
-                    scale: active ? 1.08 : 1,
+                    scale: active ? 1.06 : 1,
                     y: active ? -1 : 0,
                   }}
                   transition={{ type: "spring", stiffness: 520, damping: 28 }}
@@ -119,13 +110,10 @@ export function BottomNav() {
                       height: 22,
                       color: active ? color : "rgba(255,255,255,0.38)",
                       strokeWidth: active ? 2.1 : 1.7,
-                      transition: "color 0.22s ease, stroke-width 0.22s ease",
-                      filter: active
-                        ? `drop-shadow(0 0 8px ${glow}) drop-shadow(0 0 20px ${glow})`
-                        : "none",
+                      transition: "color 0.2s ease, stroke-width 0.2s ease",
                     }}
                   />
-                  {/* Badge */}
+                  {/* Unread badge */}
                   {isInbox && unreadCount > 0 && !active && (
                     <motion.span
                       key={unreadCount}
@@ -134,7 +122,6 @@ export function BottomNav() {
                       className="absolute -right-1.5 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full px-0.5 text-[9px] font-bold text-white"
                       style={{
                         background: "linear-gradient(135deg,#a855f7,#ec4899)",
-                        boxShadow: "0 0 8px rgba(168,85,247,0.7)",
                         lineHeight: 1,
                       }}
                     >
@@ -145,12 +132,9 @@ export function BottomNav() {
 
                 {/* Label */}
                 <span
-                  className="text-[10px] font-semibold tracking-wide"
+                  className="text-[10px] font-semibold tracking-wide transition-colors duration-200"
                   style={{
                     color: active ? color : "rgba(255,255,255,0.32)",
-                    letterSpacing: active ? "0.04em" : "0.02em",
-                    transition: "color 0.22s ease, letter-spacing 0.22s ease",
-                    textShadow: active ? `0 0 10px ${glow}` : "none",
                   }}
                 >
                   {tab.label}

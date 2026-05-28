@@ -19,11 +19,9 @@ const MODES = [
     title: "AI Preset Studio",
     desc: "1-click pro looks. 26 presets, no prompts.",
     icon: Sparkles,
-    aurora: "linear-gradient(135deg, #a855f7, #ec4899, #6366f1, #a855f7)",
-    glowColor: "rgba(168,85,247,0.7)",
     iconBg: "linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #6366f1 100%)",
-    iconShadow: "0 0 28px rgba(168,85,247,0.8), 0 0 60px rgba(236,72,153,0.4)",
-    borderColor: "rgba(168,85,247,0.45)",
+    iconShadow: "0 4px 14px -4px rgba(168,85,247,0.55)",
+    borderColor: "rgba(168,85,247,0.14)",
     premium: false,
     comingSoon: true,
   },
@@ -32,11 +30,9 @@ const MODES = [
     title: "Prompt to Image",
     desc: "Type your idea, get stunning art.",
     icon: ImageIcon,
-    aurora: "linear-gradient(135deg, #7c3aed, #a855f7, #d946ef, #7c3aed)",
-    glowColor: "rgba(139,92,246,0.7)",
     iconBg: "linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #d946ef 100%)",
-    iconShadow: "0 0 28px rgba(139,92,246,0.8), 0 0 60px rgba(168,85,247,0.4)",
-    borderColor: "rgba(139,92,246,0.45)",
+    iconShadow: "0 4px 14px -4px rgba(139,92,246,0.55)",
+    borderColor: "rgba(139,92,246,0.14)",
     premium: false,
     comingSoon: false,
   },
@@ -45,11 +41,9 @@ const MODES = [
     title: "Prompt to Video",
     desc: "Bring words to cinematic motion.",
     icon: Film,
-    aurora: "linear-gradient(135deg, #ec4899, #f43f5e, #fb923c, #ec4899)",
-    glowColor: "rgba(236,72,153,0.7)",
     iconBg: "linear-gradient(135deg, #ec4899 0%, #f43f5e 60%, #fb923c 100%)",
-    iconShadow: "0 0 28px rgba(236,72,153,0.8), 0 0 60px rgba(244,63,94,0.4)",
-    borderColor: "rgba(236,72,153,0.45)",
+    iconShadow: "0 4px 14px -4px rgba(236,72,153,0.55)",
+    borderColor: "rgba(236,72,153,0.14)",
     premium: false,
     comingSoon: false,
   },
@@ -58,11 +52,9 @@ const MODES = [
     title: "Image to Video",
     desc: "Animate any photo into life.",
     icon: Wand2,
-    aurora: "linear-gradient(135deg, #2563eb, #3b82f6, #06b6d4, #2563eb)",
-    glowColor: "rgba(59,130,246,0.7)",
     iconBg: "linear-gradient(135deg, #2563eb 0%, #3b82f6 50%, #06b6d4 100%)",
-    iconShadow: "0 0 28px rgba(59,130,246,0.8), 0 0 60px rgba(6,182,212,0.4)",
-    borderColor: "rgba(59,130,246,0.45)",
+    iconShadow: "0 4px 14px -4px rgba(59,130,246,0.55)",
+    borderColor: "rgba(59,130,246,0.14)",
     premium: false,
     comingSoon: false,
   },
@@ -71,11 +63,9 @@ const MODES = [
     title: "AI Cinematic Studio",
     desc: "Multi-frame cinematic video. Professional AI film.",
     icon: Layers,
-    aurora: "linear-gradient(135deg, #4f46e5, #6366f1, #a855f7, #ec4899, #4f46e5)",
-    glowColor: "rgba(99,102,241,0.7)",
     iconBg: "linear-gradient(135deg, #4f46e5 0%, #6366f1 30%, #a855f7 65%, #ec4899 100%)",
-    iconShadow: "0 0 32px rgba(99,102,241,0.85), 0 0 70px rgba(168,85,247,0.5)",
-    borderColor: "rgba(99,102,241,0.5)",
+    iconShadow: "0 4px 14px -4px rgba(99,102,241,0.55)",
+    borderColor: "rgba(99,102,241,0.18)",
     premium: true,
     comingSoon: true,
   },
@@ -84,48 +74,23 @@ const MODES = [
     title: "Socia GPT",
     desc: "Your AI assistant — fix prompts, get ideas.",
     icon: MessageCircle,
-    aurora: "linear-gradient(135deg, #7c3aed, #a855f7, #ec4899, #7c3aed)",
-    glowColor: "rgba(168,85,247,0.65)",
     iconBg: "linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #ec4899 100%)",
-    iconShadow: "0 0 28px rgba(168,85,247,0.75), 0 0 55px rgba(236,72,153,0.35)",
-    borderColor: "rgba(168,85,247,0.42)",
+    iconShadow: "0 4px 14px -4px rgba(168,85,247,0.5)",
+    borderColor: "rgba(168,85,247,0.14)",
     premium: false,
     comingSoon: false,
   },
 ];
 
-/** Inject keyframes for the aurora card animations. */
+/** Scoped keyframes for the icon orb pulse only. */
 function CreateHubStyles() {
   return (
     <style>{`
-      @keyframes ch-aurora {
-        0%   { background-position: 0%   50%; }
-        50%  { background-position: 100% 50%; }
-        100% { background-position: 0%   50%; }
-      }
-      .ch-aurora-bg {
-        background-size: 280% 280%;
-        animation: ch-aurora 9s ease-in-out infinite;
-        will-change: background-position;
-      }
-      @keyframes ch-shimmer {
-        0%   { transform: translateX(-140%) skewX(-18deg); }
-        100% { transform: translateX(260%)  skewX(-18deg); }
-      }
-      .ch-shimmer {
-        animation: ch-shimmer 5s ease-in-out infinite;
-        will-change: transform;
-      }
       @keyframes ch-orb-pulse {
         0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.0);  }
-        50%       { box-shadow: 0 0 0 6px rgba(255,255,255,0.07); }
+        50%       { box-shadow: 0 0 0 5px rgba(255,255,255,0.06); }
       }
       .ch-orb-pulse { animation: ch-orb-pulse 2.8s ease-in-out infinite; }
-      @keyframes ch-border-glow {
-        0%, 100% { opacity: 0.55; }
-        50%       { opacity: 1;    }
-      }
-      .ch-border-glow { animation: ch-border-glow 2.5s ease-in-out infinite; will-change: opacity; }
     `}</style>
   );
 }
@@ -201,54 +166,20 @@ export default function CreateHub() {
                   height: 88,
                 }}
               >
-                {/* ── Aurora animated background ── */}
-                <div
-                  className="ch-aurora-bg pointer-events-none absolute inset-0"
-                  style={{
-                    background: m.aurora,
-                    opacity: 0.18,
-                  }}
-                />
-
                 {/* ── Dark glass base layer ── */}
                 <div
                   className="pointer-events-none absolute inset-0"
                   style={{
-                    background: "rgba(8,6,18,0.82)",
+                    background: "rgba(10,8,20,0.88)",
                     backdropFilter: "blur(12px)",
                     WebkitBackdropFilter: "blur(12px)",
                   }}
                 />
 
-                {/* ── Shimmer sweep ── */}
+                {/* ── Static border ── */}
                 <div
-                  className="pointer-events-none absolute inset-0 overflow-hidden"
-                  style={{ borderRadius: 24 }}
-                >
-                  <span
-                    className="ch-shimmer pointer-events-none absolute inset-y-0"
-                    style={{
-                      width: "45%",
-                      background:
-                        "linear-gradient(105deg, transparent 0%, rgba(255,255,255,0.045) 50%, transparent 100%)",
-                    }}
-                  />
-                </div>
-
-                {/* ── Neon border ── */}
-                <div
-                  className="ch-border-glow pointer-events-none absolute inset-0 rounded-3xl"
-                  style={{
-                    boxShadow: `inset 0 0 0 1px ${m.borderColor}`,
-                  }}
-                />
-
-                {/* ── Subtle inner bottom glow ── */}
-                <div
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 rounded-b-3xl"
-                  style={{
-                    background: `linear-gradient(0deg, ${m.glowColor.replace("0.7", "0.08")} 0%, transparent 100%)`,
-                  }}
+                  className="pointer-events-none absolute inset-0 rounded-3xl"
+                  style={{ boxShadow: `inset 0 0 0 1px ${m.borderColor}` }}
                 />
 
                 {/* ── Content row ── */}

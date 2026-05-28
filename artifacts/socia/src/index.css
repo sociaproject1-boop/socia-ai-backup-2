@@ -332,49 +332,6 @@ html.light {
   .safe-pt { padding-top: env(safe-area-inset-top, 0px); }
   .safe-pb { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
-  /* ── Galaxy Background orb drift animations ─────────────────────────── */
-  @keyframes galaxy-orb-1 {
-    0%, 100% { transform: translate3d(-2%, -3%, 0) scale(1); }
-    33%       { transform: translate3d(4%, 2%, 0) scale(1.07); }
-    66%       { transform: translate3d(-1%, 5%, 0) scale(0.97); }
-  }
-  @keyframes galaxy-orb-2 {
-    0%, 100% { transform: translate3d(3%, 4%, 0) scale(1.04); opacity: 0.82; }
-    50%       { transform: translate3d(-4%, -3%, 0) scale(0.96); opacity: 1; }
-  }
-  @keyframes galaxy-orb-3 {
-    0%, 100% { transform: translate3d(0, -3%, 0) scale(1); }
-    60%       { transform: translate3d(-3%, 4%, 0) scale(1.09); }
-  }
-  @keyframes galaxy-orb-4 {
-    0%, 100% { transform: translate3d(-4%, 0, 0) scale(1.04); }
-    50%       { transform: translate3d(4%, -4%, 0) scale(0.95); }
-  }
-  @keyframes galaxy-orb-5 {
-    0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.5; }
-    50%       { transform: translate3d(3%, -2%, 0) scale(1.12); opacity: 0.9; }
-  }
-  .galaxy-orb-1 { animation: galaxy-orb-1 28s ease-in-out infinite; will-change: transform; }
-  .galaxy-orb-2 { animation: galaxy-orb-2 22s ease-in-out infinite; will-change: transform, opacity; }
-  .galaxy-orb-3 { animation: galaxy-orb-3 31s ease-in-out infinite; will-change: transform; }
-  .galaxy-orb-4 { animation: galaxy-orb-4 19s ease-in-out infinite; will-change: transform; }
-  .galaxy-orb-5 { animation: galaxy-orb-5 25s ease-in-out infinite; will-change: transform, opacity; }
-
-  /* ── Premium card aurora gradient animation ──────────────────────────── */
-  @keyframes aurora-card {
-    0%   { background-position: 0% 50%;   }
-    50%  { background-position: 100% 50%; }
-    100% { background-position: 0% 50%;   }
-  }
-  .card-aurora { animation: aurora-card 9s ease-in-out infinite; will-change: background-position; }
-
-  /* ── Neon border pulse ───────────────────────────────────────────────── */
-  @keyframes neon-border-pulse {
-    0%, 100% { opacity: 0.55; }
-    50%       { opacity: 1;    }
-  }
-  .neon-border-pulse { animation: neon-border-pulse 2.4s ease-in-out infinite; will-change: opacity; }
-
   /* ── Orbit (loading overlay rings) ──────────────────────────────────── */
   @keyframes orbit-cw  { to { transform: rotate(360deg);  } }
   @keyframes orbit-ccw { to { transform: rotate(-360deg); } }
@@ -404,15 +361,6 @@ html.light {
     animation: progress-shimmer 2.2s ease-in-out infinite;
     will-change: background-position;
   }
-
-  /* ── Live floating particles (auth page) ────────────────────────────── */
-  @keyframes particle-float {
-    0%   { transform: translate3d(0, 0, 0)     scale(1);    opacity: 0;   }
-    10%  { opacity: 1;                                                      }
-    90%  { opacity: 0.6;                                                    }
-    100% { transform: translate3d(var(--px, 20px), -120px, 0) scale(0.6); opacity: 0; }
-  }
-  .particle-float { animation: particle-float var(--p-dur, 6s) ease-in-out infinite var(--p-delay, 0s); will-change: transform, opacity; }
 
   /* ── Ultra-smooth page transitions ──────────────────────────────────── */
   @keyframes page-enter {

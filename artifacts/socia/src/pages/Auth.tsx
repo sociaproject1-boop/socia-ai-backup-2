@@ -6,7 +6,6 @@ import {
   AlertCircle, CheckCircle, RefreshCw, Loader2,
 } from "lucide-react";
 import { useAuth, EMAIL_CONFIRMATION_REQUIRED } from "@/lib/authContext";
-import { GalaxyBackground } from "@/components/ui/GalaxyBackground";
 
 type Mode = "signin" | "signup";
 
@@ -63,12 +62,10 @@ export default function Auth() {
     }
   };
 
-  // ── "Check your email" screen ───────────────────────────────────────────
+  // ── "Check your email" screen ──────────────────────────────────────────
   if (checkEmail) {
     return (
       <div className="relative flex min-h-full flex-col items-center justify-center px-6 text-center overflow-hidden">
-        <GalaxyBackground intensity="medium" />
-
         <div className="relative z-10 flex flex-col items-center">
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
@@ -77,7 +74,7 @@ export default function Auth() {
             className="mb-6 grid h-20 w-20 place-items-center rounded-3xl"
             style={{
               background: "linear-gradient(135deg, #7c3aed 0%, #ec4899 60%, #3b82f6 100%)",
-              boxShadow: "0 12px 60px -8px rgba(236,72,153,0.65), 0 0 80px rgba(124,58,237,0.35)",
+              boxShadow: "0 8px 28px -6px rgba(124,58,237,0.45)",
               ...GPU,
             }}
           >
@@ -111,8 +108,8 @@ export default function Auth() {
             onClick={() => { setCheckEmail(false); setMode("signin"); }}
             className="mt-8 flex h-12 w-full max-w-xs items-center justify-center gap-2 rounded-2xl font-display text-sm font-semibold text-white"
             style={{
-              background: "linear-gradient(135deg, #7c3aed 0%, #ec4899 60%, #3b82f6 100%)",
-              boxShadow: "0 8px 28px -6px rgba(236,72,153,0.6)",
+              background: "linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #ec4899 100%)",
+              boxShadow: "0 6px 22px -6px rgba(124,58,237,0.5)",
             }}
           >
             Go to sign in <ArrowRight className="h-4 w-4" />
@@ -147,52 +144,41 @@ export default function Auth() {
       className="relative flex min-h-full flex-col overflow-hidden"
       style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 28px)` }}
     >
-      {/* Deep space galaxy backdrop */}
-      <GalaxyBackground intensity="high" />
-
-      {/* Floating particles */}
-      <FloatingParticles />
+      {/* Subtle static top accent — single non-animated radial gradient */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "radial-gradient(65% 42% at 50% -5%, rgba(120,50,220,0.14) 0%, transparent 68%)",
+          pointerEvents: "none",
+          zIndex: 0,
+        }}
+      />
 
       <div className="relative z-10 flex flex-1 flex-col px-6 pb-8">
         {/* Logo */}
         <motion.div
           initial={{ scale: 0.82, opacity: 0, y: -10 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
           className="mx-auto mt-4 grid h-24 w-24 place-items-center rounded-[28px]"
           style={{
-            background: "linear-gradient(135deg, #7c3aed 0%, #a855f7 35%, #ec4899 70%, #3b82f6 100%)",
-            boxShadow: "0 16px 70px -8px rgba(236,72,153,0.7), 0 0 100px rgba(124,58,237,0.4), inset 0 1px 0 rgba(255,255,255,0.25)",
+            background: "linear-gradient(135deg, #7c3aed 0%, #a855f7 45%, #ec4899 100%)",
+            boxShadow: "0 8px 30px -6px rgba(168,85,247,0.5), inset 0 1px 0 rgba(255,255,255,0.14)",
             ...GPU,
           }}
         >
-          {/* Breathing glow behind logo */}
-          <motion.span
-            aria-hidden="true"
-            animate={{ opacity: [0.4, 0.9, 0.4], scale: [1, 1.3, 1] }}
-            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            style={{
-              position: "absolute",
-              inset: -24,
-              borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(168,85,247,0.5) 0%, rgba(236,72,153,0.3) 40%, transparent 70%)",
-              filter: "blur(18px)",
-              pointerEvents: "none",
-              zIndex: -1,
-              ...GPU,
-            }}
-          />
           <Sparkles
             className="h-10 w-10 text-white"
             strokeWidth={2.1}
-            style={{ filter: "drop-shadow(0 0 12px rgba(255,255,255,0.7))" }}
           />
         </motion.div>
 
         <motion.h1
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ delay: 0.12, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           className="mt-7 text-center font-display text-4xl font-bold tracking-tight"
         >
           <span className="text-gradient">Socia</span>
@@ -250,33 +236,18 @@ export default function Auth() {
               )}
             </AnimatePresence>
 
-            {/* CTA button */}
+            {/* CTA button — clean gradient, no aurora animation */}
             <motion.button
               whileTap={{ scale: 0.975 }}
               type="submit"
               disabled={loading}
-              className="relative flex h-13 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl font-display text-sm font-semibold text-white disabled:opacity-60"
+              className="relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-2xl font-display text-sm font-semibold text-white disabled:opacity-60"
               style={{
                 height: 52,
-                background: "linear-gradient(135deg, #7c3aed 0%, #a855f7 30%, #ec4899 70%, #3b82f6 100%)",
-                backgroundSize: "220% 220%",
-                animation: "ch-aurora 8s ease-in-out infinite",
-                boxShadow: "0 10px 36px -8px rgba(168,85,247,0.7), 0 0 60px rgba(236,72,153,0.25), inset 0 1px 0 rgba(255,255,255,0.18)",
+                background: "linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #ec4899 100%)",
+                boxShadow: "0 6px 22px -6px rgba(168,85,247,0.6), inset 0 1px 0 rgba(255,255,255,0.12)",
               }}
             >
-              {/* Shimmer sweep */}
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl"
-              >
-                <span
-                  className="ch-shimmer absolute inset-y-0"
-                  style={{
-                    width: "50%",
-                    background: "linear-gradient(105deg, transparent, rgba(255,255,255,0.12), transparent)",
-                  }}
-                />
-              </span>
               <span className="relative z-10 flex items-center gap-2">
                 {loading ? (
                   <RefreshCw className="h-4 w-4 animate-spin" />
@@ -305,20 +276,10 @@ export default function Auth() {
           style={{
             background: "rgba(255,255,255,0.04)",
             border: "1px solid rgba(255,255,255,0.09)",
-            backdropFilter: "blur(16px)",
-            WebkitBackdropFilter: "blur(16px)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
           }}
         >
-          <motion.div
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(105deg, transparent 38%, rgba(255,255,255,0.05) 50%, transparent 62%)",
-            }}
-            initial={{ x: "-100%" }}
-            whileHover={{ x: "100%" }}
-            transition={{ duration: 0.6 }}
-          />
           {loading
             ? <Loader2 className="h-4 w-4 animate-spin text-white/60" />
             : <GoogleGlyph />
@@ -344,65 +305,11 @@ export default function Auth() {
           )}
         </div>
       </div>
-
-      {/* Inline keyframes (aurora button animation) */}
-      <style>{`
-        @keyframes ch-aurora {
-          0%   { background-position: 0% 50%; }
-          50%  { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-        @keyframes ch-shimmer {
-          0%   { transform: translateX(-140%) skewX(-18deg); }
-          100% { transform: translateX(260%) skewX(-18deg); }
-        }
-        .ch-shimmer { animation: ch-shimmer 5s ease-in-out infinite; will-change: transform; }
-      `}</style>
     </div>
   );
 }
 
-/* ── Floating particles (pure CSS, GPU-only) ──────────────────────────────── */
-const PARTICLES = [
-  { x: "15%", size: 3, dur: 7, delay: 0,   px: "14px", color: "rgba(168,85,247,0.7)"  },
-  { x: "35%", size: 2, dur: 9, delay: 1.5, px: "-8px", color: "rgba(236,72,153,0.6)"  },
-  { x: "55%", size: 4, dur: 6, delay: 0.8, px: "20px", color: "rgba(96,165,250,0.65)" },
-  { x: "72%", size: 2, dur: 8, delay: 2.2, px: "-12px",color: "rgba(168,85,247,0.55)" },
-  { x: "88%", size: 3, dur: 10,delay: 0.3, px: "8px",  color: "rgba(217,70,239,0.6)"  },
-  { x: "22%", size: 2, dur: 7, delay: 3.1, px: "-6px", color: "rgba(96,165,250,0.5)"  },
-  { x: "63%", size: 3, dur: 9, delay: 1.8, px: "16px", color: "rgba(236,72,153,0.55)" },
-];
-
-function FloatingParticles() {
-  return (
-    <div
-      aria-hidden="true"
-      style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden", zIndex: 1 }}
-    >
-      {PARTICLES.map((p, i) => (
-        <span
-          key={i}
-          style={{
-            position: "absolute",
-            left: p.x,
-            bottom: "-10px",
-            width: p.size,
-            height: p.size,
-            borderRadius: "50%",
-            background: p.color,
-            boxShadow: `0 0 ${p.size * 3}px ${p.color}`,
-            "--px": p.px,
-            "--p-dur": `${p.dur}s`,
-            "--p-delay": `${p.delay}s`,
-          } as React.CSSProperties}
-          className="particle-float"
-        />
-      ))}
-    </div>
-  );
-}
-
-/* ── Input field with glassmorphism ──────────────────────────────────────── */
+/* ── Input field ──────────────────────────────────────────────────────────── */
 function Field({
   icon: Icon, placeholder, type, value, onChange,
 }: {
@@ -423,9 +330,8 @@ function Field({
       style={{
         background: "rgba(255,255,255,0.05)",
         border: "1px solid rgba(255,255,255,0.09)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
       }}
     >
       <Icon className="h-4 w-4 text-white/45" />
