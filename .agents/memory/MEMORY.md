@@ -12,3 +12,4 @@
 - [Grok routing resilience](grok-routing-resilience.md) — first-byte timer must outlive create() until first delta; client-abort must never recordGrokFail; retry-once is Grok Smart only.
 - [Payment monitor failsafe](payment-monitor-failsafe.md) — Socia checkout may be disabled only by owner override or PayMongo 5xx; probe network failures map to UNKNOWN, never block checkout.
 - [Monitor outage & low-balance alerts](monitor-alerts.md) — owner email/SMS/webhook on MAINTENANCE/OUTAGE + recovery; incident-state de-dupe survives restarts; failed sends retry (notifiedAt-gated); low-balance opt-in (real only for Stability).
+- [Splash transparent assets & screenshot timing](splash-transparent-assets.md) — baked app-icon tiles show as squares on black even with mixBlendMode:screen; screenshot tool reloads page (resets anim timers), so zero animation delay to verify end-state.

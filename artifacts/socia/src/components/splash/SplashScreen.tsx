@@ -1,46 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
-import logoUrl from "@assets/splash/logo.png";
-import sUrl from "@assets/splash/letter_s.png";
-import oUrl from "@assets/splash/letter_o.png";
-import cUrl from "@assets/splash/letter_c.png";
-import iUrl from "@assets/splash/letter_i.png";
-import aUrl from "@assets/splash/letter_a.png";
+import markUrl from "@assets/splash2/mark.png";
+import wordmarkUrl from "@assets/splash2/wordmark.png";
 
 /**
  * SplashScreen — premium animated launch screen for SOCIA.
  *
- * Fully additive & isolated: mounts once at the app root, plays a ~3.6s
+ * Fully additive & isolated: mounts once at the app root, plays a short
  * choreographed intro, then fades out to reveal whatever the router already
  * shows underneath (the login screen for unauthenticated users). It never
  * touches routing, auth, or business logic — it is purely a visual layer.
  *
- * The artwork is the uploaded SOCIA image, sliced (on its pure-black
- * background, so seams are invisible) into the glowing "S" mark and the five
- * SOCIA letters. The letters are placed at their exact original widths so the
- * wordmark reconstructs the original artwork precisely while still allowing
- * each letter to animate in one by one.
+ * The artwork is rendered from genuinely transparent assets cut from the clean
+ * SOCIA lockup: `mark.png` (the glowing "S" + the two stars) and
+ * `wordmark.png` (the SOCIA letters). Neither asset contains any baked-in
+ * background, so there is no tile, square, or panel behind the logo — it
+ * floats directly on pure black. The neon glow is produced by `drop-shadow`
+ * filters applied to the logo's own alpha shape (not a container), and the
+ * underline is a thin CSS gradient bar.
  *
- * All motion uses only CSS transforms + opacity (compositor-only) for a
- * smooth 60fps result on mobile / low-end Android.
+ * All motion uses compositor-friendly properties (transform / opacity /
+ * clip-path / filter) for a smooth result on mobile / low-end Android.
  */
-
-// Letter slices in original order with their source pixel widths (uniform
-// height) so the row reconstructs the wordmark exactly.
-const LETTERS = [
-  { url: sUrl, w: 112 },
-  { url: oUrl, w: 119 },
-  { url: cUrl, w: 114 },
-  { url: iUrl, w: 68 },
-  { url: aUrl, w: 119 },
-];
-const WORDMARK_W = LETTERS.reduce((sum, l) => sum + l.w, 0); // 532
 
 const PARTICLE_COLORS = ["#ec4899", "#d946ef", "#a855f7", "#60a5fa", "#3b82f6"];
 
 // Animation schedule (ms).
-const LETTER_START = 1000;
-const LETTER_STAGGER = 150;
-const UNDERLINE_DELAY = LETTER_START + LETTERS.length * LETTER_STAGGER + 200; // ~1950
+const WORDMARK_DELAY = 1100;
+const WORDMARK_DUR = 700;
+const UNDERLINE_DELAY = WORDMARK_DELAY + WORDMARK_DUR + 150; // ~1950
 const EXIT_AT = 3300;
 const UNMOUNT_AT = 3850;
 
@@ -142,65 +129,37 @@ export function SplashScreen() {
         );
       })}
 
-      {/* Glowing "S" mark + soft neon halo */}
-      <div style={{ position: "relative", display: "grid", placeItems: "center" }}>
-        <div
-          style={{
-            position: "absolute",
-            width: "min(72vw, 320px)",
-            height: "min(72vw, 320px)",
-            borderRadius: "50%",
-            background:
-              "radial-gradient(circle, rgba(168,85,247,0.38) 0%, rgba(59,130,246,0.18) 42%, rgba(0,0,0,0) 70%)",
-            filter: "blur(6px)",
-            opacity: 0,
-            animation:
-              "splashGlowIn 1s ease-out 200ms forwards, splashGlowPulse 2.6s ease-in-out 1200ms infinite",
-            willChange: "transform, opacity",
-          }}
-        />
-        <img
-          src={logoUrl}
-          alt="SOCIA"
-          draggable={false}
-          style={{
-            position: "relative",
-            width: markWidth,
-            height: "auto",
-            mixBlendMode: "screen",
-            animation: "splashLogoIn 1s cubic-bezier(0.16,1,0.3,1) both",
-            willChange: "transform, opacity",
-          }}
-        />
-      </div>
-
-      {/* SOCIA wordmark — letters appear one by one */}
-      <div
+      {/* Glowing "S" mark — transparent asset, glow from its own shape */}
+      <img
+        src={markUrl}
+        alt="SOCIA"
+        draggable={false}
         style={{
-          display: "flex",
-          alignItems: "flex-end",
-          justifyContent: "center",
           width: markWidth,
-          marginTop: "min(3.5vw, 16px)",
+          height: "auto",
+          filter:
+            "drop-shadow(0 0 14px rgba(168,85,247,0.5)) drop-shadow(0 0 32px rgba(59,130,246,0.28))",
+          animation:
+            "splashLogoIn 1s cubic-bezier(0.16,1,0.3,1) both, splashMarkGlow 2.6s ease-in-out 1200ms infinite",
+          willChange: "transform, opacity, filter",
         }}
-      >
-        {LETTERS.map((l, idx) => (
-          <img
-            key={idx}
-            src={l.url}
-            alt=""
-            draggable={false}
-            style={{
-              width: `${(l.w / WORDMARK_W) * 100}%`,
-              height: "auto",
-              mixBlendMode: "screen",
-              opacity: 0,
-              animation: `splashLetterIn 450ms ease-out ${LETTER_START + idx * LETTER_STAGGER}ms forwards`,
-              willChange: "transform, opacity",
-            }}
-          />
-        ))}
-      </div>
+      />
+
+      {/* SOCIA wordmark — transparent asset, revealed left to right */}
+      <img
+        src={wordmarkUrl}
+        alt=""
+        draggable={false}
+        style={{
+          width: markWidth,
+          height: "auto",
+          marginTop: "min(3.5vw, 16px)",
+          filter: "drop-shadow(0 0 10px rgba(168,85,247,0.35))",
+          clipPath: "inset(0 100% 0 0)",
+          animation: `splashWordmarkWipe ${WORDMARK_DUR}ms ease-out ${WORDMARK_DELAY}ms both`,
+          willChange: "clip-path",
+        }}
+      />
 
       {/* Neon underline — pink→blue wipe, left to right */}
       <div

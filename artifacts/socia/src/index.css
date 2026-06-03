@@ -396,6 +396,23 @@ html.light {
   from { transform: scaleX(0); }
   to   { transform: scaleX(1); }
 }
+@keyframes splashMarkGlow {
+  0%, 100% {
+    filter:
+      drop-shadow(0 0 14px rgba(168, 85, 247, 0.5))
+      drop-shadow(0 0 32px rgba(59, 130, 246, 0.28));
+  }
+  50% {
+    filter:
+      drop-shadow(0 0 22px rgba(168, 85, 247, 0.78))
+      drop-shadow(0 0 48px rgba(59, 130, 246, 0.42))
+      drop-shadow(0 0 10px rgba(236, 72, 153, 0.5));
+  }
+}
+@keyframes splashWordmarkWipe {
+  from { clip-path: inset(0 100% 0 0); }
+  to   { clip-path: inset(0 0 0 0);    }
+}
 @keyframes splashParticleIn {
   from { opacity: 0; }
   to   { opacity: var(--op, 0.7); }
