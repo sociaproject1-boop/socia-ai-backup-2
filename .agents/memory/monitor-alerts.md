@@ -35,6 +35,17 @@ subsystem, hooked off the existing 5-min sweep.
   notice actually settles. **Why:** a one-off webhook 500 shouldn't mean the
   owner never learns about an outage / recovery.
 
+- **Optional re-notify cadence for long incidents.** `ALERT_REMIND_EVERY_HOURS`
+  (default OFF; unset/≤0/non-numeric = off) makes a still-open incident re-send a
+  "still <status>" reminder once a full interval has elapsed since `notifiedAt`.
+  The reminder REUSES the same incident record (openedAt preserved, no duplicate
+  "down"); a settled send resets the cadence clock, a failed one leaves
+  `notifiedAt:""` for next-sweep retry. Paced off persisted `notifiedAt` so it
+  survives restarts and is never per-sweep spam. Applies to both status and
+  balance incidents. **Why:** long outages were de-duped to a single alert with
+  no periodic nudge — easy to forget — but re-firing every 5-min sweep would be
+  spam. The cadence is the middle ground.
+
 - **Low-balance alerting is real but opt-in, and honest about coverage.** Only
   providers with a queryable balance API get a real number — currently just
   Stability AI (`/v1/user/balance`). All others honestly report

@@ -12,6 +12,11 @@
  *   - DE-DUPED: one alert per incident (not per 5-min sweep), plus a single
  *     recovery notice when the provider returns to ONLINE. The de-dupe memory
  *     lives in the store and is persisted across restarts.
+ *   - OPTIONAL REMINDERS: for incidents that stay open a long time, the owner
+ *     can opt into a periodic "still open" reminder (ALERT_REMIND_EVERY_HOURS;
+ *     default OFF). Reminders reuse the SAME incident record — they never open a
+ *     duplicate and are paced off `notifiedAt`, so they can't become per-sweep
+ *     spam and survive restarts.
  *   - DEPENDENCY-FREE: channels are plain HTTPS calls (Resend for email,
  *     Twilio for SMS, a generic JSON webhook for Slack/Discord/custom), so no
  *     new packages are added and each channel is opt-in via env.
@@ -158,6 +163,14 @@ export interface AlertPayload {
   status: StatusLevel;
   message: string;
   at: string;
+  /**
+   * True when this is a periodic "still open" reminder for an incident the
+   * owner has already been told about (not a new incident). Changes only the
+   * rendered copy — the de-dupe record is reused, not duplicated.
+   */
+  reminder?: boolean;
+  /** ISO timestamp the underlying incident first opened (for "ongoing for …"). */
+  openedAt?: string;
 }
 
 /** Outcome of a dispatch — used by the incident bookkeeping to decide retries. */
@@ -184,6 +197,18 @@ function providerLinks(providerId: string): string {
   return lines.length ? `\n\n${lines.join("\n")}` : "";
 }
 
+/** Human-readable "ongoing for …" duration from openedAt → at. Empty if unknown. */
+function humanizeSince(openedAt: string | undefined, now: string): string {
+  if (!openedAt) return "";
+  const ms = Date.parse(now) - Date.parse(openedAt);
+  if (!Number.isFinite(ms) || ms <= 0) return "";
+  const mins = Math.round(ms / 60_000);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return rem ? `${hours}h ${rem}m` : `${hours}h`;
+}
+
 function renderMessage(alert: AlertPayload): { subject: string; body: string } {
   if (alert.topic === "balance") {
     if (alert.kind === "recovery") {
@@ -192,9 +217,28 @@ function renderMessage(alert: AlertPayload): { subject: string; body: string } {
         body: `${alert.label} balance is back above the alert threshold.\nDetail: ${alert.message}\nTime: ${alert.at}`,
       };
     }
+    if (alert.reminder) {
+      const since = humanizeSince(alert.openedAt, alert.at);
+      return {
+        subject: `🔁 Socia: ${alert.label} balance still low`,
+        body:
+          `${alert.label} balance is still low${since ? ` (low for ${since})` : ""}.\n` +
+          `Detail: ${alert.message}\nTime: ${alert.at}${providerLinks(alert.providerId)}`,
+      };
+    }
     return {
       subject: `💸 Socia: ${alert.label} balance low`,
       body: `${alert.label} is running low on balance.\nDetail: ${alert.message}\nTime: ${alert.at}${providerLinks(alert.providerId)}`,
+    };
+  }
+
+  if (alert.reminder) {
+    const since = humanizeSince(alert.openedAt, alert.at);
+    return {
+      subject: `🔁 Socia: ${alert.label} still ${alert.status}`,
+      body:
+        `${alert.label} is still ${alert.status}${since ? ` (ongoing for ${since})` : ""}.\n` +
+        `Detail: ${alert.message}\nTime: ${alert.at}${providerLinks(alert.providerId)}`,
     };
   }
 
@@ -273,6 +317,35 @@ function settled(res: DispatchResult): boolean {
   return res.attempted === 0 || res.delivered > 0;
 }
 
+/**
+ * Re-notify cadence for incidents that stay open: how long to wait between
+ * "still open" reminders, in milliseconds. Configured via `ALERT_REMIND_EVERY_HOURS`
+ * (fractional values allowed). Default OFF — unset / ≤0 / non-numeric means no
+ * reminders are ever sent, so the existing one-alert-per-incident behavior is
+ * unchanged unless the owner opts in.
+ */
+function remindEveryMs(): number {
+  const raw = env("ALERT_REMIND_EVERY_HOURS");
+  if (!raw) return 0;
+  const hours = Number(raw);
+  if (!Number.isFinite(hours) || hours <= 0) return 0;
+  return hours * 60 * 60 * 1000;
+}
+
+/**
+ * True when a still-open incident is due for a reminder: reminders are enabled
+ * AND at least one full interval has elapsed since the last notification. Driven
+ * off the persisted `notifiedAt`, so the cadence survives restarts and is never
+ * per-sweep (5-min) spam.
+ */
+function reminderDue(notifiedAt: string, now: string): boolean {
+  const interval = remindEveryMs();
+  if (interval <= 0) return false;
+  const last = Date.parse(notifiedAt);
+  if (!Number.isFinite(last)) return false;
+  return Date.parse(now) - last >= interval;
+}
+
 /** Parse the low-balance threshold for a provider (per-provider env wins). */
 function balanceThreshold(providerId: string): number | null {
   const raw =
@@ -291,7 +364,8 @@ function fmt(n: number): string {
  * prior in-memory status) so it is correct across restarts:
  *   - Enters MAINTENANCE/OUTAGE, no open incident → DOWN alert + open it.
  *   - MAINTENANCE↔OUTAGE level change → CHANGE alert + update.
- *   - Same alerting level already notified → de-duped (silent).
+ *   - Same alerting level already notified → de-duped (silent), unless a
+ *     reminder is due (ALERT_REMIND_EVERY_HOURS) → REMINDER reusing the record.
  *   - Previous send failed (notifiedAt empty) → retried next sweep.
  *   - Returns to ONLINE → RECOVERY alert, cleared once the notice settles.
  *   - DEGRADED / UNKNOWN while open → kept open, silent (UNKNOWN ≠ recovery).
@@ -302,7 +376,10 @@ async function evaluateStatus(next: ProviderHealth, now: string): Promise<void> 
 
   if (isAlerting(next.status)) {
     const sameLevel = open?.level === next.status;
-    if (open && sameLevel && open.notifiedAt) return; // de-duped
+    // Already notified at this level: stay silent UNLESS a reminder is due.
+    if (open && sameLevel && open.notifiedAt && !reminderDue(open.notifiedAt, now)) return;
+    // A reminder reuses the open incident record (same level, already notified).
+    const isReminder = Boolean(open && sameLevel && open.notifiedAt);
     const kind: AlertPayload["kind"] = open && !sameLevel ? "change" : "down";
     const res = await dispatchAlert({
       kind,
@@ -312,6 +389,8 @@ async function evaluateStatus(next: ProviderHealth, now: string): Promise<void> 
       status: next.status,
       message: next.message,
       at: now,
+      reminder: isReminder,
+      openedAt: open?.openedAt ?? now,
     });
     setAlertIncident(key, {
       providerId: next.id,
@@ -320,6 +399,7 @@ async function evaluateStatus(next: ProviderHealth, now: string): Promise<void> 
       level: next.status,
       message: next.message,
       openedAt: open?.openedAt ?? now,
+      // Reset the cadence clock on every settled send (initial, change, reminder).
       notifiedAt: settled(res) ? now : "",
     });
     return;
@@ -366,7 +446,9 @@ async function evaluateBalance(next: ProviderHealth, now: string): Promise<void>
   const unit = bal.currency ?? "credits";
 
   if (bal.amount <= threshold) {
-    if (open && open.notifiedAt) return; // de-duped
+    // Already notified: stay silent UNLESS a reminder is due.
+    if (open && open.notifiedAt && !reminderDue(open.notifiedAt, now)) return;
+    const isReminder = Boolean(open && open.notifiedAt);
     const message = `${fmt(bal.amount)} ${unit} remaining (alert threshold ${fmt(threshold)} ${unit}).`;
     const res = await dispatchAlert({
       kind: "down",
@@ -376,6 +458,8 @@ async function evaluateBalance(next: ProviderHealth, now: string): Promise<void>
       status: next.status,
       message,
       at: now,
+      reminder: isReminder,
+      openedAt: open?.openedAt ?? now,
     });
     setAlertIncident(key, {
       providerId: next.id,
