@@ -51,3 +51,5 @@ Thumbs.db
 .env.local
 .env.production
 *.env
+# api-server monitoring runtime state (status snapshots, alert incidents, logs)
+artifacts/api-server/.monitoring/

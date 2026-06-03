@@ -17,6 +17,7 @@ import {
 import { GlobalLoaderProvider } from "@/components/loader/GlobalLoaderProvider";
 import { GlobalAIGenerationOverlay } from "@/components/loader/GlobalAIGenerationOverlay";
 import { CinematicLoadingOverlay } from "@/components/loader/CinematicLoadingOverlay";
+import { SplashScreen } from "@/components/splash/SplashScreen";
 
 // ── Critical path (eager) ────────────────────────────────────────────────────
 // Auth is the unauthenticated landing page — must be available without delay.
@@ -282,6 +283,10 @@ function App() {
                     AI generation tasks (image / video / cinematic). Driven by
                     the isolated useAIGeneration store; fully additive. */}
                 <GlobalAIGenerationOverlay />
+                {/* Premium animated launch splash — plays once on app launch,
+                    then fades out to reveal the login screen. Fully additive
+                    visual layer; does not touch routing or auth. */}
+                <SplashScreen />
               </GlobalLoaderProvider>
             </AuthProvider>
           </TooltipProvider>
