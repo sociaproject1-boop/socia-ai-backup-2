@@ -11,12 +11,15 @@ import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, RefreshCw, Wrench, AlertTriangle, ShieldCheck, Power, Clock,
+  Bell, BellOff, Mail, MessageSquare, Webhook, Send,
 } from "lucide-react";
 import {
   fetchFullStatus,
   setMaintenanceOverride,
   clearMaintenanceOverride,
   refreshStatusNow,
+  sendTestAlert,
+  setAlertsEnabled,
   getStatusSocket,
   statusColor,
   statusLabel,
@@ -31,6 +34,8 @@ export default function SystemStatusCenter() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [overrideMsg, setOverrideMsg] = useState("");
+  const [alertBusy, setAlertBusy] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
@@ -74,6 +79,31 @@ export default function SystemStatusCenter() {
     try { await clearMaintenanceOverride(); await load(); }
     catch (e) { setError(e instanceof Error ? e.message : "Clear failed"); }
     finally { setBusy(false); }
+  };
+
+  const toggleAlerts = async (enabled: boolean) => {
+    setAlertBusy(true);
+    setTestResult(null);
+    try { await setAlertsEnabled(enabled); await load(); }
+    catch (e) { setError(e instanceof Error ? e.message : "Could not update alerts"); }
+    finally { setAlertBusy(false); }
+  };
+
+  const fireTestAlert = async () => {
+    setAlertBusy(true);
+    setTestResult(null);
+    try {
+      const r = await sendTestAlert();
+      setTestResult(
+        r.delivered > 0
+          ? `Delivered to ${r.delivered} channel${r.delivered === 1 ? "" : "s"}.`
+          : "No channels delivered — none are armed or alerts are off.",
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Test alert failed");
+    } finally {
+      setAlertBusy(false);
+    }
   };
 
   const pay = data?.payment;
@@ -191,6 +221,98 @@ export default function SystemStatusCenter() {
             </button>
           </div>
         </div>
+
+        {/* ── Alert settings ───────────────────────────────────────────── */}
+        {(() => {
+          const al = data?.alerts;
+          const channels = al?.channels ?? { email: false, sms: false, webhook: false };
+          const armedCount = [channels.email, channels.sms, channels.webhook].filter(Boolean).length;
+          const enabled = Boolean(al?.enabled);
+          const chan = [
+            { key: "email", label: "Email", on: channels.email, Icon: Mail },
+            { key: "sms", label: "SMS", on: channels.sms, Icon: MessageSquare },
+            { key: "webhook", label: "Webhook", on: channels.webhook, Icon: Webhook },
+          ] as const;
+          return (
+            <div className="card-premium rounded-3xl p-5">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-bold app-text flex items-center gap-2">
+                  {enabled ? <Bell className="h-4 w-4 text-emerald-300" /> : <BellOff className="h-4 w-4 app-text-muted" />}
+                  Alert settings
+                </div>
+                {/* On/off toggle (maps to ALERTS_ENABLED behavior) */}
+                <button
+                  role="switch"
+                  aria-checked={enabled}
+                  aria-label="Toggle alert delivery"
+                  onClick={() => toggleAlerts(!enabled)}
+                  disabled={alertBusy || !data}
+                  className={`relative h-7 w-12 flex-shrink-0 rounded-full transition-colors disabled:opacity-40 ${enabled ? "bg-emerald-500/70" : "bg-white/15"}`}
+                >
+                  <span
+                    className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-transform ${enabled ? "translate-x-6" : "translate-x-1"}`}
+                  />
+                </button>
+              </div>
+              <p className="text-xs app-text-muted mt-1 mb-3">
+                {enabled
+                  ? "Owner notifications are ON — incidents and recoveries are sent to armed channels."
+                  : "Owner notifications are OFF — no incident alerts will be sent."}
+                {al?.enabledSource === "env" && " (default from environment)"}
+              </p>
+
+              {/* Armed channels */}
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {chan.map(({ key, label, on, Icon }) => (
+                  <div
+                    key={key}
+                    className={`rounded-2xl border px-2 py-2.5 text-center ${on ? "border-emerald-400/40 bg-emerald-500/10" : "border-white/10 bg-white/5"}`}
+                  >
+                    <Icon className={`mx-auto h-4 w-4 ${on ? "text-emerald-300" : "app-text-muted"}`} />
+                    <div className="mt-1 text-[11px] font-semibold app-text">{label}</div>
+                    <div className={`text-[10px] ${on ? "text-emerald-300" : "app-text-muted"}`}>{on ? "Armed" : "Not set"}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Open alert incidents */}
+              {(al?.openIncidents ?? []).length > 0 ? (
+                <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 mb-3">
+                  <div className="text-[11px] font-bold text-rose-200 mb-1">
+                    {al!.openIncidents.length} open incident{al!.openIncidents.length === 1 ? "" : "s"}
+                  </div>
+                  <div className="space-y-1">
+                    {al!.openIncidents.map((inc) => (
+                      <div key={`${inc.providerId}:${inc.kind}`} className="flex items-center justify-between text-[11px]">
+                        <span className="app-text font-medium truncate">{inc.label}</span>
+                        <span className="app-text-muted flex-shrink-0 ml-2">
+                          {inc.level} · {relativeTime(inc.openedAt)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs app-text-muted mb-3">No open alert incidents.</div>
+              )}
+
+              {/* Test alert */}
+              <button
+                onClick={fireTestAlert}
+                disabled={alertBusy || !data}
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-2xl bg-white/10 border border-white/15 py-2.5 text-xs font-bold app-text disabled:opacity-40"
+              >
+                <Send className="h-3.5 w-3.5" /> Send test alert
+              </button>
+              {testResult && <div className="mt-2 text-[11px] app-text-muted text-center">{testResult}</div>}
+              {armedCount === 0 && (
+                <div className="mt-2 text-[11px] app-text-muted text-center">
+                  No channels armed — configure email, SMS, or webhook credentials to receive alerts.
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── All providers ────────────────────────────────────────────── */}
         <div className="card-premium rounded-3xl p-5">

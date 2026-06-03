@@ -49,6 +49,12 @@ interface PersistedState {
   incidentHistory: Incident[];
   /** Currently-open incidents, keyed by providerId. */
   openIncidents: Record<string, Incident>;
+  /**
+   * Owner toggle for alert delivery. `null` = follow the ALERTS_ENABLED env
+   * default; `true`/`false` = explicit owner override (persists across
+   * restarts so the dashboard switch is durable).
+   */
+  alertsEnabledOverride: boolean | null;
 }
 
 const DEFAULT_OVERRIDE: PaymentOverride = {
@@ -69,6 +75,8 @@ const alertIncidents = new Map<string, AlertIncident>();
 let incidentHistory: Incident[] = [];
 /** Currently-open incidents, keyed by providerId. */
 const openIncidents = new Map<string, Incident>();
+/** Owner alert-delivery toggle. null = follow ALERTS_ENABLED env default. */
+let alertsEnabledOverride: boolean | null = null;
 
 function ensureDir(): void {
   try {
@@ -101,6 +109,9 @@ export function hydrateFromDisk(): void {
         if (inc) openIncidents.set(key, inc);
       }
     }
+    if (typeof parsed.alertsEnabledOverride === "boolean") {
+      alertsEnabledOverride = parsed.alertsEnabledOverride;
+    }
   } catch {
     // No prior state (first run) — start clean.
   }
@@ -115,6 +126,7 @@ function persistToDisk(): void {
       alertIncidents: Object.fromEntries(alertIncidents),
       incidentHistory,
       openIncidents: Object.fromEntries(openIncidents),
+      alertsEnabledOverride,
     };
     writeFileSync(STATE_FILE, JSON.stringify(payload, null, 2), "utf8");
   } catch (err) {
@@ -233,6 +245,19 @@ export function setOverride(next: PaymentOverride): void {
       : "Owner cleared manual override",
     source: "override",
   });
+}
+
+/* ── Owner alert-delivery toggle ───────────────────────────────────────────
+ * `null` = follow the ALERTS_ENABLED env default; an explicit boolean is an
+ * owner override that persists across restarts. Read by getAlertConfig().
+ */
+export function getAlertsEnabledOverride(): boolean | null {
+  return alertsEnabledOverride;
+}
+
+export function setAlertsEnabledOverride(value: boolean | null): void {
+  alertsEnabledOverride = value;
+  persistToDisk();
 }
 
 /* ── Alert de-dupe memory ──────────────────────────────────────────────────

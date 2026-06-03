@@ -24,11 +24,13 @@ import {
   effectivePaymentStatus,
   getAlertConfig,
   getAlertIncidents,
+  getAlertsEnabledOverride,
   getAllHealth,
   getGenerationMetrics,
   getIncidents,
   getLog,
   getOverride,
+  setAlertsEnabledOverride,
   setOverride,
   refreshNow,
   SERVICES,
@@ -90,6 +92,9 @@ router.get("/system-status/full", requireAuth, requireOwner, (_req, res) => {
     // Alert subsystem status (no secrets — just which channels are armed).
     alerts: {
       enabled: cfg.enabled,
+      // Whether the on/off state comes from the owner's dashboard toggle or the
+      // ALERTS_ENABLED environment default — lets the UI label it honestly.
+      enabledSource: getAlertsEnabledOverride() === null ? "env" : "override",
       channels: {
         email: Boolean(cfg.email),
         sms: Boolean(cfg.sms),
@@ -130,6 +135,29 @@ router.post("/system-status/test-alert", requireAuth, requireOwner, async (_req,
     logger.warn({ err: (err as Error).message }, "[system-status] test alert failed");
     res.json({ ok: false, delivered: 0 });
   }
+});
+
+/* ── Owner: turn alert delivery on/off (persisted override of ALERTS_ENABLED) */
+router.post("/system-status/alerts", requireAuth, requireOwner, (req, res) => {
+  const body = (req.body ?? {}) as { enabled?: unknown };
+  if (typeof body.enabled !== "boolean") {
+    return res.status(400).json({ error: "enabled must be a boolean", code: "BAD_REQUEST" });
+  }
+  setAlertsEnabledOverride(body.enabled);
+  const cfg = getAlertConfig();
+  return res.json({
+    ok: true,
+    alerts: {
+      enabled: cfg.enabled,
+      enabledSource: getAlertsEnabledOverride() === null ? "env" : "override",
+      channels: {
+        email: Boolean(cfg.email),
+        sms: Boolean(cfg.sms),
+        webhook: Boolean(cfg.webhook),
+      },
+      openIncidents: getAlertIncidents(),
+    },
+  });
 });
 
 /* ── Owner: AI Command Center detail ───────────────────────────────────── */

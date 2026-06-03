@@ -21,6 +21,7 @@ import { OWNER_EMAIL, PROVIDERS } from "./registry.js";
 import {
   clearAlertIncident,
   getAlertIncident,
+  getAlertsEnabledOverride,
   setAlertIncident,
 } from "./store.js";
 import type { AlertIncident, ProviderHealth, StatusLevel } from "./types.js";
@@ -53,7 +54,11 @@ function env(name: string): string {
  * channel without removing the credentials.
  */
 export function getAlertConfig(): AlertConfig {
-  const enabled = env("ALERTS_ENABLED").toLowerCase() !== "false";
+  // The owner's dashboard toggle (persisted) wins over the env default. When
+  // unset (null), fall back to the ALERTS_ENABLED environment variable.
+  const envEnabled = env("ALERTS_ENABLED").toLowerCase() !== "false";
+  const ownerOverride = getAlertsEnabledOverride();
+  const enabled = ownerOverride === null ? envEnabled : ownerOverride;
 
   const resendKey = env("ALERT_RESEND_API_KEY") || env("RESEND_API_KEY");
   const emailTo = env("ALERT_EMAIL_TO") || OWNER_EMAIL;

@@ -75,6 +75,24 @@ export interface Incident {
   source: "probe" | "override";
 }
 
+export interface AlertOpenIncident {
+  providerId: string;
+  label: string;
+  kind: string;
+  level: StatusLevel;
+  message: string;
+  openedAt: string;
+  notifiedAt: string;
+}
+
+export interface AlertSettings {
+  enabled: boolean;
+  /** Where the on/off state comes from: the owner toggle or the env default. */
+  enabledSource: "override" | "env";
+  channels: { email: boolean; sms: boolean; webhook: boolean };
+  openIncidents: AlertOpenIncident[];
+}
+
 export interface FullStatus {
   payment: { status: StatusLevel; message: string; checkoutDisabled: boolean };
   override: PaymentOverride;
@@ -82,7 +100,14 @@ export interface FullStatus {
   services: Array<{ id: string; label: string; providerIds: string[] }>;
   log: StatusLogEntry[];
   incidents: Incident[];
+  alerts: AlertSettings;
   updatedAt: string;
+}
+
+export interface TestAlertResult {
+  ok: boolean;
+  delivered: number;
+  attempted?: number;
 }
 
 export interface GenerationMetrics {
@@ -170,6 +195,28 @@ export async function clearMaintenanceOverride(): Promise<void> {
     body: JSON.stringify({ action: "disable" }),
   });
   if (!r.ok) throw new Error(`Clear override failed (${r.status})`);
+}
+
+/** Owner: send a test alert to verify channel configuration. */
+export async function sendTestAlert(): Promise<TestAlertResult> {
+  const r = await fetch("/api/system-status/test-alert", {
+    method: "POST",
+    headers: await authHeader(),
+  });
+  if (!r.ok) throw new Error(`Test alert failed (${r.status})`);
+  return (await r.json()) as TestAlertResult;
+}
+
+/** Owner: turn alert delivery on/off (persisted override of ALERTS_ENABLED). */
+export async function setAlertsEnabled(enabled: boolean): Promise<AlertSettings> {
+  const r = await fetch("/api/system-status/alerts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(await authHeader()) },
+    body: JSON.stringify({ enabled }),
+  });
+  if (!r.ok) throw new Error(`Could not update alerts (${r.status})`);
+  const json = (await r.json()) as { alerts: AlertSettings };
+  return json.alerts;
 }
 
 /** Owner: trigger an immediate re-check of every provider. */
