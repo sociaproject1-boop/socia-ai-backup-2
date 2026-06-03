@@ -6,6 +6,7 @@ import { ExternalLink } from "lucide-react";
 import {
   statusColor,
   statusLabel,
+  type Incident,
   type ProviderHealth,
   type StatusLevel,
 } from "@/lib/systemStatus";
@@ -63,6 +64,68 @@ export function ProviderRow({ p }: { p: ProviderHealth }) {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Human "1h 12m" / "45s" from a duration in ms; "ongoing" when null. */
+export function formatDuration(ms: number | null): string {
+  if (ms == null) return "ongoing";
+  const totalSec = Math.floor(ms / 1000);
+  if (totalSec < 60) return `${totalSec}s`;
+  const totalMin = Math.floor(totalSec / 60);
+  if (totalMin < 60) return `${totalMin}m`;
+  const totalHr = Math.floor(totalMin / 60);
+  const remMin = totalMin % 60;
+  if (totalHr < 24) return remMin ? `${totalHr}h ${remMin}m` : `${totalHr}h`;
+  const days = Math.floor(totalHr / 24);
+  const remHr = totalHr % 24;
+  return remHr ? `${days}d ${remHr}h` : `${days}d`;
+}
+
+/**
+ * Recent-incidents timeline shared by both owner dashboards. Each row is one
+ * outage/incident (per provider) with its worst level, start time, and
+ * duration; ongoing incidents are flagged live.
+ */
+export function IncidentTimeline({ incidents }: { incidents: Incident[] }) {
+  if (!incidents || incidents.length === 0) {
+    return <div className="text-xs app-text-muted py-2">No incidents recorded yet.</div>;
+  }
+  return (
+    <div className="space-y-2.5">
+      {incidents.map((inc) => {
+        const c = statusColor(inc.level);
+        const ongoing = inc.endedAt == null;
+        return (
+          <div key={inc.id} className="flex items-start gap-2.5">
+            <span
+              className={`mt-1 h-2 w-2 flex-shrink-0 rounded-full ${ongoing ? "animate-pulse" : ""}`}
+              style={{ background: c.dot }}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold app-text truncate">{inc.label}</span>
+                <span className="flex-shrink-0 text-[11px] font-bold" style={{ color: c.text }}>
+                  {statusLabel(inc.level)}
+                </span>
+              </div>
+              {inc.message && (
+                <div className="text-[11px] app-text-muted truncate">{inc.message}</div>
+              )}
+              <div className="text-[10px] app-text-muted">
+                {relativeTime(inc.startedAt)} ·{" "}
+                {ongoing ? (
+                  <span className="font-semibold text-amber-300">ongoing</span>
+                ) : (
+                  <>lasted {formatDuration(inc.durationMs)}</>
+                )}
+                {inc.source === "override" ? " · manual" : ""}
+              </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

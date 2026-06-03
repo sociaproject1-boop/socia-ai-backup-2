@@ -64,6 +64,34 @@ export interface StatusLogEntry {
   source: "probe" | "override";
 }
 
+/**
+ * A recorded outage/incident: one contiguous period a provider spent in a
+ * problem state (DEGRADED / MAINTENANCE / OUTAGE). It opens on the first
+ * transition away from ONLINE into a problem level, escalates to the worst
+ * level seen, and closes when the provider returns to ONLINE. Persisted so
+ * the timeline survives server restarts.
+ */
+export interface Incident {
+  /** Stable id: `${providerId}:${startedAt}`. */
+  id: string;
+  providerId: string;
+  label: string;
+  /** Worst (highest-severity) level reached during the incident. */
+  level: StatusLevel;
+  /** The level the incident opened at. */
+  startLevel: StatusLevel;
+  /** ISO timestamp the incident opened. */
+  startedAt: string;
+  /** ISO end time; null while the incident is still ongoing. */
+  endedAt: string | null;
+  /** Duration in ms; null while ongoing. */
+  durationMs: number | null;
+  /** Most recent transition message during the incident. */
+  message: string;
+  /** Whether opened by an automatic probe or an owner override. */
+  source: "probe" | "override";
+}
+
 /** What kind of condition opened an alert incident. */
 export type AlertKind = "status" | "balance";
 

@@ -26,6 +26,7 @@ import {
   getAlertIncidents,
   getAllHealth,
   getGenerationMetrics,
+  getIncidents,
   getLog,
   getOverride,
   setOverride,
@@ -84,6 +85,8 @@ router.get("/system-status/full", requireAuth, requireOwner, (_req, res) => {
       providerIds: s.providerIds,
     })),
     log: getLog(50),
+    // Browsable outage/incident timeline (open + recent closed), newest first.
+    incidents: getIncidents(30),
     // Alert subsystem status (no secrets — just which channels are armed).
     alerts: {
       enabled: cfg.enabled,
@@ -139,11 +142,16 @@ router.get("/system-status/ai", requireAuth, requireOwner, async (_req, res) => 
     logger.warn({ err: (err as Error).message }, "[system-status] metrics failed");
     metrics = null;
   }
+  // Incident timeline scoped to AI providers only (PayMongo lives on the
+  // payment dashboard).
+  const aiIds = new Set(providers.map((p) => p.id));
+  const incidents = getIncidents(50).filter((i) => aiIds.has(i.providerId));
   res.json({
     providers,
     services: SERVICES.filter((s) => s.id !== "billing"),
     serviceHealth: getAllHealth(),
     metrics,
+    incidents,
     updatedAt: new Date().toISOString(),
   });
 });

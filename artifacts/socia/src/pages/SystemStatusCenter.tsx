@@ -23,7 +23,7 @@ import {
   SYSTEM_STATUS_CHANNEL,
   type FullStatus,
 } from "@/lib/systemStatus";
-import { StatusPill, ProviderRow, relativeTime } from "@/components/status/statusUi";
+import { StatusPill, ProviderRow, IncidentTimeline, relativeTime } from "@/components/status/statusUi";
 
 export default function SystemStatusCenter() {
   const [, navigate] = useLocation();
@@ -199,6 +199,15 @@ export default function SystemStatusCenter() {
             {(data?.providers ?? []).map((p) => <ProviderRow key={p.id} p={p} />)}
             {!data && <div className="text-xs app-text-muted py-4 text-center">Loading…</div>}
           </div>
+        </div>
+
+        {/* ── Incident history ─────────────────────────────────────────── */}
+        <div className="card-premium rounded-3xl p-5">
+          <div className="text-sm font-bold app-text mb-1">Incident history</div>
+          <p className="text-xs app-text-muted mb-3">
+            Each outage or maintenance window per provider, with how long it lasted.
+          </p>
+          <IncidentTimeline incidents={data?.incidents ?? []} />
         </div>
 
         {/* ── Transition log ───────────────────────────────────────────── */}

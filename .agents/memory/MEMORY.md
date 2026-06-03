@@ -1,2 +1,19 @@
 - [Monitoring failsafe invariant](monitoring-failsafe.md) — a monitoring/probe failure must never disable checkout; only a trusted PayMongo 5xx or owner override may.
 - [api-server testing](api-server-testing.md) — api-server uses Node's built-in test runner via tsx (`pnpm --filter @workspace/api-server test`); no vitest/jest.
+- [Community Support Phase 2](community-support-phase2.md) — atomic RPC (migration 38) is the source of truth for resume/create; two-step approach was replaced in paymongo.ts.
+- [Community Support Phase 3](community-support-phase3.md) — realtime hook, RAF counter with DOM-direct writes, glow pulse, loading skeletons for CommunityFunding.
+- [Socia-trailer design system](socia-trailer-design.md) — CS tokens (--cs-*), 14 UI primitives in src/components/ui/, 6-component workspace shell; Tailwind v4 @theme inline pattern; ?preview=1 for bare trailer embed mode.
+- [CreateMultiFrame real data integration](create-multiframe-integration.md) — socia-trailer was a design demo only; CreateMultiFrame.tsx IS the real studio; summary?.credits is the live user balance from useBillingStore.
+- [VerticalStoryboard component](vertical-storyboard.md) — Premium cinematic storyboard for mobile "scenes" tab; per-frame upload via frameInputRef + pendingUploadIdRef.
+- [Studio AI model selector](studio-model-selector.md) — `cfg.renderEngine` is the single source of truth; selector must update cfg AND zustand store; add models by extending RenderEngineId + ENGINES.
+- [Admin gate hydration race](admin-gate-hydration.md) — useAdminStore starts unhydrated on normal routes; gates must wait for `hydrated` or they lock real admins out on refresh. Toaster must be mounted at App root.
+- [Provider honesty contract](provider-honesty-contract.md) — allow-list IDs, allow-list env-var aliases, and the mock-fallback catch must all stay aligned with the provider switch; otherwise users get charged for engines that can't run or get demo MP4s for paid provider calls.
+- [Billing refund RPC auth](billing-rpc-auth-context.md) — refund_credits needs user JWT; background workers must use refund_credits_admin (migration 41) via refundCreditsAdmin().
+- [Per-IP rate limiting](rate-limit-policy.md) — single-instance in-memory sliding window via lib/rateLimit.ts; Cloudflare-aware IP extraction; webhook + refund endpoints intentionally NOT limited.
+- [Socia GPT memory profiles](socia-gpt-memory-profiles.md) — buildSystemPrompt now takes {mode,profile,memory}; memory failures NEVER block chat (try/catch + skipped flag); snapshot turn_count must be lifetime (client sends totalUserTurns), not slim-window count.
+- [Grok routing resilience](grok-routing-resilience.md) — first-byte timer must outlive create() until first delta; client-abort must never recordGrokFail; retry-once is Grok Smart only.
+- [Payment monitor failsafe](payment-monitor-failsafe.md) — Socia checkout may be disabled only by owner override or PayMongo 5xx; probe network failures map to UNKNOWN, never block checkout.
+- [Monitor outage & low-balance alerts](monitor-alerts.md) — owner email/SMS/webhook on MAINTENANCE/OUTAGE + recovery; incident-state de-dupe survives restarts; failed sends retry (notifiedAt-gated); low-balance opt-in (real only for Stability).
+- [Splash transparent assets & screenshot timing](splash-transparent-assets.md) — baked app-icon tiles show as squares on black even with mixBlendMode:screen; screenshot tool reloads page (resets anim timers), so zero animation delay to verify end-state.
+- [AI Operations Center](ai-ops-dashboard.md) — owner-only AI monitoring built only from usage_receipts + engineRegistry + system-status/ai; success-only cost, tokens chat-only, never query credit_ledger.
+- [Incident timeline / outage history](incident-timeline.md) — appendLog() is the single choke point; ONLINE closes, problem opens/escalates, UNKNOWN leaves open; persisted in system-status-state.json.

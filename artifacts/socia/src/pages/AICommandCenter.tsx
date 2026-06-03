@@ -31,7 +31,7 @@ import {
   type AiOpsOverview,
   type WindowKey,
 } from "@/lib/aiOps";
-import { StatusPill, LinkChip, relativeTime } from "@/components/status/statusUi";
+import { StatusPill, LinkChip, IncidentTimeline, relativeTime } from "@/components/status/statusUi";
 import { WindowToggle } from "@/components/aiOps/shared";
 import { OverviewTab } from "@/components/aiOps/OverviewTab";
 import { ProvidersTab } from "@/components/aiOps/ProvidersTab";
@@ -252,6 +252,17 @@ export default function AICommandCenter() {
                   <div className="text-xs app-text-muted py-4 text-center">Loading providers…</div>
                 )}
               </div>
+            </div>
+
+            <div className="card-premium rounded-3xl p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <AlertTriangle className="h-4 w-4 app-text-muted" />
+                <span className="text-sm font-bold app-text">Incident history</span>
+              </div>
+              <p className="text-xs app-text-muted mb-3">
+                Recent AI-provider outages and degradations, with how long each lasted.
+              </p>
+              <IncidentTimeline incidents={data?.incidents ?? []} />
             </div>
 
             {(data?.serviceHealth?.length ?? 0) > 0 && (

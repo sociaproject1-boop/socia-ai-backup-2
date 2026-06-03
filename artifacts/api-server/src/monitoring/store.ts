@@ -11,6 +11,7 @@ import { resolve } from "node:path";
 import { logger } from "../lib/logger.js";
 import type {
   AlertIncident,
+  Incident,
   PaymentOverride,
   ProviderHealth,
   StatusLevel,
@@ -22,12 +23,32 @@ const STATE_FILE = resolve(DATA_DIR, "system-status-state.json");
 const LOG_FILE = resolve(DATA_DIR, "payment-status.log");
 
 const MAX_LOG_RING = 200;
+/** Closed-incident timeline cap (per the JSON-file persistence pattern). */
+const MAX_INCIDENTS = 100;
+
+/** Severity ordering used to track the worst level reached in an incident. */
+const INCIDENT_SEVERITY: Record<StatusLevel, number> = {
+  ONLINE: 0,
+  UNKNOWN: 1,
+  DEGRADED: 2,
+  MAINTENANCE: 3,
+  OUTAGE: 4,
+};
+
+/** A "problem" level is anything that should open/keep an incident open. */
+function isProblemLevel(l: StatusLevel): boolean {
+  return l === "DEGRADED" || l === "MAINTENANCE" || l === "OUTAGE";
+}
 
 interface PersistedState {
   override: PaymentOverride;
   log: StatusLogEntry[];
   /** Open alert incidents, keyed by `${providerId}:${kind}`. */
   alertIncidents: Record<string, AlertIncident>;
+  /** Closed outage/incident history (timeline), newest appended last. */
+  incidentHistory: Incident[];
+  /** Currently-open incidents, keyed by providerId. */
+  openIncidents: Record<string, Incident>;
 }
 
 const DEFAULT_OVERRIDE: PaymentOverride = {
@@ -44,6 +65,10 @@ let override: PaymentOverride = { ...DEFAULT_OVERRIDE };
 let logRing: StatusLogEntry[] = [];
 /** Open alert incidents (de-dupe memory), keyed by `${providerId}:${kind}`. */
 const alertIncidents = new Map<string, AlertIncident>();
+/** Closed outage/incident timeline (ring, capped at MAX_INCIDENTS). */
+let incidentHistory: Incident[] = [];
+/** Currently-open incidents, keyed by providerId. */
+const openIncidents = new Map<string, Incident>();
 
 function ensureDir(): void {
   try {
@@ -67,6 +92,15 @@ export function hydrateFromDisk(): void {
         if (inc) alertIncidents.set(key, inc);
       }
     }
+    if (Array.isArray(parsed.incidentHistory)) {
+      incidentHistory = parsed.incidentHistory.slice(-MAX_INCIDENTS);
+    }
+    if (parsed.openIncidents && typeof parsed.openIncidents === "object") {
+      openIncidents.clear();
+      for (const [key, inc] of Object.entries(parsed.openIncidents)) {
+        if (inc) openIncidents.set(key, inc);
+      }
+    }
   } catch {
     // No prior state (first run) — start clean.
   }
@@ -79,6 +113,8 @@ function persistToDisk(): void {
       override,
       log: logRing,
       alertIncidents: Object.fromEntries(alertIncidents),
+      incidentHistory,
+      openIncidents: Object.fromEntries(openIncidents),
     };
     writeFileSync(STATE_FILE, JSON.stringify(payload, null, 2), "utf8");
   } catch (err) {
@@ -99,6 +135,54 @@ export function getAllHealth(): ProviderHealth[] {
   return [...health.values()];
 }
 
+/**
+ * Update the incident timeline from a single transition. Every status change
+ * flows through `appendLog`, so this is the single choke point for opening,
+ * escalating, and closing incidents — keeping probe-driven and owner-override
+ * transitions consistent.
+ *
+ *   - to ONLINE      → close any open incident for the provider (record duration)
+ *   - to a problem   → open a new incident, or escalate the worst level seen
+ *   - to UNKNOWN     → leave any open incident untouched (status unconfirmed)
+ */
+function updateIncidentFromTransition(entry: StatusLogEntry): void {
+  const { providerId, label, to, message, source, ts } = entry;
+  const open = openIncidents.get(providerId);
+
+  if (to === "ONLINE") {
+    if (open) {
+      open.endedAt = ts;
+      open.durationMs = Math.max(0, new Date(ts).getTime() - new Date(open.startedAt).getTime());
+      if (message) open.message = message;
+      incidentHistory.push(open);
+      if (incidentHistory.length > MAX_INCIDENTS) incidentHistory = incidentHistory.slice(-MAX_INCIDENTS);
+      openIncidents.delete(providerId);
+    }
+    return;
+  }
+
+  if (isProblemLevel(to)) {
+    if (open) {
+      if (INCIDENT_SEVERITY[to] > INCIDENT_SEVERITY[open.level]) open.level = to;
+      if (message) open.message = message;
+    } else {
+      openIncidents.set(providerId, {
+        id: `${providerId}:${ts}`,
+        providerId,
+        label,
+        level: to,
+        startLevel: to,
+        startedAt: ts,
+        endedAt: null,
+        durationMs: null,
+        message,
+        source,
+      });
+    }
+  }
+  // to === UNKNOWN: status is unconfirmed — leave any open incident as-is.
+}
+
 /** Append a transition to the ring + the human-readable log file. */
 export function appendLog(entry: StatusLogEntry): void {
   logRing.push(entry);
@@ -110,11 +194,23 @@ export function appendLog(entry: StatusLogEntry): void {
   } catch (err) {
     logger.warn({ err: (err as Error).message }, "[monitor] failed to append log file");
   }
+  updateIncidentFromTransition(entry);
   persistToDisk();
 }
 
 export function getLog(limit = 50): StatusLogEntry[] {
   return logRing.slice(-limit).reverse();
+}
+
+/**
+ * The incident timeline: currently-open incidents first, then closed history,
+ * sorted newest-first by start time. `durationMs`/`endedAt` are null for
+ * ongoing incidents (the UI renders these as "ongoing"). Read-only copies.
+ */
+export function getIncidents(limit = 30): Incident[] {
+  const all = [...openIncidents.values(), ...incidentHistory];
+  all.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+  return all.slice(0, limit).map((i) => ({ ...i }));
 }
 
 export function getOverride(): PaymentOverride {

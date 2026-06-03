@@ -62,12 +62,26 @@ export interface StatusLogEntry {
   source: "probe" | "override";
 }
 
+export interface Incident {
+  id: string;
+  providerId: string;
+  label: string;
+  level: StatusLevel;
+  startLevel: StatusLevel;
+  startedAt: string;
+  endedAt: string | null;
+  durationMs: number | null;
+  message: string;
+  source: "probe" | "override";
+}
+
 export interface FullStatus {
   payment: { status: StatusLevel; message: string; checkoutDisabled: boolean };
   override: PaymentOverride;
   providers: ProviderHealth[];
   services: Array<{ id: string; label: string; providerIds: string[] }>;
   log: StatusLogEntry[];
+  incidents: Incident[];
   updatedAt: string;
 }
 
@@ -85,6 +99,7 @@ export interface AIStatus {
   services: Array<{ id: string; label: string; providerIds: string[] }>;
   serviceHealth: ProviderHealth[];
   metrics: GenerationMetrics | null;
+  incidents: Incident[];
   updatedAt: string;
 }
 
