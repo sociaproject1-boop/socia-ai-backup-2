@@ -8,6 +8,7 @@ import {
   RotateCcw, Video, Clapperboard,
 } from "lucide-react";
 import { generateVideo, GenResult } from "@/lib/ai";
+import { useAIGeneration } from "@/lib/aiGenerationStore";
 import { saveToDevice } from "@/lib/download";
 import { useAppStore } from "@/lib/store";
 import { VideoPlayerModal } from "@/components/ui/VideoPlayerModal";
@@ -181,6 +182,8 @@ export default function CreatePromptVideo() {
     setIsQuotaError(false);
     setResult(null);
     setSaveError(null);
+    const aiGen = useAIGeneration.getState();
+    aiGen.start({ kind: "video", model: "Kling 1.6 Pro", retry: handleGenerate });
     try {
       const r = await generateVideo(buildFinalPrompt(), {
         style,
@@ -190,10 +193,12 @@ export default function CreatePromptVideo() {
         seed: seed || undefined,
       });
       setResult(r);
+      aiGen.succeed();
     } catch (err: unknown) {
       const e = err as { message?: string; code?: string };
       setError(e.message || "Generation failed. Please try again.");
       setIsQuotaError(e.code === "QUOTA_EXCEEDED");
+      aiGen.fail(e.message || "Generation failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -716,7 +721,6 @@ export default function CreatePromptVideo() {
 
       {/* ── OVERLAYS ─────────────────────────────────────────── */}
       <AnimatePresence>
-        {loading && <VideoLoadingOverlay />}
         {result && !loading && (
           <VideoResultOverlay
             result={result}

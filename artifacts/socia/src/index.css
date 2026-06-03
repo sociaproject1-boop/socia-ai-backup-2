@@ -368,3 +368,9 @@ html.light {
     to   { opacity: 1; transform: translate3d(0, 0, 0);   }
   }
 }
+
+/* ── Global AI Generation overlay — floating neural particles ───────────── */
+@keyframes aigenFloat {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1);        opacity: 0.35; }
+  50%      { transform: translate3d(0, -14px, 0) scale(1.35); opacity: 0.9;  }
+}

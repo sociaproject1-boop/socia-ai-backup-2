@@ -7,6 +7,7 @@ import {
   ChevronDown, ChevronUp,
 } from "lucide-react";
 import { imageToVideo, type GenResult } from "@/lib/ai";
+import { useAIGeneration } from "@/lib/aiGenerationStore";
 import { saveToDevice } from "@/lib/download";
 import { supabase } from "@/lib/supabase";
 import { VideoPlayerModal } from "@/components/ui/VideoPlayerModal";
@@ -95,6 +96,8 @@ export default function CreateImageVideo() {
   async function generate() {
     if (!canGenerate || !startFrame) return;
     setLoading(true); setError(null); setIsQuotaError(false); setResult(null);
+    const aiGen = useAIGeneration.getState();
+    aiGen.start({ kind: "image-video", model: "Kling AI", retry: generate });
     try {
       const r = await imageToVideo(startFrame, buildPrompt(), {
         aspect,
@@ -102,10 +105,12 @@ export default function CreateImageVideo() {
         endImageUrl: endFrame ?? undefined,
       });
       setResult(r);
+      aiGen.succeed();
     } catch (err: unknown) {
       const e = err as { message?: string; code?: string };
       setError(e.message || "Generation failed. Please try again.");
       setIsQuotaError(e.code === "QUOTA_EXCEEDED");
+      aiGen.fail(e.message || "Generation failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -431,7 +436,6 @@ export default function CreateImageVideo() {
 
       {/* ── Overlays ── */}
       <AnimatePresence>
-        {loading && <LoadingOverlay />}
         {result && !loading && (
           <ResultOverlay
             result={result}

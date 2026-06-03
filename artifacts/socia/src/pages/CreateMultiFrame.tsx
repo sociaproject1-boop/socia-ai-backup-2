@@ -28,6 +28,7 @@ import React from "react";
 import { useAppStore } from "@/lib/store";
 import type { GenResult } from "@/lib/ai";
 import { submitRenderJob, useRenderJob, saveProject, type FrameVoiceTrack } from "@/lib/useRenderJob";
+import { useAIGeneration } from "@/lib/aiGenerationStore";
 import { saveToDevice } from "@/lib/download";
 import VoicePreview from "@/components/studio/VoicePreview";
 import { supabase } from "@/lib/supabase";
@@ -3248,6 +3249,7 @@ export default function CreateMultiFrame() {
       if (renderJob.error) {
         setGenError(renderJob.error);
         setIsQuota(renderJob.error.includes("quota") || renderJob.error.includes("QUOTA"));
+        if (useAIGeneration.getState().active) useAIGeneration.getState().fail(renderJob.error);
         appendHistory({
           id: Math.random().toString(36).slice(2), timestamp: Date.now(),
           engine: engine.name, aspect: cfg.aspect, frameCount: filledFrames.length,
@@ -3265,6 +3267,7 @@ export default function CreateMultiFrame() {
           segmentCount,
         };
         setResult(syntheticResult);
+        if (useAIGeneration.getState().active) useAIGeneration.getState().succeed();
         appendHistory({
           id: Math.random().toString(36).slice(2), timestamp: Date.now(),
           engine: engine.name, aspect: cfg.aspect, frameCount: filledFrames.length,
@@ -3473,6 +3476,7 @@ export default function CreateMultiFrame() {
       setCurrentJobId(null);
     }
     setGenerating(false); setBackgroundRender(false); setRenderProgress(0); setRenderPhase(0);
+    if (useAIGeneration.getState().active) useAIGeneration.getState().dismiss();
     appendHistory({
       id:Math.random().toString(36).slice(2), timestamp:Date.now(),
       engine:engine.name, aspect:cfg.aspect, frameCount:filledFrames.length,
@@ -3569,6 +3573,7 @@ export default function CreateMultiFrame() {
       const msg = e.message || "Failed to start render job.";
       setGenError(msg);
       setIsQuota(e.code === "QUOTA_EXCEEDED");
+      if (useAIGeneration.getState().active) useAIGeneration.getState().fail(msg);
       appendHistory({
         id:Math.random().toString(36).slice(2), timestamp:Date.now(),
         engine:engine.name, aspect:cfg.aspect, frameCount:filledFrames.length,
@@ -3580,6 +3585,31 @@ export default function CreateMultiFrame() {
       setBackgroundRender(false);
     }
   };
+
+  /* ── Drive the global AI Generation overlay for cinematic renders ──
+     Additive: opens the shared overlay while a render is active and NOT
+     backgrounded, feeds it the REAL render progress, and exposes the
+     existing "run in background" feature so nothing is lost. Success/failure
+     are signalled from the renderJob done-effect above. */
+  useEffect(() => {
+    const gen = useAIGeneration.getState();
+    if (generating && !backgroundRender) {
+      if (!gen.active || gen.kind !== "cinematic") {
+        gen.start({
+          kind:      "cinematic",
+          model:     engine.name,
+          estimateMs: Math.max(90_000, segmentCount * 65_000),
+          retry:      generate,
+          onBackground: () => setBackgroundRender(true),
+        });
+      } else {
+        gen.setProgress(renderProgress);
+      }
+    } else if (gen.active && gen.kind === "cinematic" && backgroundRender) {
+      gen.dismiss();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generating, backgroundRender, renderProgress, engine.name, segmentCount]);
 
   const onSave = async () => {
     if (!result?.videoUrl || saveStatus==="saving") return;

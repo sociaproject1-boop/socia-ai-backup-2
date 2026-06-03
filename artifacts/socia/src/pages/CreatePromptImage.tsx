@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { generateImage, GenResult } from "@/lib/ai";
+import { useAIGeneration } from "@/lib/aiGenerationStore";
 import { saveToDevice } from "@/lib/download";
 import { useAppStore } from "@/lib/store";
 
@@ -292,6 +293,8 @@ export default function CreatePromptImage() {
     setResult(null);
     setResultFav(false);
     setShowFullPrompt(false);
+    const aiGen = useAIGeneration.getState();
+    aiGen.start({ kind: "image", model: "Socia AI", retry: handleGenerate });
     try {
       const r = await generateImage(prompt, {
         style,
@@ -304,10 +307,12 @@ export default function CreatePromptImage() {
       });
       setResult(r);
       add({ url: r.url, prompt: r.prompt, originalPrompt: r.originalPrompt || prompt, style, aspect });
+      aiGen.succeed();
     } catch (err: unknown) {
       const e = err as { message?: string; code?: string };
       setError(e.message || "Generation failed. Please try again.");
       setIsQuotaError(e.code === "QUOTA_EXCEEDED");
+      aiGen.fail(e.message || "Generation failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -849,7 +854,6 @@ export default function CreatePromptImage() {
 
       {/* ── OVERLAYS ─────────────────────────────────────────── */}
       <AnimatePresence>
-        {loading && <LoadingOverlay />}
         {result && !loading && (
           <ResultOverlay
             result={result}

@@ -15,6 +15,7 @@ import {
   useAdminStore,
 } from "@/lib/adminAuth";
 import { GlobalLoaderProvider } from "@/components/loader/GlobalLoaderProvider";
+import { GlobalAIGenerationOverlay } from "@/components/loader/GlobalAIGenerationOverlay";
 import { CinematicLoadingOverlay } from "@/components/loader/CinematicLoadingOverlay";
 
 // ── Critical path (eager) ────────────────────────────────────────────────────
@@ -277,6 +278,10 @@ function App() {
                     CreateHub's coming-soon locked taps) can dispatch
                     toasts through `useToast()`. */}
                 <Toaster />
+                {/* Global AI Generation loading screen — shown ONLY during
+                    AI generation tasks (image / video / cinematic). Driven by
+                    the isolated useAIGeneration store; fully additive. */}
+                <GlobalAIGenerationOverlay />
               </GlobalLoaderProvider>
             </AuthProvider>
           </TooltipProvider>
