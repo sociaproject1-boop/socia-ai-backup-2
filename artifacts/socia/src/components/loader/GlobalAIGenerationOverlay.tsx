@@ -236,9 +236,7 @@ export function GlobalAIGenerationOverlay() {
         className="fixed inset-0 flex items-center justify-center"
         style={{
           zIndex: 99999,
-          background:
-            "radial-gradient(120% 90% at 50% 18%, #1a0b2e 0%, #0a0613 55%, #050308 100%)",
-          backdropFilter: "blur(6px)",
+          background: "#000000",
         }}
         role="dialog"
         aria-modal="true"
@@ -255,7 +253,8 @@ export function GlobalAIGenerationOverlay() {
             overflowY:     "auto",
           }}
         >
-          {/* ── Logo with breathing pulse + neon glow ── */}
+          {/* ── Logo with breathing pulse — glow comes from the logo's own
+                 silhouette via drop-shadow (no panel, no container, no box). ── */}
           <motion.div
             animate={
               phase === "generating"
@@ -266,19 +265,15 @@ export function GlobalAIGenerationOverlay() {
             className="relative mt-2"
             style={{ width: 220, maxWidth: "62vw" }}
           >
-            <div
-              className="pointer-events-none absolute inset-0"
-              style={{
-                background:
-                  "radial-gradient(circle at 50% 42%, rgba(168,85,247,0.45), rgba(59,130,246,0.18) 45%, transparent 70%)",
-                filter: "blur(26px)",
-              }}
-            />
             <img
               src={logoUrl}
               alt="SOCIA"
               className="relative w-full select-none"
               draggable={false}
+              style={{
+                filter:
+                  "drop-shadow(0 0 18px rgba(168,85,247,0.55)) drop-shadow(0 0 38px rgba(59,130,246,0.32)) drop-shadow(0 0 6px rgba(236,72,153,0.45))",
+              }}
             />
           </motion.div>
 
