@@ -10,6 +10,7 @@ import { mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs"
 import { resolve } from "node:path";
 import { logger } from "../lib/logger.js";
 import type {
+  AlertIncident,
   PaymentOverride,
   ProviderHealth,
   StatusLevel,
@@ -25,6 +26,8 @@ const MAX_LOG_RING = 200;
 interface PersistedState {
   override: PaymentOverride;
   log: StatusLogEntry[];
+  /** Open alert incidents, keyed by `${providerId}:${kind}`. */
+  alertIncidents: Record<string, AlertIncident>;
 }
 
 const DEFAULT_OVERRIDE: PaymentOverride = {
@@ -39,6 +42,8 @@ const DEFAULT_OVERRIDE: PaymentOverride = {
 const health = new Map<string, ProviderHealth>();
 let override: PaymentOverride = { ...DEFAULT_OVERRIDE };
 let logRing: StatusLogEntry[] = [];
+/** Open alert incidents (de-dupe memory), keyed by `${providerId}:${kind}`. */
+const alertIncidents = new Map<string, AlertIncident>();
 
 function ensureDir(): void {
   try {
@@ -56,6 +61,12 @@ export function hydrateFromDisk(): void {
     const parsed = JSON.parse(raw) as Partial<PersistedState>;
     if (parsed.override) override = { ...DEFAULT_OVERRIDE, ...parsed.override };
     if (Array.isArray(parsed.log)) logRing = parsed.log.slice(-MAX_LOG_RING);
+    if (parsed.alertIncidents && typeof parsed.alertIncidents === "object") {
+      alertIncidents.clear();
+      for (const [key, inc] of Object.entries(parsed.alertIncidents)) {
+        if (inc) alertIncidents.set(key, inc);
+      }
+    }
   } catch {
     // No prior state (first run) — start clean.
   }
@@ -64,7 +75,11 @@ export function hydrateFromDisk(): void {
 function persistToDisk(): void {
   ensureDir();
   try {
-    const payload: PersistedState = { override, log: logRing };
+    const payload: PersistedState = {
+      override,
+      log: logRing,
+      alertIncidents: Object.fromEntries(alertIncidents),
+    };
     writeFileSync(STATE_FILE, JSON.stringify(payload, null, 2), "utf8");
   } catch (err) {
     logger.warn({ err: (err as Error).message }, "[monitor] failed to persist state");
@@ -122,4 +137,33 @@ export function setOverride(next: PaymentOverride): void {
       : "Owner cleared manual override",
     source: "override",
   });
+}
+
+/* ── Alert de-dupe memory ──────────────────────────────────────────────────
+ * One incident per (provider, kind). The presence of an incident means we have
+ * already notified the owner about it, so subsequent sweeps stay quiet until
+ * the provider recovers (the incident is cleared). Persisted to disk so a
+ * restart never re-fires an alert for an already-open incident.
+ */
+
+/** The currently-open alert incident for a key, if any. */
+export function getAlertIncident(key: string): AlertIncident | undefined {
+  const inc = alertIncidents.get(key);
+  return inc ? { ...inc } : undefined;
+}
+
+/** All currently-open alert incidents (read-only copies). */
+export function getAlertIncidents(): AlertIncident[] {
+  return [...alertIncidents.values()].map((i) => ({ ...i }));
+}
+
+/** Open or update an alert incident, then persist. */
+export function setAlertIncident(key: string, incident: AlertIncident): void {
+  alertIncidents.set(key, { ...incident });
+  persistToDisk();
+}
+
+/** Close an alert incident (provider recovered), then persist. */
+export function clearAlertIncident(key: string): void {
+  if (alertIncidents.delete(key)) persistToDisk();
 }

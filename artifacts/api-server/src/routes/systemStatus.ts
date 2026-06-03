@@ -20,7 +20,10 @@ import {
   OWNER_EMAIL,
   broadcast,
   buildPublicSnapshot,
+  dispatchAlert,
   effectivePaymentStatus,
+  getAlertConfig,
+  getAlertIncidents,
   getAllHealth,
   getGenerationMetrics,
   getLog,
@@ -70,6 +73,7 @@ router.get("/system-status", requireAuth, (_req, res) => {
 /* ── Owner: full provider matrix + log ─────────────────────────────────── */
 router.get("/system-status/full", requireAuth, requireOwner, (_req, res) => {
   const providers = getAllHealth();
+  const cfg = getAlertConfig();
   res.json({
     payment: effectivePaymentStatus(),
     override: getOverride(),
@@ -80,8 +84,49 @@ router.get("/system-status/full", requireAuth, requireOwner, (_req, res) => {
       providerIds: s.providerIds,
     })),
     log: getLog(50),
+    // Alert subsystem status (no secrets — just which channels are armed).
+    alerts: {
+      enabled: cfg.enabled,
+      channels: {
+        email: Boolean(cfg.email),
+        sms: Boolean(cfg.sms),
+        webhook: Boolean(cfg.webhook),
+      },
+      openIncidents: getAlertIncidents(),
+    },
     updatedAt: new Date().toISOString(),
   });
+});
+
+/* ── Owner: send a test alert to verify channel configuration ───────────── */
+router.post("/system-status/test-alert", requireAuth, requireOwner, async (_req, res) => {
+  try {
+    const result = await dispatchAlert({
+      kind: "down",
+      topic: "status",
+      providerId: "paymongo",
+      label: "Test Alert",
+      status: "OUTAGE",
+      message: "This is a test notification from the Socia status monitor. If you received it, your alert channel works.",
+      at: new Date().toISOString(),
+    });
+    const cfg = getAlertConfig();
+    res.json({
+      ok: true,
+      delivered: result.delivered,
+      attempted: result.attempted,
+      configured: {
+        enabled: cfg.enabled,
+        email: Boolean(cfg.email),
+        sms: Boolean(cfg.sms),
+        webhook: Boolean(cfg.webhook),
+      },
+    });
+  } catch (err) {
+    // dispatchAlert never throws, but keep the endpoint itself failsafe.
+    logger.warn({ err: (err as Error).message }, "[system-status] test alert failed");
+    res.json({ ok: false, delivered: 0 });
+  }
 });
 
 /* ── Owner: AI Command Center detail ───────────────────────────────────── */

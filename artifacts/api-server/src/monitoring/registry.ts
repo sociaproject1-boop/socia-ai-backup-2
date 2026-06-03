@@ -33,6 +33,17 @@ export interface ProviderDefinition {
   statusUrl?: string;
   /** API base used for a plain reachability probe (probe === "reachability"). */
   reachUrl?: string;
+  /**
+   * If set, an authenticated GET that returns a JSON document containing a
+   * numeric credit balance. Used to power REAL low-balance alerts for the few
+   * providers that actually expose a queryable balance. When unset, balance is
+   * honestly reported as "not exposed by provider API".
+   */
+  balanceUrl?: string;
+  /** Top-level JSON field holding the numeric balance (e.g. "credits"). */
+  balanceField?: string;
+  /** Unit label for the balance, e.g. "credits" or "USD". */
+  balanceCurrency?: string;
   /** Owner-facing external links. */
   links?: { dashboard?: string; topUp?: string; usage?: string; status?: string };
 }
@@ -143,6 +154,10 @@ export const PROVIDERS: ProviderDefinition[] = [
     envKeys: ["STABILITY_API_KEY", "STABILITY_AI_API_KEY"],
     probe: "reachability",
     reachUrl: "https://api.stability.ai/v1/user/account",
+    // Stability is the one catalogued provider with a queryable credit balance.
+    balanceUrl: "https://api.stability.ai/v1/user/balance",
+    balanceField: "credits",
+    balanceCurrency: "credits",
     links: {
       dashboard: "https://platform.stability.ai/account/credits",
       topUp: "https://platform.stability.ai/account/credits",
@@ -174,4 +189,13 @@ export const SERVICES: ServiceDefinition[] = [
 /** True if any of the provider's candidate env keys is present + non-empty. */
 export function isConfigured(def: ProviderDefinition): boolean {
   return def.envKeys.some((k) => (process.env[k] ?? "").trim().length > 0);
+}
+
+/** The value of the first present, non-empty candidate env key (the API key). */
+export function configuredValue(def: ProviderDefinition): string | undefined {
+  for (const k of def.envKeys) {
+    const v = (process.env[k] ?? "").trim();
+    if (v.length > 0) return v;
+  }
+  return undefined;
 }

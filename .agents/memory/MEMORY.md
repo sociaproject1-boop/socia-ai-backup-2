@@ -11,3 +11,4 @@
 - [Socia GPT memory profiles](socia-gpt-memory-profiles.md) — buildSystemPrompt now takes {mode,profile,memory}; memory failures NEVER block chat (try/catch + skipped flag); snapshot turn_count must be lifetime (client sends totalUserTurns), not slim-window count.
 - [Grok routing resilience](grok-routing-resilience.md) — first-byte timer must outlive create() until first delta; client-abort must never recordGrokFail; retry-once is Grok Smart only.
 - [Payment monitor failsafe](payment-monitor-failsafe.md) — Socia checkout may be disabled only by owner override or PayMongo 5xx; probe network failures map to UNKNOWN, never block checkout.
+- [Monitor outage & low-balance alerts](monitor-alerts.md) — owner email/SMS/webhook on MAINTENANCE/OUTAGE + recovery; incident-state de-dupe survives restarts; failed sends retry (notifiedAt-gated); low-balance opt-in (real only for Stability).

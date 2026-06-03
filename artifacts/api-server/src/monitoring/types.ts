@@ -64,6 +64,28 @@ export interface StatusLogEntry {
   source: "probe" | "override";
 }
 
+/** What kind of condition opened an alert incident. */
+export type AlertKind = "status" | "balance";
+
+/**
+ * A currently-open alert incident — the de-dupe memory for proactive owner
+ * notifications. While an incident exists for a (provider, kind) the monitor
+ * stays quiet on later sweeps; the incident is cleared (and a recovery notice
+ * sent) only when the provider returns to ONLINE.
+ */
+export interface AlertIncident {
+  providerId: string;
+  label: string;
+  kind: AlertKind;
+  /** The status that opened/escalated the incident (MAINTENANCE/OUTAGE for status). */
+  level: StatusLevel;
+  message: string;
+  /** ISO timestamp the incident was first opened. */
+  openedAt: string;
+  /** ISO timestamp of the most recent notification sent for this incident. */
+  notifiedAt: string;
+}
+
 /** Owner-applied manual override for the PAYMENT layer. */
 export interface PaymentOverride {
   active: boolean;

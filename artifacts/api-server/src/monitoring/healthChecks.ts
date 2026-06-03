@@ -12,7 +12,7 @@ import {
   SLOW_RESPONSE_MS,
   type ProviderDefinition,
 } from "./registry.js";
-import type { StatusLevel } from "./types.js";
+import type { ProviderBalance, StatusLevel } from "./types.js";
 
 export interface ProbeResult {
   status: StatusLevel;
@@ -151,6 +151,49 @@ export async function probePaymongo(secretKey: string | undefined): Promise<Prob
         : "PayMongo status check failed — checkout remains available.",
       responseMs: null,
     };
+  }
+}
+
+/**
+ * Authenticated, READ-ONLY balance lookup for the few providers that expose a
+ * queryable credit balance (def.balanceUrl). Returns a REAL balance only when
+ * the call succeeds and yields a finite number; on any failure it degrades to
+ * `{ supported: false }` so the monitor never invents a number or throws.
+ */
+export async function probeBalance(
+  def: ProviderDefinition,
+  secretKey: string | undefined,
+): Promise<ProviderBalance> {
+  if (!def.balanceUrl) {
+    return { supported: false, note: "Balance not exposed by provider API — open the provider dashboard to view/top up." };
+  }
+  if (!secretKey) {
+    return { supported: false, note: "Not configured." };
+  }
+  try {
+    const { res } = await timedFetch(def.balanceUrl, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${secretKey}`, Accept: "application/json" },
+    });
+    if (!res.ok) {
+      return { supported: false, note: `Balance unavailable (provider returned ${res.status}).` };
+    }
+    const data = (await res.json()) as Record<string, unknown>;
+    const field = def.balanceField ?? "credits";
+    const raw = data[field];
+    const amount = typeof raw === "number" ? raw : Number(raw);
+    if (!Number.isFinite(amount)) {
+      return { supported: false, note: "Balance field missing from provider response." };
+    }
+    return {
+      supported: true,
+      amount,
+      currency: def.balanceCurrency ?? "credits",
+      source: "real",
+    };
+  } catch (err) {
+    logger.warn({ err: (err as Error).message, provider: def.id }, "[monitor] balance probe failed");
+    return { supported: false, note: "Balance check failed — open the provider dashboard." };
   }
 }
 

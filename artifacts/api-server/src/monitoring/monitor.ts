@@ -15,9 +15,11 @@ import {
   MONITOR_INTERVAL_MS,
   PROVIDERS,
   SERVICES,
+  configuredValue,
   isConfigured,
 } from "./registry.js";
-import { runProbe } from "./healthChecks.js";
+import { runProbe, probeBalance } from "./healthChecks.js";
+import { evaluateAndDispatch } from "./alerts.js";
 import {
   appendLog,
   getAllHealth,
@@ -69,6 +71,16 @@ async function checkOne(defIndex: number): Promise<void> {
   const prev = getHealth(def.id);
   const probe = await runProbe(def, configured);
 
+  // Balance: a REAL queryable balance for providers that expose one
+  // (def.balanceUrl), otherwise an honest "not exposed" note. Failsafe — the
+  // balance probe never throws and degrades to `supported: false`.
+  let balance: ProviderBalance | undefined;
+  if (def.category === "ai") {
+    balance = def.balanceUrl && configured
+      ? await probeBalance(def, configuredValue(def))
+      : balanceFor(configured);
+  }
+
   const next: ProviderHealth = {
     id: def.id,
     label: def.label,
@@ -78,7 +90,7 @@ async function checkOne(defIndex: number): Promise<void> {
     message: probe.message,
     responseMs: probe.responseMs,
     lastChecked: new Date().toISOString(),
-    ...(def.category === "ai" ? { balance: balanceFor(configured) } : {}),
+    ...(balance ? { balance } : {}),
     links: def.links,
   };
   setHealth(next);
@@ -94,6 +106,14 @@ async function checkOne(defIndex: number): Promise<void> {
       source: "probe",
     });
   }
+
+  // Proactive owner notifications. Fire-and-forget + fully failsafe so a slow
+  // or broken channel can never delay the sweep or block checkout. De-dupe and
+  // recovery logic live entirely inside evaluateAndDispatch / the store, so it
+  // is safe to call on every check (including the first, post-hydration sweep).
+  void evaluateAndDispatch(next).catch((err) =>
+    logger.warn({ err: (err as Error).message, provider: def.id }, "[monitor] alert dispatch failed (ignored)"),
+  );
 }
 
 /** Effective PAYMENT status: owner override wins; otherwise the probe.
