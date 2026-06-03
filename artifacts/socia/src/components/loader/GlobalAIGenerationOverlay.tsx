@@ -28,7 +28,7 @@ import {
 import {
   useAIGeneration, type AIGenKind,
 } from "@/lib/aiGenerationStore";
-import logoUrl from "@assets/socia-ai-logo.png";
+import logoUrl from "@assets/socia-ai-logo-clean.png";
 
 /* ── Copy banks keyed by task type ───────────────────────────────────────── */
 
@@ -87,9 +87,9 @@ function fmtTime(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")} min`;
 }
 
-/* ── Background: GPU-light neural particles ──────────────────────────────── */
+/* ── Background: subtle premium floating particles ───────────────────────── */
 
-const PARTICLES = Array.from({ length: 18 }, (_, i) => {
+const PARTICLES = Array.from({ length: 14 }, (_, i) => {
   const colors = ["#ec4899", "#a855f7", "#3b82f6"];
   return {
     id:    i,
@@ -97,7 +97,7 @@ const PARTICLES = Array.from({ length: 18 }, (_, i) => {
     top:   (i * 37 + 11) % 100,
     size:  2 + (i % 3),
     delay: (i % 6) * 0.7,
-    dur:   5 + (i % 5),
+    dur:   6 + (i % 5),
     color: colors[i % 3],
   };
 });
@@ -105,27 +105,6 @@ const PARTICLES = Array.from({ length: 18 }, (_, i) => {
 function ParticleField() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      {/* faint neural lattice */}
-      <svg className="absolute inset-0 h-full w-full opacity-[0.13]" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="aigen-line" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#ec4899" />
-            <stop offset="50%" stopColor="#a855f7" />
-            <stop offset="100%" stopColor="#3b82f6" />
-          </linearGradient>
-        </defs>
-        {PARTICLES.slice(0, 9).map((p, i) => {
-          const n = PARTICLES[(i + 4) % PARTICLES.length];
-          return (
-            <line
-              key={p.id}
-              x1={`${p.left}%`} y1={`${p.top}%`}
-              x2={`${n.left}%`} y2={`${n.top}%`}
-              stroke="url(#aigen-line)" strokeWidth="0.6"
-            />
-          );
-        })}
-      </svg>
       {PARTICLES.map((p) => (
         <span
           key={p.id}
@@ -134,7 +113,8 @@ function ParticleField() {
             left: `${p.left}%`, top: `${p.top}%`,
             width: p.size, height: p.size,
             background: p.color,
-            boxShadow: `0 0 ${p.size * 4}px ${p.color}`,
+            opacity: 0.5,
+            boxShadow: `0 0 ${p.size * 3}px ${p.color}`,
             animation: `aigenFloat ${p.dur}s ease-in-out ${p.delay}s infinite`,
             willChange: "transform, opacity",
           }}
@@ -299,7 +279,6 @@ export function GlobalAIGenerationOverlay() {
               alt="SOCIA"
               className="relative w-full select-none"
               draggable={false}
-              style={{ mixBlendMode: "screen" }}
             />
           </motion.div>
 
