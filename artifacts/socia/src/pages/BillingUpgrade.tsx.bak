@@ -20,8 +20,6 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Check, Sparkles, Crown, Shield, Wand2, Film, Zap, Star } from "lucide-react";
 import { fetchMyBilling, createPaymongoCheckout, type PlanCode, type BillingSummary } from "@/lib/billing";
 import PolicyModal, { type PolicyPlanCode } from "@/components/billing/PolicyModal";
-import { useSystemStatus } from "@/lib/useSystemStatus";
-import PaymentStatusBanner from "@/components/status/PaymentStatusBanner";
 
 type UpgradePlanCode = "premium" | "elite" | "super_elite" | "cinematic";
 
@@ -119,22 +117,12 @@ export default function BillingUpgrade() {
   /** Plan currently being reviewed in the policy modal. null = modal closed. */
   const [policyPlan, setPolicyPlan] = useState<UpgradePlanCode | null>(null);
 
-  // Realtime payment-provider status. When PayMongo is in confirmed
-  // maintenance/outage, checkout is gated (buttons disabled + banner shown).
-  // FAILSAFE: defaults to enabled, so a monitoring outage never blocks paying.
-  const { checkoutDisabled, paymentStatus, paymentMessage } = useSystemStatus();
-
   // Tapping Pay opens the policy modal first. Checkout only proceeds after
   // the user reads the plan policy + global fair-usage statement and taps
   // "I Understand & Agree". This protects against refund complaints and
   // "scam" accusations by making the soft-limit behavior explicit upfront.
   const handlePay = (code: UpgradePlanCode) => {
     if (payingPlan) return;
-    // Hard stop while payments are under maintenance/outage.
-    if (checkoutDisabled) {
-      setPayError(paymentMessage || "Payments are temporarily unavailable. Please try again shortly.");
-      return;
-    }
     setPayError(null);
     setPolicyPlan(code);
   };
@@ -197,8 +185,6 @@ export default function BillingUpgrade() {
       </div>
 
       <div className="px-4 pt-4">
-        <PaymentStatusBanner status={paymentStatus} message={paymentMessage} />
-
         <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-5">
           <div className="text-[10px] font-bold uppercase tracking-widest app-text-muted">Pick your plan</div>
           <h2 className="mt-1 text-2xl font-black text-gradient">Create freely. All month.</h2>
@@ -223,7 +209,6 @@ export default function BillingUpgrade() {
                 isCurrent={isPlanActive(p.code)}
                 isPaying={payingPlan === p.code}
                 disabled={payingPlan !== null && payingPlan !== p.code}
-                unavailable={checkoutDisabled}
                 onSelect={() => handlePay(p.code)}
               />
             ))}
@@ -254,8 +239,8 @@ export default function BillingUpgrade() {
   );
 }
 
-function PlanCard({ plan, isCurrent, isPaying, disabled, unavailable, onSelect }: {
-  plan: UpgradePlan; isCurrent: boolean; isPaying: boolean; disabled: boolean; unavailable: boolean; onSelect: () => void;
+function PlanCard({ plan, isCurrent, isPaying, disabled, onSelect }: {
+  plan: UpgradePlan; isCurrent: boolean; isPaying: boolean; disabled: boolean; onSelect: () => void;
 }) {
   const style = planAccentStyle(plan.accent);
   return (
@@ -298,28 +283,25 @@ function PlanCard({ plan, isCurrent, isPaying, disabled, unavailable, onSelect }
 
       <button
         onClick={onSelect}
-        disabled={isCurrent || disabled || isPaying || unavailable}
-        title={unavailable ? "Payments are temporarily unavailable while PayMongo is under maintenance." : undefined}
-        className="mt-4 w-full rounded-2xl py-3 text-sm font-bold transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        disabled={isCurrent || disabled || isPaying}
+        className="mt-4 w-full rounded-2xl py-3 text-sm font-bold transition disabled:opacity-50 flex items-center justify-center gap-2"
         style={{
-          background: isCurrent || unavailable ? "rgba(255,255,255,0.06)" : style.gradient,
-          color: isCurrent || unavailable ? "var(--s-text-muted)" : "white",
-          boxShadow: !isCurrent && !unavailable ? "0 12px 32px -10px rgba(168,85,247,0.45)" : undefined,
+          background: isCurrent ? "rgba(255,255,255,0.06)" : style.gradient,
+          color: isCurrent ? "var(--s-text-muted)" : "white",
+          boxShadow: !isCurrent ? "0 12px 32px -10px rgba(168,85,247,0.45)" : undefined,
         }}
       >
         {isPaying && <Wand2 className="h-4 w-4 animate-spin" />}
         {isCurrent
           ? "Current plan"
-          : unavailable
-            ? "Temporarily Unavailable"
-            : isPaying
-              ? "Redirecting to PayMongo…"
-              : (
-                <>
-                  <Zap className="h-4 w-4" />
-                  Pay via GCash / Maya / Card
-                </>
-              )}
+          : isPaying
+            ? "Redirecting to PayMongo…"
+            : (
+              <>
+                <Zap className="h-4 w-4" />
+                Pay via GCash / Maya / Card
+              </>
+            )}
       </button>
     </motion.div>
   );

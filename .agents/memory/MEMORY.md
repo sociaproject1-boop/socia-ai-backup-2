@@ -10,3 +10,4 @@
 - [Per-IP rate limiting](rate-limit-policy.md) — single-instance in-memory sliding window via lib/rateLimit.ts; Cloudflare-aware IP extraction; webhook + refund endpoints intentionally NOT limited.
 - [Socia GPT memory profiles](socia-gpt-memory-profiles.md) — buildSystemPrompt now takes {mode,profile,memory}; memory failures NEVER block chat (try/catch + skipped flag); snapshot turn_count must be lifetime (client sends totalUserTurns), not slim-window count.
 - [Grok routing resilience](grok-routing-resilience.md) — first-byte timer must outlive create() until first delta; client-abort must never recordGrokFail; retry-once is Grok Smart only.
+- [Payment monitor failsafe](payment-monitor-failsafe.md) — Socia checkout may be disabled only by owner override or PayMongo 5xx; probe network failures map to UNKNOWN, never block checkout.

@@ -64,8 +64,6 @@ const CreatorMonetization = lazy(() => import("@/pages/CreatorMonetization"));
 const AffiliateProgram   = lazy(() => import("@/pages/AffiliateProgram"));
 const SellerCenter       = lazy(() => import("@/pages/SellerCenter"));
 const CreatorStars       = lazy(() => import("@/pages/CreatorStars"));
-const SystemStatusCenter = lazy(() => import("@/pages/SystemStatusCenter"));
-const AICommandCenter    = lazy(() => import("@/pages/AICommandCenter"));
 
 // Stable wrapper components defined outside Router to avoid remounts on re-render.
 // They reference lazy components which are resolved by the nearest Suspense boundary.
@@ -131,24 +129,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/**
- * OwnerGuard — gates the owner-only monitoring dashboards (/owner/*).
- * AuthGuard already ensures a session exists; this additionally requires the
- * signed-in user to be the platform owner. Non-owners are redirected home so
- * the dashboards never mount (no owner-only sockets/fetches leak).
- */
-function OwnerGuard({ children }: { children: React.ReactNode }) {
-  const isOwner = useAppStore((s) => s.user?.isOwner === true);
-  const [, navigate] = useLocation();
-
-  useEffect(() => {
-    if (!isOwner) navigate("/");
-  }, [isOwner, navigate]);
-
-  if (!isOwner) return null;
-  return <>{children}</>;
-}
-
 function Router() {
   return (
     <Switch>
@@ -204,12 +184,6 @@ function Router() {
       <Route path="/sys-admin/login"      component={SysAdminLogin} />
       <Route path="/sys-admin"            component={SysAdminPage} />
       <Route path="/sys-admin/:rest*"     component={SysAdminPage} />
-      <Route path="/owner/payments">
-        <OwnerGuard><SystemStatusCenter /></OwnerGuard>
-      </Route>
-      <Route path="/owner/ai">
-        <OwnerGuard><AICommandCenter /></OwnerGuard>
-      </Route>
       <Route path="/admin/login"          component={AdminLogin} />
       <Route path="/admin/dashboard"      component={AdminDashboard} />
       <Route path="/admin"                component={AdminDashboard} />

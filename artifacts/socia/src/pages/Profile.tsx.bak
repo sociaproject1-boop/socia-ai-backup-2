@@ -70,26 +70,6 @@ const ADMIN_CARDS: AdminCardDef[] = [
     waveColor: "#22c55e",
     href:     "/admin/system-status",
   },
-  {
-    iconPath:  "M3 10h18M7 15h1m4 0h1M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
-    label:    "Payment Monitor",
-    sub:      "PayMongo health & checkout\nmaintenance controls",
-    status:   "LIVE",
-    dot:      "#34d399",
-    wave:     true,
-    waveColor: "#34d399",
-    href:     "/owner/payments",
-  },
-  {
-    iconPath:  "M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 7h10v10H7V7z",
-    label:    "AI Command Center",
-    sub:      "Providers • balances • spend\n• generation metrics",
-    status:   "MONITORING",
-    dot:      "#a855f7",
-    wave:     true,
-    waveColor: "#a855f7",
-    href:     "/owner/ai",
-  },
 ];
 
 /* ══════════════════════════════════════════════════════════════════════════

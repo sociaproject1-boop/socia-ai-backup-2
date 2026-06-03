@@ -6,7 +6,6 @@ import { prewarmTesseract } from "./lib/ocrService.js";
 import { startRenderWorker }  from "./lib/renderWorker.js";
 import { startStorageCleanup } from "./lib/storageCleanup.js";
 import { warmGrok } from "./lib/grokClient.js";
-import { startMonitoring } from "./monitoring/index.js";
 
 const rawPort = process.env["PORT"];
 
@@ -35,11 +34,4 @@ httpServer.listen(port, () => {
   startStorageCleanup();
   // Eagerly construct the Grok SDK client so the first chat doesn't pay it.
   warmGrok();
-  // Start the isolated System Status + AI Command Center monitor (5-min loop).
-  // Failsafe: a monitor failure can never block checkout or affect other routes.
-  try {
-    startMonitoring();
-  } catch (err) {
-    logger.warn({ err: (err as Error).message }, "[index] status monitor failed to start");
-  }
 });

@@ -36,7 +36,6 @@ import voiceSynthRouter        from "./voiceSynth.js";
 import exportTrailerRouter     from "./exportTrailer.js";
 import aiAutoReplyRouter       from "./aiAutoReply.js";
 import paymongoRouter          from "./paymongo.js";
-import systemStatusRouter      from "./systemStatus.js";
 
 const router: IRouter = Router();
 
@@ -77,6 +76,5 @@ router.use(voiceSynthRouter);
 router.use(exportTrailerRouter);
 router.use(aiAutoReplyRouter);
 router.use(paymongoRouter);
-router.use(systemStatusRouter);
 
 export default router;
