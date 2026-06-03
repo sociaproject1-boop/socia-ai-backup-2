@@ -38,6 +38,7 @@ import aiAutoReplyRouter       from "./aiAutoReply.js";
 import paymongoRouter          from "./paymongo.js";
 import systemStatusRouter      from "./systemStatus.js";
 import aiOpsRouter             from "./aiOps.js";
+import aiGovernanceRouter      from "./aiGovernance.js";
 
 const router: IRouter = Router();
 
@@ -80,5 +81,6 @@ router.use(aiAutoReplyRouter);
 router.use(paymongoRouter);
 router.use(systemStatusRouter);
 router.use(aiOpsRouter);
+router.use(aiGovernanceRouter);
 
 export default router;

@@ -8,6 +8,7 @@ import { logger } from "../lib/logger.js";
 import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/supabaseAuth.js";
 import { gateAndConsume, shouldRefund, type CreditAction } from "../lib/billing.js";
 import { trackUsage } from "../lib/usageTracker.js";
+import { evaluateRequest, recordEvent, invalidateSpendCache } from "../lib/aiGovernance.js";
 
 function falToHttp(err: FalError): { status: number; body: { error: string; code: string } } {
   switch (err.code) {
@@ -61,6 +62,22 @@ router.post("/generate-video", createRateLimiter({ name: "gen-video", windowSec:
     });
   }
 
+  // ── AI governance gate (BEFORE any credit consumption) ────────────────
+  const gov = await evaluateRequest("video_generation", { requireProvider: "fal" });
+  if (!gov.allowed) {
+    void recordEvent({
+      eventType: gov.code === "BUDGET_EXHAUSTED" ? "budget_pause" : "block",
+      feature: "video_generation",
+      reason: gov.message ?? "Blocked by governance.",
+      scope: "feature",
+      meta: { code: gov.code, userRef: user.id.slice(0, 8) },
+    });
+    return res.status(gov.code === "BUDGET_EXHAUSTED" ? 402 : 403).json({
+      error: gov.message ?? "This feature is currently unavailable.",
+      code: gov.code ?? "BLOCKED",
+    });
+  }
+
   const dur: 5 | 10 = durationSec >= 10 ? 10 : 5;
   const gate = await gateAndConsume(req, sb, {
     freeKind: "video",
@@ -104,7 +121,7 @@ router.post("/generate-video", createRateLimiter({ name: "gen-video", windowSec:
       model_used:      "kling-1.6-pro",
       status:          "success",
       metadata:        { aspect, duration_sec: dur, plan: gate.plan },
-    }).catch(() => {});
+    }).then(() => invalidateSpendCache()).catch(() => {});
 
     return res.json({
       videoUrl, thumbnailUrl: imageUrl, type: "video",

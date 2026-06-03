@@ -9,6 +9,7 @@ import { logger } from "../lib/logger.js";
 import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/supabaseAuth.js";
 import { gateAndConsume, shouldRefund } from "../lib/billing.js";
 import { trackUsage } from "../lib/usageTracker.js";
+import { evaluateRequest, recordEvent, invalidateSpendCache } from "../lib/aiGovernance.js";
 
 const router = Router();
 
@@ -95,6 +96,22 @@ router.post("/generate-multiframe-video", createRateLimiter({ name: "gen-mf-vide
     });
   }
 
+  // ── AI governance gate (BEFORE any credit consumption) ────────────────
+  const gov = await evaluateRequest("multiframe_video", { requireProvider: "fal" });
+  if (!gov.allowed) {
+    void recordEvent({
+      eventType: gov.code === "BUDGET_EXHAUSTED" ? "budget_pause" : "block",
+      feature: "multiframe_video",
+      reason: gov.message ?? "Blocked by governance.",
+      scope: "feature",
+      meta: { code: gov.code, userRef: user.id.slice(0, 8) },
+    });
+    return res.status(gov.code === "BUDGET_EXHAUSTED" ? 402 : 403).json({
+      error: gov.message ?? "This feature is currently unavailable.",
+      code: gov.code ?? "BLOCKED",
+    });
+  }
+
   // ── 2. Credit gate — multi_frame is a flat 60-credit charge (paid). ────
   const gate = await gateAndConsume(req, sb, {
     freeKind:   "video",
@@ -175,7 +192,7 @@ router.post("/generate-multiframe-video", createRateLimiter({ name: "gen-mf-vide
       model_used:      "luma",
       status:          "success",
       metadata:        { aspect, frame_count: images.length, segment_count: segmentCount, duration_sec: totalDurationSec, plan: gate.plan },
-    }).catch(() => {});
+    }).then(() => invalidateSpendCache()).catch(() => {});
 
     return res.json({
       videoUrl: finalUrl,

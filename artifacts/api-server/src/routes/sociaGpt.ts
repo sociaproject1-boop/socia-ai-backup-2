@@ -28,6 +28,7 @@ import { attachAIPlan, AI_PLANS } from "../lib/aiSubscription.js";
 import { checkCooldown, recordRequest, checkAndIncrementUsage } from "../lib/aiRateLimit.js";
 import { checkAbuse, escalateCooldown } from "../lib/aiAbuseGuard.js";
 import { trackUsage, AI_PLAN_COST_KEY } from "../lib/usageTracker.js";
+import { evaluateRequest, recordEvent, invalidateSpendCache } from "../lib/aiGovernance.js";
 import { routeModel, getLimitMessage, getCooldownMessage } from "../lib/aiModelRouter.js";
 import {
   getGrok, GROK_FAST, GROK_SMART,
@@ -85,6 +86,24 @@ router.post(
         code:          "COOLDOWN",
         retryAfterSec: cd.retryAfterSec,
         plan:          plan.code,
+      });
+      return;
+    }
+
+    // ── 2.5 AI governance gate (kill switch / feature off / budget) ──
+    // Consulted BEFORE any billable work; permissive when nothing configured.
+    const gov = await evaluateRequest("ai_chat");
+    if (!gov.allowed) {
+      void recordEvent({
+        eventType: gov.code === "BUDGET_EXHAUSTED" ? "budget_pause" : "block",
+        feature: "ai_chat",
+        reason: gov.message ?? "Blocked by governance.",
+        scope: "feature",
+        meta: { code: gov.code, userRef: user.id.slice(0, 8) },
+      });
+      res.status(gov.code === "BUDGET_EXHAUSTED" ? 402 : 403).json({
+        error: gov.message ?? "AI chat is currently unavailable.",
+        code: gov.code ?? "BLOCKED",
       });
       return;
     }
@@ -315,6 +334,33 @@ router.post(
       retries:     0,
     });
 
+    // ── 7.5 Apply owner routing config (provider order + enable + failover).
+    // gov.chain is already resolved for "ai_chat": disabled providers removed,
+    // and collapsed to the primary hop when failover is off. Reorder/filter the
+    // attempt chain to match. If nothing the owner enabled is runnable right
+    // now (e.g. they disabled OpenAI and Grok is unhealthy), fail honestly
+    // rather than quietly using a disabled provider.
+    const chainOrder = gov.chain.map((h) => h.provider);
+    const orderedAttempts = attempts
+      .filter((a) => chainOrder.includes(a.provider))
+      .sort((a, b) => chainOrder.indexOf(a.provider) - chainOrder.indexOf(b.provider));
+    if (orderedAttempts.length === 0) {
+      void recordEvent({
+        eventType: "block",
+        feature: "ai_chat",
+        reason: "No owner-enabled chat provider is currently available.",
+        scope: "feature",
+        meta: { chainOrder, userRef: user.id.slice(0, 8) },
+      });
+      res.status(503).json({
+        error: "AI chat is temporarily unavailable. No credits were charged.",
+        code: "NO_PROVIDER",
+      });
+      return;
+    }
+    attempts.length = 0;
+    attempts.push(...orderedAttempts);
+
     const maxOutputTokens = plan.maxOutputTokens;
 
     // ── 8. SSE handshake ───────────────────────────────────────────
@@ -433,6 +479,17 @@ router.post(
                   chosen    = attempt;
                   committed = true;
                   send("meta", { provider: attempt.provider, tier: attempt.tier, label: attempt.label });
+                  if (i > 0) {
+                    void recordEvent({
+                      eventType: "failover",
+                      feature: "ai_chat",
+                      fromProvider: attempts[0]?.provider ?? null,
+                      toProvider: attempt.provider,
+                      model: attempt.model,
+                      reason: `Primary chat provider unavailable; served by fallback attempt #${i + 1}.`,
+                      scope: "feature",
+                    });
+                  }
                 }
                 totalChars2 += delta.length;
                 send("token", { text: delta });
@@ -526,7 +583,7 @@ router.post(
             total_tokens:      Math.ceil((totalChars + totalChars2) / 4),
           },
           metadata: { mode, plan: plan.code, attachment_count: last.attachments?.length ?? 0, routed_model: chosen.model, provider: chosen.provider, tier: chosen.tier },
-        }).catch(() => {});
+        }).then(() => invalidateSpendCache()).catch(() => {});
       }
     } catch (err) {
       const raw = err instanceof Error ? err.message : "Chat failed";

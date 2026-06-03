@@ -17,3 +17,4 @@
 - [Splash transparent assets & screenshot timing](splash-transparent-assets.md) — baked app-icon tiles show as squares on black even with mixBlendMode:screen; screenshot tool reloads page (resets anim timers), so zero animation delay to verify end-state.
 - [AI Operations Center](ai-ops-dashboard.md) — owner-only AI monitoring built only from usage_receipts + engineRegistry + system-status/ai; success-only cost, tokens chat-only, never query credit_ledger.
 - [Incident timeline / outage history](incident-timeline.md) — appendLog() is the single choke point; ONLINE closes, problem opens/escalates, UNKNOWN leaves open; persisted in system-status-state.json.
+- [AI Governance Routing Platform](ai-governance-routing.md) — owner DB overlay on aiTopology; permissive default sacred; hard-wired routes must pass requireProvider; success-only budget + invalidateSpendCache; saves 409-conflict.

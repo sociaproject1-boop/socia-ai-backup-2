@@ -8,6 +8,7 @@ import { logger } from "../lib/logger.js";
 import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/supabaseAuth.js";
 import { gateAndConsume, shouldRefund } from "../lib/billing.js";
 import { trackUsage } from "../lib/usageTracker.js";
+import { evaluateRequest, recordEvent, invalidateSpendCache } from "../lib/aiGovernance.js";
 
 const router = Router();
 
@@ -52,6 +53,22 @@ router.post("/generate-image", createRateLimiter({ name: "gen-image", windowSec:
 
   const apiAspect = resolveApiAspect(aspect);
 
+  // ── AI governance gate (BEFORE any credit consumption) ────────────────
+  const gov = await evaluateRequest("image_generation", { requireProvider: "openai" });
+  if (!gov.allowed) {
+    void recordEvent({
+      eventType: gov.code === "BUDGET_EXHAUSTED" ? "budget_pause" : "block",
+      feature: "image_generation",
+      reason: gov.message ?? "Blocked by governance.",
+      scope: "feature",
+      meta: { code: gov.code, userRef: user.id.slice(0, 8) },
+    });
+    return res.status(gov.code === "BUDGET_EXHAUSTED" ? 402 : 403).json({
+      error: gov.message ?? "This feature is currently unavailable.",
+      code: gov.code ?? "BLOCKED",
+    });
+  }
+
   const gate = await gateAndConsume(req, sb, {
     freeKind: "image",
     pickAction: (saver) => (saver || !hdReq ? "std_image" : "hd_image"),
@@ -94,7 +111,7 @@ router.post("/generate-image", createRateLimiter({ name: "gen-image", windowSec:
       model_used:      "gpt-image-1",
       status:          "success",
       metadata:        { aspect, apiAspect, quality, style: style ?? null, plan: gate.plan },
-    }).catch(() => {});
+    }).then(() => invalidateSpendCache()).catch(() => {});
 
     return res.json({
       url:            result.imageUrl,

@@ -15,7 +15,7 @@ import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, RefreshCw, Cpu, AlertTriangle, Activity, CheckCircle2, XCircle,
-  LayoutDashboard, Boxes, Layers, Coins, GitBranch, HeartPulse,
+  LayoutDashboard, Boxes, Layers, Coins, GitBranch, HeartPulse, SlidersHorizontal, Plug,
 } from "lucide-react";
 import {
   fetchAIStatus,
@@ -40,13 +40,21 @@ import { CostTab } from "@/components/aiOps/CostTab";
 import { TokensTab } from "@/components/aiOps/TokensTab";
 import { ActivityTab } from "@/components/aiOps/ActivityTab";
 import { FlowTab } from "@/components/aiOps/FlowTab";
+import { useGovernance } from "@/lib/aiGovernance";
+import { RoutingTab } from "@/components/aiGovernance/RoutingTab";
+import { ConnectionsTab } from "@/components/aiGovernance/ConnectionsTab";
+import { SaveBar } from "@/components/aiGovernance/controls";
 
 /** Low-balance threshold (USD) below which we surface an alert chip. */
 const LOW_BALANCE_USD = 5;
 
-type TabId = "overview" | "providers" | "features" | "cost" | "tokens" | "activity" | "flow" | "health";
+type TabId =
+  | "routing" | "connections"
+  | "overview" | "providers" | "features" | "cost" | "tokens" | "activity" | "flow" | "health";
 
 const TABS: { id: TabId; label: string; icon: typeof Activity; windowed: boolean }[] = [
+  { id: "routing",     label: "Routing",     icon: SlidersHorizontal, windowed: false },
+  { id: "connections", label: "Connections", icon: Plug,              windowed: false },
   { id: "overview",  label: "Overview",   icon: LayoutDashboard, windowed: true },
   { id: "providers", label: "Providers",  icon: Boxes,           windowed: true },
   { id: "features",  label: "Features",   icon: Layers,          windowed: true },
@@ -56,6 +64,8 @@ const TABS: { id: TabId; label: string; icon: typeof Activity; windowed: boolean
   { id: "flow",      label: "Flow",       icon: GitBranch,       windowed: false },
   { id: "health",    label: "Health",     icon: HeartPulse,      windowed: false },
 ];
+
+const GOV_TABS = new Set<TabId>(["routing", "connections"]);
 
 function formatMoney(b: ProviderHealth["balance"]): string {
   if (!b || !b.supported) return "—";
@@ -76,7 +86,8 @@ export default function AICommandCenter() {
   const [error, setError] = useState<string | null>(null);
   const [opsError, setOpsError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<TabId>("overview");
+  const [tab, setTab] = useState<TabId>("routing");
+  const gov = useGovernance();
   const [win, setWin] = useState<WindowKey>("24h");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const opsPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -115,6 +126,13 @@ export default function AICommandCenter() {
       if (opsPollRef.current) clearInterval(opsPollRef.current);
     };
   }, [load, loadOps]);
+
+  // Lazy-load governance config the first time a routing tab is opened.
+  const govLoad = gov.load;
+  const govReady = !!gov.payload;
+  useEffect(() => {
+    if (GOV_TABS.has(tab) && !govReady) void govLoad();
+  }, [tab, govReady, govLoad]);
 
   const doRefresh = async () => {
     setBusy(true);
@@ -168,13 +186,49 @@ export default function AICommandCenter() {
       </div>
 
       <div className="px-4 pt-4 space-y-4">
-        {opsError && tab !== "health" && (
+        {/* ── Routing platform (governance) tabs ─────────────────────── */}
+        {GOV_TABS.has(tab) && (
+          <>
+            {gov.error && (
+              <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+                {gov.error}
+              </div>
+            )}
+            {!gov.payload && !gov.error && (
+              <div className="py-16 text-center text-xs app-text-muted">Loading routing configuration…</div>
+            )}
+            {gov.payload && gov.draft && tab === "routing" && (
+              <RoutingTab payload={gov.payload} draft={gov.draft} setDraft={gov.setDraft} />
+            )}
+            {gov.payload && gov.draft && tab === "connections" && (
+              <ConnectionsTab
+                payload={gov.payload}
+                draft={gov.draft}
+                setDraft={gov.setDraft}
+                onKillSwitch={(on) => void gov.applyKillSwitch(on)}
+              />
+            )}
+            {gov.payload && gov.draft && (
+              <SaveBar
+                dirty={gov.dirty}
+                saving={gov.saving}
+                savedAt={gov.savedAt}
+                onSave={() => void gov.save()}
+                onReset={gov.reset}
+                errors={gov.errors}
+                error={null}
+              />
+            )}
+          </>
+        )}
+
+        {opsError && !GOV_TABS.has(tab) && tab !== "health" && (
           <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
             {opsError}
           </div>
         )}
 
-        {ov?.truncated && tab !== "health" && (
+        {ov?.truncated && !GOV_TABS.has(tab) && tab !== "health" && (
           <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
             Showing the most recent {ov.rowsRead.toLocaleString()} receipts in this 30-day window — older
             rows beyond this cap are not included in the totals below.
@@ -182,7 +236,7 @@ export default function AICommandCenter() {
         )}
 
         {/* Data-driven tabs */}
-        {tab !== "health" && !ov && !opsError && (
+        {!GOV_TABS.has(tab) && tab !== "health" && !ov && !opsError && (
           <div className="py-16 text-center text-xs app-text-muted">Loading live operations data…</div>
         )}
         {ov && tab === "overview"  && <OverviewTab ov={ov} win={win} />}
