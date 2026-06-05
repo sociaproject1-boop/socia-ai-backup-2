@@ -2,6 +2,7 @@
  * useNotifications.ts
  *
  * • Listens for new messages addressed to myId via Supabase Realtime
+ * • Listens for new social activity (likes, comments, follows) via post_notifications
  * • Shows an in-app banner (dismissed after 4 s or on click)
  * • Plays a Web Audio API chime — no external sound file needed
  * • Tracks unread message count from DB (unseen messages)
@@ -177,6 +178,67 @@ export function useNotifications(
     setUnreadCount((c) => Math.max(0, c - 1));
     loadUnread(); // Recompute accurately
   }, [myId, loadUnread]);
+
+  /* ── Realtime: social activity (likes, comments, follows) → banner ─── */
+  useEffect(() => {
+    if (!myId) return;
+
+    const activityChannel = supabase
+      .channel(`activity_${myId}_${Math.random().toString(36).slice(2)}`)
+      .on(
+        "postgres_changes",
+        {
+          event:  "INSERT",
+          schema: "public",
+          table:  "post_notifications",
+          filter: `user_id=eq.${myId}`,
+        },
+        async (payload) => {
+          const row = payload.new as {
+            id: string;
+            type: string;
+            actor_id?: string;
+            user_id: string;
+          };
+
+          /* Resolve actor info gracefully */
+          let actorName   = "Someone";
+          let actorAvatar = "";
+          try {
+            if (row.actor_id) {
+              const actor = await fetchUserById(row.actor_id);
+              if (actor) {
+                actorName   = actor.name       || actor.username || "Someone";
+                actorAvatar = actor.avatar_url  || "";
+              }
+            }
+          } catch { /* ok */ }
+
+          const verb =
+            row.type === "like"    ? "liked your post"       :
+            row.type === "comment" ? "commented on your post":
+            row.type === "reply"   ? "replied to your comment":
+            row.type === "follow"  ? "followed you"          :
+            row.type === "mention" ? "mentioned you"         :
+                                     "interacted with your post";
+
+          playNotificationSound();
+
+          if (bannerTimer.current) clearTimeout(bannerTimer.current);
+          setBanner({
+            senderId:     row.actor_id ?? "",
+            senderName:   actorName,
+            senderAvatar: actorAvatar,
+            preview:      `${actorName} ${verb}`,
+            threadId:     row.actor_id ?? "",
+          });
+          bannerTimer.current = setTimeout(() => setBanner(null), 3000);
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(activityChannel); };
+  }, [myId]);
 
   return { banner, unreadCount, dismissBanner, markThreadRead };
 }

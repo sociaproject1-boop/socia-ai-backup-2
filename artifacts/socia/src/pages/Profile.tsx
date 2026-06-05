@@ -235,18 +235,29 @@ export default function Profile() {
   };
 
   /* ── Real posts from backend ────────────────────────────────────────── */
-  const [realMyPosts,    setRealMyPosts]    = useState<SocialPost[]>([]);
-  const [realSavedPosts, setRealSavedPosts] = useState<SocialPost[]>([]);
+  const [realMyPosts,       setRealMyPosts]       = useState<SocialPost[]>([]);
+  const [realSavedPosts,    setRealSavedPosts]    = useState<SocialPost[]>([]);
+  const [liveCreationsCount, setLiveCreationsCount] = useState<number | null>(null);
+  const [creationsLoading,  setCreationsLoading]  = useState(true);
 
   useEffect(() => {
     if (!user?.id) return;
     let cancelled = false;
-    fetchUserPosts(user.id, { limit: 30, viewerId: user.id })
-      .then((p) => { if (!cancelled) setRealMyPosts(p); })
-      .catch(() => {});
+    setCreationsLoading(true);
+    fetchUserPosts(user.id, { limit: 60, viewerId: user.id })
+      .then((p) => { if (!cancelled) { setRealMyPosts(p); setCreationsLoading(false); } })
+      .catch(() => { if (!cancelled) setCreationsLoading(false); });
     fetchSavedFeed({ limit: 30 })
       .then((p) => { if (!cancelled) setRealSavedPosts(p); })
       .catch(() => {});
+    /* Fetch accurate creation count from DB */
+    (async () => {
+      const { count } = await supabase
+        .from("posts")
+        .select("*", { count: "exact", head: true })
+        .eq("author_id", user.id);
+      if (!cancelled && count !== null) setLiveCreationsCount(count);
+    })();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
@@ -377,7 +388,7 @@ export default function Profile() {
             />
 
             {/* Settings / save buttons — overlaid top-right on hero */}
-            <div className="absolute top-0 right-3 flex gap-2"
+            <div className="absolute top-0 right-3 flex gap-2 z-30"
               style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 10px)` }}>
               {isEditing ? (
                 <>
@@ -403,7 +414,7 @@ export default function Profile() {
 
             {/* Cover photo controls — top-left when NOT editing (upload / delete) */}
             {!isEditing && isAdminProfile && (
-              <div className="absolute top-0 left-3 flex gap-2"
+              <div className="absolute top-0 left-3 flex gap-2 z-30"
                 style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 10px)` }}>
                 <motion.button whileTap={{ scale: 0.88 }}
                   onClick={() => coverFileRef.current?.click()}
@@ -653,7 +664,7 @@ export default function Profile() {
           </div>
 
           <div className="mt-4 flex items-center overflow-hidden rounded-[18px] app-card">
-            <StatBtn label="Creations" value={myPosts.length} />
+            <StatBtn label="Creations" value={liveCreationsCount ?? realMyPosts.length} />
             <div className="my-3 w-px self-stretch" style={{ background: "var(--s-border-a)" }} />
             <StatBtn label="Followers" value={liveFollowers ?? user.followers} onClick={() => navigate(`/followers/${user.id}`)} />
             <div className="my-3 w-px self-stretch" style={{ background: "var(--s-border-a)" }} />
@@ -694,9 +705,22 @@ export default function Profile() {
             transition={{ duration: 0.16 }}
           >
             {tab === "creations" && (
-              realMyPosts.length === 0
-                ? <EmptyState icon={Grid3x3} title="No creations yet" sub="Generate your first AI masterpiece." />
-                : <div className="columns-2 gap-3">{realMyPosts.map((p, i) => <PostThumbnail key={p.id} post={p} index={i} />)}</div>
+              creationsLoading
+                ? (
+                  <div className="columns-2 gap-3">
+                    {[...Array(6)].map((_, i) => (
+                      <div key={i} className="break-inside-avoid mb-3">
+                        <div
+                          className="w-full rounded-[16px] shimmer"
+                          style={{ aspectRatio: i % 5 === 0 ? "3/4" : i % 7 === 0 ? "1/1" : "9/13" }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )
+                : realMyPosts.length === 0
+                  ? <EmptyState icon={Grid3x3} title="No creations yet" sub="Generate your first AI masterpiece." />
+                  : <div className="columns-2 gap-3">{realMyPosts.map((p, i) => <PostThumbnail key={p.id} post={p} index={i} />)}</div>
             )}
             {tab === "saved" && (
               <>

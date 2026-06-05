@@ -600,15 +600,59 @@ router.post("/posts/:id/comments/:cid/report", requireAuth as any, async (req, r
 });
 
 /* ═══════════════════════════════════════════════════════════════════════
-   §6  VIEW COUNTER
+   §6  VIEW COUNTER  (unique-view deduplication — in-memory per server session)
 ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Tracks (viewerKey, postId) pairs seen in this server session.
+ * viewerKey = userId when authenticated, IP + user-agent fingerprint when anonymous.
+ * Entries TTL: 24 h — we prune on each request.
+ */
+const _viewSeen   = new Map<string, Set<string>>();   /* viewerKey → Set<postId> */
+const _viewSeenAt = new Map<string, number>();          /* viewerKey → last-seen timestamp */
+const VIEW_TTL_MS = 24 * 60 * 60 * 1000;              /* 24 h */
+
+function pruneViewCache() {
+  const now = Date.now();
+  for (const [key, ts] of _viewSeenAt) {
+    if (now - ts > VIEW_TTL_MS) { _viewSeen.delete(key); _viewSeenAt.delete(key); }
+  }
+}
+
+function hasViewedRecently(viewerKey: string, postId: string): boolean {
+  pruneViewCache();
+  return (_viewSeen.get(viewerKey) ?? new Set()).has(postId);
+}
+
+function markViewed(viewerKey: string, postId: string) {
+  if (!_viewSeen.has(viewerKey)) _viewSeen.set(viewerKey, new Set());
+  _viewSeen.get(viewerKey)!.add(postId);
+  _viewSeenAt.set(viewerKey, Date.now());
+}
 
 router.post("/posts/:id/view", async (req, res) => {
   try {
     const svc    = db();
     const postId = req.params["id"];
-    /* Try RPC (available after migration 44); ignore errors gracefully */
-    try { await svc.rpc("increment_post_views", { post_id: postId }); } catch { /* ok */ }
+
+    /* Build a stable viewer key (prefer authenticated userId, fallback to IP+UA) */
+    let viewerKey: string;
+    try {
+      viewerKey = getAuthedUser(req as any).id;
+    } catch {
+      const ip = (req.headers["cf-connecting-ip"] as string)
+        ?? (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
+        ?? req.socket?.remoteAddress
+        ?? "anon";
+      viewerKey = `${ip}:${(req.headers["user-agent"] ?? "").slice(0, 64)}`;
+    }
+
+    if (!hasViewedRecently(viewerKey, postId)) {
+      markViewed(viewerKey, postId);
+      /* Increment via RPC (graceful — table/function may not exist yet) */
+      try { await svc.rpc("increment_post_views", { post_id: postId }); } catch { /* ok */ }
+    }
+
     res.json({ ok: true });
   } catch {
     res.json({ ok: true }); /* never 500 the client for a view */

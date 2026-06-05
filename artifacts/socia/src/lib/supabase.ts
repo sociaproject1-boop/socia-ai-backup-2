@@ -42,6 +42,8 @@ export interface DbUser {
   social_facebook?:  string;
   social_instagram?: string;
   social_tiktok?:    string;
+  /* Cover photo (migration 42+) */
+  cover_photo_url?:  string | null;
 }
 
 /* ── Online presence + owner badge helpers (RPCs, defined in schema §13) ── */

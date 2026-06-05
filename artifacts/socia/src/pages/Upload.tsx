@@ -8,7 +8,7 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Image as ImageIcon, Video, X, Check, Plus,
-  Upload as UploadIcon, Music2, ChevronRight,
+  Upload as UploadIcon, Music2, ChevronRight, Camera, Library,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { uploadPostMedia, createPost } from "@/lib/postsClient";
@@ -31,7 +31,8 @@ export default function UploadPage() {
   const [published, setPublished]   = useState(false);
   const [error, setError]           = useState<string | null>(null);
   const [dragOver, setDragOver]     = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileRef   = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   const addFiles = useCallback((files: FileList | File[]) => {
     const arr = Array.from(files).slice(0, 10 - items.length);
@@ -172,17 +173,27 @@ export default function UploadPage() {
               <UploadIcon className="h-7 w-7 text-white/70" />
             </div>
             <div className="text-center">
-              <p className="text-sm font-semibold app-text">Tap to select photos or videos</p>
-              <p className="text-xs app-text-muted mt-1">Or drag and drop here</p>
-              <p className="text-xs app-text-muted mt-0.5">Up to 10 files · JPG, PNG, MP4, MOV</p>
+              <p className="text-sm font-semibold app-text">Select photos or videos</p>
+              <p className="text-xs app-text-muted mt-1">Up to 10 files · JPG, PNG, MP4, MOV</p>
             </div>
-            <div className="flex gap-3">
-              <span className="flex items-center gap-1.5 text-xs app-text-muted">
-                <ImageIcon className="h-3.5 w-3.5" /> Photos
-              </span>
-              <span className="flex items-center gap-1.5 text-xs app-text-muted">
-                <Video className="h-3.5 w-3.5" /> Videos
-              </span>
+            {/* Quick-pick buttons */}
+            <div className="flex gap-3 w-full px-4">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={(e) => { e.stopPropagation(); cameraRef.current?.click(); }}
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-white"
+                style={{ background: "linear-gradient(135deg,rgba(168,85,247,0.3),rgba(236,72,153,0.2))", border: "1px solid rgba(168,85,247,0.3)" }}
+              >
+                <Camera className="h-4 w-4" /> Camera
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={(e) => { e.stopPropagation(); fileRef.current?.click(); }}
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold app-text"
+                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+              >
+                <Library className="h-4 w-4" /> Library
+              </motion.button>
             </div>
           </motion.div>
         )}
@@ -316,12 +327,21 @@ export default function UploadPage() {
         )}
       </div>
 
-      {/* Hidden file input */}
+      {/* Hidden file inputs */}
       <input
         ref={fileRef}
         type="file"
         accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
         multiple
+        className="hidden"
+        onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }}
+      />
+      {/* Camera capture — uses device camera directly on mobile */}
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*,video/*"
+        capture="environment"
         className="hidden"
         onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }}
       />

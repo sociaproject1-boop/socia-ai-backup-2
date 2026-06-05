@@ -1,15 +1,27 @@
 import { useLocation } from "wouter";
-import { MessageCircle, Search } from "lucide-react";
+import { MessageCircle, Search, Bell } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { motion } from "framer-motion";
 import { CreditsBadge } from "@/components/billing/CreditsBadge";
 import { RefundNotificationBell } from "@/components/refunds/RefundNotificationBell";
+import { useEffect, useState } from "react";
+import { fetchNotifications } from "@/lib/postsClient";
 
 export function TopBar() {
   const [location, navigate] = useLocation();
   const user   = useAppStore((s) => s.user);
   const unread = useAppStore((s) => s.chats.some((c) => c.unread));
   const isHome = location === "/";
+  const [notifUnread, setNotifUnread] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    fetchNotifications({ limit: 50 })
+      .then(({ notifications }) => {
+        setNotifUnread(notifications.filter((n) => !n.read).length);
+      })
+      .catch(() => {});
+  }, [user, location]);
 
   const title =
     location.startsWith("/create")   ? "Create" :
@@ -39,6 +51,20 @@ export function TopBar() {
         {isHome && (
           <IconBtn onClick={() => {}}>
             <Search style={{ width: 17, height: 17, strokeWidth: 1.9 }} />
+          </IconBtn>
+        )}
+
+        {user && (
+          <IconBtn onClick={() => navigate("/notifications")}>
+            <Bell style={{ width: 17, height: 17, strokeWidth: 1.9 }} />
+            {notifUnread > 0 && (
+              <span
+                className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full px-0.5 text-[9px] font-bold text-white"
+                style={{ background: "var(--accent-primary)", boxShadow: "0 0 6px 1px var(--accent-glow)" }}
+              >
+                {notifUnread > 9 ? "9+" : notifUnread}
+              </span>
+            )}
           </IconBtn>
         )}
 

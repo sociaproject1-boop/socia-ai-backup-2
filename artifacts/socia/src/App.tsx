@@ -70,6 +70,8 @@ const SystemStatusCenter = lazy(() => import("@/pages/SystemStatusCenter"));
 const AICommandCenter    = lazy(() => import("@/pages/AICommandCenter"));
 const UploadPage         = lazy(() => import("@/pages/Upload"));
 const PublicStatus       = lazy(() => import("@/pages/PublicStatus"));
+const SupportHub             = lazy(() => import("@/pages/SupportHub"));
+const SocialNotifications    = lazy(() => import("@/pages/SocialNotifications"));
 
 // Stable wrapper components defined outside Router to avoid remounts on re-render.
 // They reference lazy components which are resolved by the nearest Suspense boundary.
@@ -207,6 +209,8 @@ function Router() {
       <Route path="/creator/seller"       component={SellerCenter} />
       <Route path="/creator/stars"        component={CreatorStars} />
       <Route path="/upload"               component={UploadPage} />
+      <Route path="/support-hub"          component={SupportHub} />
+      <Route path="/notifications"        component={SocialNotifications} />
       <Route path="/status"               component={PublicStatus} />
       <Route path="/sys-admin/login"      component={SysAdminLogin} />
       <Route path="/sys-admin"            component={SysAdminPage} />

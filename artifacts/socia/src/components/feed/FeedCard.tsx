@@ -53,7 +53,9 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete }: Props) {
   const [followWorking, setFollowWorking] = useState(false);
   const [heartBurst,    setHeartBurst]    = useState(false);
 
-  const lastTap  = useRef(0);
+  const lastTap      = useRef(0);
+  const touchStartX  = useRef<number | null>(null);
+  const touchStartY  = useRef<number | null>(null);
   const isOwner  = me?.isOwner === true;
   const isMe     = me?.id === post.author_id;
   const isFollowing = followedIds.includes(post.author_id);
@@ -61,6 +63,24 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete }: Props) {
   const media = post.media ?? [];
   const currentMedia = media[mediaIndex];
   const hasMulti = media.length > 1;
+
+  /* ── Swipe left/right to change media frame ─────────────────────────── */
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0]?.clientX ?? null;
+    touchStartY.current = e.touches[0]?.clientY ?? null;
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (touchStartX.current === null || !hasMulti) return;
+    const dx = (e.changedTouches[0]?.clientX ?? 0) - touchStartX.current;
+    const dy = Math.abs((e.changedTouches[0]?.clientY ?? 0) - (touchStartY.current ?? 0));
+    if (Math.abs(dx) > 48 && Math.abs(dx) > dy) {
+      if (dx < 0) setMediaIndex((i) => Math.min(i + 1, media.length - 1));
+      else         setMediaIndex((i) => Math.max(i - 1, 0));
+    }
+    touchStartX.current = null;
+    touchStartY.current = null;
+  }, [hasMulti, media.length]);
 
   /* ── Double-tap to like ─────────────────────────────────────────────── */
   const handleMediaTap = useCallback(() => {
@@ -221,51 +241,73 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete }: Props) {
 
       {/* ── Media ────────────────────────────────────────────────────── */}
       {media.length > 0 && (
-        <div className="relative" onClick={handleMediaTap}>
+        <div
+          className="relative"
+          onClick={handleMediaTap}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
           {currentMedia?.type === "video" ? (
             <VideoPostPlayer
               url={currentMedia.url}
               aspectRatio="4/5"
             />
           ) : (
-            <div className="relative" style={{ aspectRatio: "4/5", background: "#0a0a0a" }}>
-              <img
-                src={currentMedia?.url}
-                alt={post.caption ?? ""}
-                className="h-full w-full object-cover"
-                loading="lazy"
-                draggable={false}
-              />
+            <div className="relative overflow-hidden" style={{ aspectRatio: "4/5", background: "#0a0a0a" }}>
+              <AnimatePresence mode="popLayout" initial={false}>
+                <motion.img
+                  key={`${post.id}-${mediaIndex}`}
+                  src={currentMedia?.url}
+                  alt={post.caption ?? ""}
+                  className="absolute inset-0 h-full w-full object-cover"
+                  loading="lazy"
+                  draggable={false}
+                  initial={{ opacity: 0, x: 30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -30 }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                />
+              </AnimatePresence>
             </div>
           )}
 
           {hasMulti && (
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-              {media.map((_, i) => (
+            <>
+              {/* Dot indicators */}
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+                {media.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={(e) => { e.stopPropagation(); setMediaIndex(i); }}
+                    className="h-1.5 rounded-full transition-all"
+                    style={{
+                      width: i === mediaIndex ? 16 : 6,
+                      background: i === mediaIndex ? "white" : "rgba(255,255,255,0.45)",
+                    }}
+                  />
+                ))}
+              </div>
+              {/* Invisible edge-tap zones (fallback for non-touch) */}
+              {mediaIndex > 0 && (
                 <button
-                  key={i}
-                  onClick={(e) => { e.stopPropagation(); setMediaIndex(i); }}
-                  className="h-1.5 rounded-full transition-all"
-                  style={{
-                    width: i === mediaIndex ? 16 : 6,
-                    background: i === mediaIndex ? "white" : "rgba(255,255,255,0.45)",
-                  }}
+                  aria-label="Previous"
+                  onClick={(e) => { e.stopPropagation(); setMediaIndex((i) => i - 1); }}
+                  className="absolute left-0 top-0 h-full w-1/4 z-10 opacity-0"
                 />
-              ))}
-            </div>
-          )}
-
-          {hasMulti && mediaIndex > 0 && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setMediaIndex((i) => i - 1); }}
-              className="absolute left-3 top-1/2 -translate-y-1/2 grid h-9 w-9 place-items-center rounded-full bg-black/50 backdrop-blur-sm text-white text-lg font-bold z-10"
-            >‹</button>
-          )}
-          {hasMulti && mediaIndex < media.length - 1 && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setMediaIndex((i) => i + 1); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 grid h-9 w-9 place-items-center rounded-full bg-black/50 backdrop-blur-sm text-white text-lg font-bold z-10"
-            >›</button>
+              )}
+              {mediaIndex < media.length - 1 && (
+                <button
+                  aria-label="Next"
+                  onClick={(e) => { e.stopPropagation(); setMediaIndex((i) => i + 1); }}
+                  className="absolute right-0 top-0 h-full w-1/4 z-10 opacity-0"
+                />
+              )}
+              {/* Frame counter badge */}
+              <div className="absolute top-3 right-3 z-10 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
+                style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}>
+                {mediaIndex + 1}/{media.length}
+              </div>
+            </>
           )}
 
           <AnimatePresence>

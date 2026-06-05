@@ -1,21 +1,19 @@
 /**
  * Home.tsx — Real social feed with infinite scroll, real-time updates, and tabs.
  *
- * Sections:
- * - For You (trending) / Following feed tabs
- * - Trending AI prompts strip
- * - CommunityFunding widget
- * - Full-width FeedCard list (backend data)
- * - Infinite scroll via IntersectionObserver
- * - "New posts" banner from Supabase Realtime
- * - Pull-down refresh button
+ * Layout (Phase 1 redesign):
+ * 1. Sticky For You / Following tabs
+ * 2. "New posts" banner (realtime)
+ * 3. Feed posts appear IMMEDIATELY — content first
+ * 4. Trending prompts strip (compact, above first post)
+ * 5. Compact SupportSociaCard (after posts, not blocking feed)
  */
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Flame, Sparkles, RefreshCw, ArrowUp, WifiOff } from "lucide-react";
 import { FeedCard } from "@/components/feed/FeedCard";
-import { CommunityFunding } from "@/components/home/CommunityFunding";
+import { SupportSociaCard } from "@/components/home/SupportSociaCard";
 import { useFeed, type FeedMode } from "@/lib/useFeed";
 import { useAppStore } from "@/lib/store";
 import { deletePost } from "@/lib/postsClient";
@@ -35,7 +33,6 @@ function FeedSkeleton() {
     <div className="space-y-0">
       {[1, 2, 3].map((i) => (
         <div key={i} className="border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-          {/* Header */}
           <div className="flex items-center gap-3 px-4 py-3">
             <div className="h-10 w-10 rounded-full shimmer flex-shrink-0" />
             <div className="flex-1 space-y-1.5">
@@ -43,9 +40,7 @@ function FeedSkeleton() {
               <div className="h-2.5 w-16 rounded-full shimmer" />
             </div>
           </div>
-          {/* Media */}
           <div className="shimmer" style={{ aspectRatio: "4/5" }} />
-          {/* Actions */}
           <div className="flex items-center gap-4 px-4 py-3">
             <div className="h-8 w-16 rounded-full shimmer" />
             <div className="h-8 w-16 rounded-full shimmer" />
@@ -135,7 +130,6 @@ export default function Home() {
           </motion.button>
         ))}
 
-        {/* Refresh button */}
         <div className="flex-1" />
         <motion.button
           whileTap={{ scale: 0.85 }}
@@ -163,56 +157,40 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      <div className="px-4 pt-4">
-        {/* ── Trending prompts ─────────────────────────────────────── */}
-        <section className="mb-5">
-          <div className="mb-2.5 flex items-center gap-1.5 px-0.5">
-            <Flame style={{ width: 13, height: 13, color: "var(--accent-primary)" }} />
-            <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.09em] app-text-muted">Trending</h3>
-          </div>
-          <div className="hide-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
-            {TRENDING_PROMPTS.map((p, i) => (
-              <motion.button
-                key={p}
-                whileTap={{ scale: 0.91 }}
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.018, type: "spring", stiffness: 380, damping: 28 }}
-                onClick={() => handlePromptTap(p)}
-                className="app-surface shrink-0 rounded-full px-3.5 py-1.5 text-xs app-text"
-                style={{ whiteSpace: "nowrap" }}
-              >
-                {p}
-              </motion.button>
-            ))}
-          </div>
-        </section>
-
-        {/* ── Community Funding ────────────────────────────────────── */}
-        <CommunityFunding />
-
-        {/* ── Feed header ──────────────────────────────────────────── */}
-        <div className="mb-3 mt-2 flex items-end justify-between px-0.5">
-          <div>
-            <h2 className="font-display text-[18px] font-bold app-text leading-tight">
-              {feedTab === "for-you" ? "Recent Creations" : "From People You Follow"}
-            </h2>
-            <p className="text-[11px] app-text-muted mt-0.5">
-              {feedTab === "for-you" ? "Fresh from the collective imagination" : `${posts.length} posts`}
-            </p>
-          </div>
+      {/* ── Trending prompts (compact strip) ──────────────────────────── */}
+      <div className="px-4 pt-3 pb-1">
+        <div className="mb-2 flex items-center gap-1.5 px-0.5">
+          <Flame style={{ width: 12, height: 12, color: "var(--accent-primary)" }} />
+          <h3 className="text-[10px] font-semibold uppercase tracking-[0.09em] app-text-muted">Trending</h3>
+          <div className="flex-1" />
           <motion.button
-            whileTap={{ scale: 0.88 }}
+            whileTap={{ scale: 0.9 }}
             onClick={() => navigate("/create")}
-            className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] font-semibold text-white"
+            className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold text-white"
             style={{ background: "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))" }}
           >
-            <Sparkles style={{ width: 11, height: 11 }} /> Create
+            <Sparkles style={{ width: 9, height: 9 }} /> Create
           </motion.button>
+        </div>
+        <div className="hide-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+          {TRENDING_PROMPTS.map((p, i) => (
+            <motion.button
+              key={p}
+              whileTap={{ scale: 0.91 }}
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.018, type: "spring", stiffness: 380, damping: 28 }}
+              onClick={() => handlePromptTap(p)}
+              className="app-surface shrink-0 rounded-full px-3 py-1.5 text-xs app-text"
+              style={{ whiteSpace: "nowrap" }}
+            >
+              {p}
+            </motion.button>
+          ))}
         </div>
       </div>
 
-      {/* ── Feed content ─────────────────────────────────────────────── */}
+      {/* ── Feed content — posts appear immediately ───────────────────── */}
       {loading ? (
         <FeedSkeleton />
       ) : error ? (
@@ -254,6 +232,10 @@ export default function Home() {
               Browse For You
             </motion.button>
           )}
+          {/* Show support card even when no posts */}
+          <div className="mt-8 w-full">
+            <SupportSociaCard />
+          </div>
         </div>
       ) : (
         <>
@@ -280,10 +262,11 @@ export default function Home() {
             </div>
           )}
 
-          {/* End of feed */}
+          {/* End of feed — show compact support card */}
           {!hasMore && !loadingMore && posts.length > 0 && (
-            <div className="py-10 text-center">
-              <p className="text-xs app-text-muted">You're all caught up ✨</p>
+            <div className="py-6">
+              <p className="text-xs app-text-muted text-center mb-4">You're all caught up ✨</p>
+              <SupportSociaCard />
             </div>
           )}
         </>

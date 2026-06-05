@@ -203,6 +203,7 @@ export default function UserProfile() {
             avatarUrl={avatarSrc}
             initials={initials}
             isOnline={presenceStatus === "online"}
+            coverPhotoUrl={profile.cover_photo_url ?? null}
           />
 
           {/* Centered identity section */}
