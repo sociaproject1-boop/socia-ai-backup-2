@@ -13,7 +13,7 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Flame, Sparkles, RefreshCw, ArrowUp, WifiOff, Radio } from "lucide-react";
 import { FeedCard } from "@/components/feed/FeedCard";
-import { SupportSociaCard } from "@/components/home/SupportSociaCard";
+import { SupportSociaBanner } from "@/components/home/SupportSociaBanner";
 import { ImmersiveViewer } from "@/components/feed/ImmersiveViewer";
 import { LiveNowSection } from "@/components/live/LiveNowSection";
 import { useFeed, type FeedMode } from "@/lib/useFeed";
@@ -189,6 +189,9 @@ export default function Home() {
         )}
       </AnimatePresence>
 
+      {/* ── Support Socia compact banner — immediately below tabs ───── */}
+      <SupportSociaBanner />
+
       {/* ── Live Now section ──────────────────────────────────────────── */}
       <LiveNowSection />
 
@@ -267,10 +270,6 @@ export default function Home() {
               Browse For You
             </motion.button>
           )}
-          {/* Show support card even when no posts */}
-          <div className="mt-8 w-full">
-            <SupportSociaCard />
-          </div>
         </div>
       ) : (
         <>
@@ -298,12 +297,9 @@ export default function Home() {
             </div>
           )}
 
-          {/* End of feed — show compact support card */}
+          {/* End of feed */}
           {!hasMore && !loadingMore && posts.length > 0 && (
-            <div className="py-6">
-              <p className="text-xs app-text-muted text-center mb-4">You're all caught up ✨</p>
-              <SupportSociaCard />
-            </div>
+            <p className="py-6 text-xs app-text-muted text-center">You're all caught up ✨</p>
           )}
         </>
       )}
