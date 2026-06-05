@@ -69,6 +69,7 @@ const CreatorStars       = lazy(() => import("@/pages/CreatorStars"));
 const SystemStatusCenter = lazy(() => import("@/pages/SystemStatusCenter"));
 const AICommandCenter    = lazy(() => import("@/pages/AICommandCenter"));
 const UploadPage         = lazy(() => import("@/pages/Upload"));
+const PublicStatus       = lazy(() => import("@/pages/PublicStatus"));
 
 // Stable wrapper components defined outside Router to avoid remounts on re-render.
 // They reference lazy components which are resolved by the nearest Suspense boundary.
@@ -112,6 +113,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       || location === "/auth/callback"   // OAuth return — must be public before session exists
       || location === "/forgot-password"
       || location === "/reset-password"
+      || location === "/status"          // public status page — no auth required
       || location.startsWith("/legal/")
       || location.startsWith("/sys-admin")
       || location.startsWith("/admin")
@@ -205,6 +207,7 @@ function Router() {
       <Route path="/creator/seller"       component={SellerCenter} />
       <Route path="/creator/stars"        component={CreatorStars} />
       <Route path="/upload"               component={UploadPage} />
+      <Route path="/status"               component={PublicStatus} />
       <Route path="/sys-admin/login"      component={SysAdminLogin} />
       <Route path="/sys-admin"            component={SysAdminPage} />
       <Route path="/sys-admin/:rest*"     component={SysAdminPage} />

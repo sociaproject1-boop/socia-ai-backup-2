@@ -4,15 +4,16 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Settings, Heart, Bookmark, Grid3x3, Copy, ArrowUpRight, Camera,
-  Check, X, Facebook, Instagram, Music2, Shield, ChevronRight,
+  Check, X, Facebook, Instagram, Music2, Shield, ChevronRight, ImagePlus, Trash2,
 } from "lucide-react";
 import { FeedCard } from "@/components/feed/FeedCard";
 import { supabase, uploadAvatar, upsertProfile, isSupabaseReady } from "@/lib/supabase";
 import { NameBadges, OnlineDot } from "@/components/Badges";
 import { usePresenceStatus } from "@/lib/usePresence";
 import {
-  FounderHero, KingBadge, VerifiedFounderBadge, MiniWaveform,
+  FounderHero, VerifiedFounderBadge, MiniWaveform,
 } from "@/components/profile/FounderHero";
+import { uploadCoverPhoto } from "@/lib/postsClient";
 
 type Tab = "creations" | "saved" | "liked";
 
@@ -54,7 +55,7 @@ const ADMIN_CARDS: AdminCardDef[] = [
     iconPath:  "M22 12h-4l-3 9L9 3 6 12H2",
     label:    "Render Queue",
     sub:      "Active & queued\ncinematic jobs",
-    status:   "8 RUNNING",
+    status:   "LIVE",
     dot:      "#a855f7",
     wave:     true,
     waveColor: "#a855f7",
@@ -179,12 +180,57 @@ export default function Profile() {
   const [saveError,    setSaveError]    = useState<string>("");
   const [liveFollowers, setLiveFollowers] = useState<number | null>(null);
   const [liveFollowing, setLiveFollowing] = useState<number | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileRef      = useRef<HTMLInputElement>(null);
+  const coverFileRef = useRef<HTMLInputElement>(null);
+
+  /* ── Cover photo state ──────────────────────────────────────────────── */
+  const [coverPhotoUrl,  setCoverPhotoUrl]  = useState<string | null>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverError,     setCoverError]     = useState<string>("");
 
   const isAdminProfile = user?.isOwner === true;
 
   /* ── Realtime presence status (replaces stale user.isOnline from store) ── */
   const presenceStatus = usePresenceStatus(user?.id ?? null);
+
+  /* ── Load cover photo from Supabase on mount ────────────────────────── */
+  useEffect(() => {
+    if (!user?.id || !isAdminProfile) return;
+    supabase
+      .from("users")
+      .select("cover_photo_url")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.cover_photo_url) setCoverPhotoUrl(data.cover_photo_url);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  /* ── Cover photo upload ─────────────────────────────────────────────── */
+  const handleCoverPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setCoverUploading(true); setCoverError("");
+    try {
+      const url = await uploadCoverPhoto(file, user.id);
+      setCoverPhotoUrl(url);
+      /* Persist to users table */
+      await supabase.from("users").update({ cover_photo_url: url }).eq("id", user.id);
+    } catch (err) {
+      setCoverError(err instanceof Error ? err.message : "Cover upload failed");
+    } finally {
+      setCoverUploading(false);
+      if (coverFileRef.current) coverFileRef.current.value = "";
+    }
+  };
+
+  const deleteCoverPhoto = async () => {
+    if (!user) return;
+    setCoverPhotoUrl(null);
+    await supabase.from("users").update({ cover_photo_url: null }).eq("id", user.id).catch(() => {});
+  };
 
   /* ── Live follower / following counts ──────────────────────────────── */
   useEffect(() => {
@@ -306,6 +352,9 @@ export default function Profile() {
               isEditing={isEditing}
               onAvatarClick={() => fileRef.current?.click()}
               uploading={uploading}
+              coverPhotoUrl={coverPhotoUrl}
+              onCoverClick={isEditing ? () => coverFileRef.current?.click() : undefined}
+              coverUploading={coverUploading}
             />
 
             {/* Settings / save buttons — overlaid top-right on hero */}
@@ -333,9 +382,37 @@ export default function Profile() {
               )}
             </div>
 
-            {/* Upload error */}
-            {uploadError && (
-              <p className="absolute bottom-2 left-0 right-0 text-center text-[11px] text-red-400 font-medium">{uploadError}</p>
+            {/* Cover photo controls — top-left when NOT editing (upload / delete) */}
+            {!isEditing && isAdminProfile && (
+              <div className="absolute top-0 left-3 flex gap-2"
+                style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 10px)` }}>
+                <motion.button whileTap={{ scale: 0.88 }}
+                  onClick={() => coverFileRef.current?.click()}
+                  disabled={coverUploading}
+                  title="Change cover photo"
+                  className="grid h-9 w-9 place-items-center rounded-full text-white disabled:opacity-50"
+                  style={{ background: "rgba(0,0,0,0.65)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                  {coverUploading
+                    ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    : <ImagePlus style={{ width: 15, height: 15 }} />}
+                </motion.button>
+                {coverPhotoUrl && (
+                  <motion.button whileTap={{ scale: 0.88 }}
+                    onClick={deleteCoverPhoto}
+                    title="Remove cover photo"
+                    className="grid h-9 w-9 place-items-center rounded-full text-white"
+                    style={{ background: "rgba(180,20,20,0.75)", border: "1px solid rgba(255,100,100,0.3)" }}>
+                    <Trash2 style={{ width: 14, height: 14 }} />
+                  </motion.button>
+                )}
+              </div>
+            )}
+
+            {/* Upload errors */}
+            {(uploadError || coverError) && (
+              <p className="absolute bottom-2 left-0 right-0 text-center text-[11px] text-red-400 font-medium">
+                {uploadError || coverError}
+              </p>
             )}
           </div>
 
@@ -649,8 +726,9 @@ export default function Profile() {
         </AnimatePresence>
       </div>
 
-      {/* Hidden file input */}
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarPick} />
+      {/* Hidden file inputs */}
+      <input ref={fileRef}      type="file" accept="image/*" className="hidden" onChange={handleAvatarPick} />
+      <input ref={coverFileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleCoverPick} />
     </div>
   );
 }

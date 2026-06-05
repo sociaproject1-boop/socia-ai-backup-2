@@ -53,6 +53,31 @@ const requireOwner: RequestHandler = (req, res, next) => {
   }
 };
 
+/* ── Fully public snapshot (no auth) — for /status page ────────────────── */
+router.get("/system-status/public", (_req, res) => {
+  try {
+    const snap = buildPublicSnapshot();
+    /* Reshape into the format PublicStatus.tsx expects */
+    const providers = getAllHealth ? getAllHealth().map((p: any) => ({
+      id:     p.id,
+      name:   p.name,
+      status: p.status ?? "UNKNOWN",
+    })) : [];
+    res.json({
+      status:           snap.payment?.status ?? "UNKNOWN",
+      message:          snap.payment?.message ?? null,
+      checkoutDisabled: snap.payment?.checkoutDisabled ?? false,
+      providers,
+      lastChecked:      new Date().toISOString(),
+    });
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, "[system-status/public] error");
+    res.json({
+      status: "UNKNOWN", message: null, checkoutDisabled: false, providers: [], lastChecked: new Date().toISOString(),
+    });
+  }
+});
+
 /* ── Public (signed-in) feed for banners + checkout gating ─────────────── */
 router.get("/system-status", requireAuth, (_req, res) => {
   try {

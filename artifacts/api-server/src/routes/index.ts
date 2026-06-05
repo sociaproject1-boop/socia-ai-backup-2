@@ -39,8 +39,9 @@ import paymongoRouter          from "./paymongo.js";
 import systemStatusRouter      from "./systemStatus.js";
 import aiOpsRouter             from "./aiOps.js";
 import aiGovernanceRouter      from "./aiGovernance.js";
-import alertSettingsRouter     from "./alertSettings.js";
-import socialPostsRouter       from "./socialPosts.js";
+import alertSettingsRouter       from "./alertSettings.js";
+import socialPostsRouter         from "./socialPosts.js";
+import userNotificationsRouter   from "./userNotifications.js";
 
 const router: IRouter = Router();
 
@@ -86,5 +87,6 @@ router.use(aiOpsRouter);
 router.use(aiGovernanceRouter);
 router.use(alertSettingsRouter);
 router.use(socialPostsRouter);
+router.use(userNotificationsRouter);
 
 export default router;

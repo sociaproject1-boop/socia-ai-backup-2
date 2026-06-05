@@ -12,7 +12,7 @@ import type { DbUser } from "@/lib/supabase";
 import { useAuth } from "@/lib/authContext";
 import { NameBadges, OnlineDot } from "@/components/Badges";
 import { usePresenceStatus } from "@/lib/usePresence";
-import { FounderHero, KingBadge, VerifiedFounderBadge } from "@/components/profile/FounderHero";
+import { FounderHero, VerifiedFounderBadge } from "@/components/profile/FounderHero";
 
 function compact(n: number) {
   if (n < 1000) return String(n);
@@ -195,7 +195,7 @@ export default function UserProfile() {
           {/* Centered identity section */}
           <div className="px-5 pt-4 text-center pb-8">
 
-            {/* Name row: [verified] Name [KING] */}
+            {/* Name row: [verified] Name */}
             <div className="flex items-center justify-center gap-2 flex-wrap">
               <VerifiedFounderBadge />
               <h2 style={{
@@ -204,7 +204,6 @@ export default function UserProfile() {
               }}>
                 {profile.name || profile.username || "Unknown"}
               </h2>
-              <KingBadge />
             </div>
 
             {/* Founder • Socia */}

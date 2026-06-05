@@ -111,17 +111,21 @@ interface FogBlob  { x: number; y: number; r: number; alpha: number; dx: number;
    FounderHero
 ══════════════════════════════════════════════════════════════════════════ */
 interface Props {
-  avatarUrl?:    string | null;
-  initials?:     string;
-  isOnline?:     boolean;
-  isEditing?:    boolean;
-  onAvatarClick?: () => void;
-  uploading?:    boolean;
+  avatarUrl?:      string | null;
+  initials?:       string;
+  isOnline?:       boolean;
+  isEditing?:      boolean;
+  onAvatarClick?:  () => void;
+  uploading?:      boolean;
+  coverPhotoUrl?:  string | null;
+  onCoverClick?:   () => void;
+  coverUploading?: boolean;
 }
 
 export function FounderHero({
   avatarUrl, initials = "A", isOnline = false,
   isEditing = false, onAvatarClick, uploading = false,
+  coverPhotoUrl = null, onCoverClick, coverUploading = false,
 }: Props) {
   const canvasRef      = useRef<HTMLCanvasElement>(null);
   const videoRef       = useRef<HTMLVideoElement>(null);
@@ -298,16 +302,49 @@ export function FounderHero({
   return (
     <div className="relative w-full overflow-hidden select-none" style={{ height: 310 }}>
 
-      {/* ── Layer 1: Video ────────────────────────────────────────── */}
-      <video
-        ref={videoRef}
-        autoPlay muted loop playsInline
-        onError={() => setVideoOk(false)}
-        className="absolute inset-0 h-full w-full object-cover"
-        style={{ display: videoOk ? "block" : "none" }}
-      >
-        {VIDEO_SRCS.map(src => <source key={src} src={src} type="video/mp4" />)}
-      </video>
+      {/* ── Layer 1a: Cover photo (owner-uploaded, overrides video) ── */}
+      {coverPhotoUrl ? (
+        <img
+          src={coverPhotoUrl}
+          alt="cover"
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ display: "block" }}
+        />
+      ) : (
+        /* ── Layer 1b: Video (fallback when no cover photo) ─────── */
+        <video
+          ref={videoRef}
+          autoPlay muted loop playsInline
+          onError={() => setVideoOk(false)}
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ display: videoOk ? "block" : "none" }}
+        >
+          {VIDEO_SRCS.map(src => <source key={src} src={src} type="video/mp4" />)}
+        </video>
+      )}
+
+      {/* ── Cover photo edit overlay (tap to change) ─────────────── */}
+      {isEditing && onCoverClick && (
+        <button
+          onClick={onCoverClick}
+          className="absolute inset-0 z-10 flex flex-col items-center justify-start pt-6 gap-1"
+          style={{ background: "rgba(0,0,0,0.38)" }}
+        >
+          {coverUploading
+            ? <span className="h-7 w-7 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            : (
+              <>
+                <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 26, height: 26 }}>
+                  <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" />
+                  <circle cx="12" cy="13" r="4" />
+                </svg>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "white", letterSpacing: "0.06em" }}>
+                  {coverPhotoUrl ? "Change Cover" : "Add Cover Photo"}
+                </span>
+              </>
+            )}
+        </button>
+      )}
 
       {/* ── Layer 2: Canvas particles / effects ───────────────────── */}
       <canvas
