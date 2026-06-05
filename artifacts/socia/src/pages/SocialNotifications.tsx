@@ -5,7 +5,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
-import { ArrowLeft, Bell, Heart, MessageCircle, UserPlus, AtSign, RefreshCw } from "lucide-react";
+import { ArrowLeft, Bell, Heart, MessageCircle, UserPlus, AtSign, RefreshCw, Star } from "lucide-react";
 import {
   fetchNotifications,
   markAllNotificationsRead,
@@ -28,6 +28,7 @@ function notifIcon(type: Notification["type"]) {
   if (type === "reply")   return <MessageCircle className="h-4 w-4 text-sky-400" />;
   if (type === "follow")  return <UserPlus className="h-4 w-4 text-emerald-400" />;
   if (type === "mention") return <AtSign className="h-4 w-4 text-purple-400" />;
+  if (type === "stars")   return <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />;
   return <Bell className="h-4 w-4 app-text-muted" />;
 }
 
@@ -38,6 +39,10 @@ function notifText(n: Notification): string {
   if (n.type === "reply")   return `${name} replied to your comment`;
   if (n.type === "follow")  return `${name} started following you`;
   if (n.type === "mention") return `${name} mentioned you`;
+  if (n.type === "stars") {
+    const amt = n.metadata?.amount;
+    return amt ? `${name} sent you ${amt} star${amt !== 1 ? "s" : ""} ⭐` : `${name} sent you stars ⭐`;
+  }
   return `${name} interacted with your content`;
 }
 

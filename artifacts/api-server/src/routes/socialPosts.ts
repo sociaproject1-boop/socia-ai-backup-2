@@ -109,7 +109,7 @@ async function fireNotification(payload: {
   actor_id:   string;
   post_id?:   string;
   comment_id?: string;
-  type:       "like" | "comment" | "reply" | "follow" | "mention";
+  type:       "like" | "comment" | "reply" | "follow" | "mention" | "stars";
 }) {
   /* Don't notify yourself */
   if (payload.user_id === payload.actor_id) return;

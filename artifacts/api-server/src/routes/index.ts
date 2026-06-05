@@ -45,6 +45,7 @@ import userNotificationsRouter   from "./userNotifications.js";
 import searchRouter              from "./search.js";
 import tipRouter                 from "./tip.js";
 import streamsRouter             from "./streams.js";
+import starsRouter               from "./stars.js";
 
 const router: IRouter = Router();
 
@@ -94,5 +95,6 @@ router.use(userNotificationsRouter);
 router.use(searchRouter);
 router.use(tipRouter);
 router.use(streamsRouter);
+router.use(starsRouter);
 
 export default router;

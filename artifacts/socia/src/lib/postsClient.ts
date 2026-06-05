@@ -65,11 +65,12 @@ export interface Comment {
 
 export interface Notification {
   id: string;
-  type: "like" | "comment" | "reply" | "follow" | "mention";
+  type: "like" | "comment" | "reply" | "follow" | "mention" | "stars";
   read: boolean;
   created_at: string;
   post_id: string | null;
   comment_id: string | null;
+  metadata?: { amount?: number; transaction_id?: string } | null;
   actor: {
     id: string;
     name: string;

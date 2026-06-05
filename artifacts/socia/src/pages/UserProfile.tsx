@@ -6,7 +6,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { ArrowLeft, MessageCircle, UserPlus, UserCheck, Facebook, Instagram, Music2, Grid3x3 } from "lucide-react";
+import { ArrowLeft, MessageCircle, UserPlus, UserCheck, Facebook, Instagram, Music2, Grid3x3, Star } from "lucide-react";
+import SendStarsModal from "@/components/stars/SendStarsModal";
 import { supabase } from "@/lib/supabase";
 import type { DbUser } from "@/lib/supabase";
 import { useAuth } from "@/lib/authContext";
@@ -33,6 +34,7 @@ export default function UserProfile() {
   const [followed,      setFollowed]      = useState(false);
   const [followWorking, setFollowWorking] = useState(false);
   const [userPosts,     setUserPosts]     = useState<SocialPost[]>([]);
+  const [starsOpen,     setStarsOpen]     = useState(false);
 
   const fetchCounts = async () => {
     const { data, error } = await supabase
@@ -193,7 +195,8 @@ export default function UserProfile() {
   const avatarSrc = profile.avatar_url;
   const initials  = (profile.name || "?").charAt(0).toUpperCase();
 
-  /* ── Follow + Message action buttons ── */
+  /* ── Follow + Message + Stars action buttons ── */
+  const isOwnProfile = !!sessionUid && sessionUid === userId;
   const ActionButtons = () => (
     <div className="flex gap-2">
       <motion.button
@@ -215,6 +218,16 @@ export default function UserProfile() {
       >
         <MessageCircle className="h-3.5 w-3.5" /> Message
       </motion.button>
+      {!isOwnProfile && sessionUid && (
+        <motion.button
+          type="button" whileTap={{ scale: 0.9 }}
+          onClick={() => setStarsOpen(true)}
+          className="flex h-9 items-center gap-1.5 rounded-full px-4 text-xs font-semibold text-white"
+          style={{ background: "rgba(251,191,36,0.12)", border: "1.5px solid rgba(251,191,36,0.3)" }}
+        >
+          <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" /> Stars
+        </motion.button>
+      )}
     </div>
   );
 
@@ -448,6 +461,19 @@ export default function UserProfile() {
             </div>
           </div>
         </>
+      )}
+
+      {/* ── Send Stars Modal ─────────────────────────────────────────────── */}
+      {starsOpen && profile && (
+        <SendStarsModal
+          creator={{
+            id:         profile.id,
+            name:       profile.name ?? null,
+            username:   profile.username ?? null,
+            avatar_url: profile.avatar_url ?? null,
+          }}
+          onClose={() => setStarsOpen(false)}
+        />
       )}
     </div>
   );
