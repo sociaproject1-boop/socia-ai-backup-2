@@ -351,7 +351,7 @@ export default function Profile() {
               }}>
                 {user.name}
               </h2>
-              <KingBadge />
+              {/* KingBadge removed — founder identity lives in VerifiedFounderBadge */}
             </div>
 
             {/* Founder • Socia */}

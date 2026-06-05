@@ -7,6 +7,7 @@ import {
 import { useBillingStore } from "@/lib/billing";
 import { useEffect } from "react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 
 /**
@@ -100,6 +101,7 @@ export default function CreateHub() {
   const summary = useBillingStore((s) => s.summary);
   const { refresh } = useBillingStore();
   const isAdmin = useIsAdmin();
+  const isOwner = useAppStore((s) => s.user?.isOwner === true);
   const { toast } = useToast();
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -132,7 +134,7 @@ export default function CreateHub() {
           {MODES.map((m, i) => {
             const Icon = m.icon;
             const premiumLocked  = m.premium && !isPaid;
-            const comingSoonLocked = m.comingSoon && !isAdmin;
+            const comingSoonLocked = m.comingSoon && !isAdmin && !isOwner;
 
             const handleClick = () => {
               if (comingSoonLocked) {

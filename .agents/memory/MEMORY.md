@@ -18,3 +18,5 @@
 - [AI Operations Center](ai-ops-dashboard.md) — owner-only AI monitoring built only from usage_receipts + engineRegistry + system-status/ai; success-only cost, tokens chat-only, never query credit_ledger.
 - [Incident timeline / outage history](incident-timeline.md) — appendLog() is the single choke point; ONLINE closes, problem opens/escalates, UNKNOWN leaves open; persisted in system-status-state.json.
 - [AI Governance Routing Platform](ai-governance-routing.md) — owner DB overlay on aiTopology; permissive default sacred; hard-wired routes must pass requireProvider; success-only budget + invalidateSpendCache; saves 409-conflict.
+- [Social upload & owner gates](social-upload-owner-gates.md) — ComingSoonGuard + CreateHub both require is_owner OR isAdmin; BottomNav center + button; migration 42 is the social schema source of truth.
+- [Alert channel config](alert-channel-config.md) — alert_settings table (migration 42) lets owner save email/phone/webhook per-user; SystemStatusCenter has expandable Configure panel; VerifiedFounderBadge is now blue (Twitter style), KingBadge removed.

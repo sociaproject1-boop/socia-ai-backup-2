@@ -8,10 +8,10 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, RefreshCw, Wrench, AlertTriangle, ShieldCheck, Power, Clock,
-  Bell, BellOff, Mail, MessageSquare, Webhook, Send,
+  Bell, BellOff, Mail, MessageSquare, Webhook, Send, Settings2, Check,
 } from "lucide-react";
 import {
   fetchFullStatus,
@@ -26,6 +26,7 @@ import {
   SYSTEM_STATUS_CHANNEL,
   type FullStatus,
 } from "@/lib/systemStatus";
+import { getAlertSettings, saveAlertSettings, type AlertSettingsPayload } from "@/lib/postsClient";
 import { StatusPill, ProviderRow, IncidentTimeline, relativeTime } from "@/components/status/statusUi";
 
 export default function SystemStatusCenter() {
@@ -37,6 +38,17 @@ export default function SystemStatusCenter() {
   const [alertBusy, setAlertBusy] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /* ── Alert channel config state ────────────────────────────────────── */
+  const [showConfig, setShowConfig]       = useState(false);
+  const [configBusy, setConfigBusy]       = useState(false);
+  const [configSaved, setConfigSaved]     = useState(false);
+  const [cfgEmail,   setCfgEmail]         = useState("");
+  const [cfgPhone,   setCfgPhone]         = useState("");
+  const [cfgWebhook, setCfgWebhook]       = useState("");
+  const [cfgEmailOn, setCfgEmailOn]       = useState(false);
+  const [cfgSmsOn,   setCfgSmsOn]         = useState(false);
+  const [cfgWebOn,   setCfgWebOn]         = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -103,6 +115,47 @@ export default function SystemStatusCenter() {
       setError(e instanceof Error ? e.message : "Test alert failed");
     } finally {
       setAlertBusy(false);
+    }
+  };
+
+  /* Load alert channel config when config panel opens */
+  useEffect(() => {
+    if (!showConfig) return;
+    setConfigBusy(true);
+    getAlertSettings()
+      .then(({ settings }) => {
+        if (settings) {
+          setCfgEmail(settings.email_address ?? "");
+          setCfgPhone(settings.phone_number  ?? "");
+          setCfgWebhook(settings.webhook_url ?? "");
+          setCfgEmailOn(settings.email_enabled);
+          setCfgSmsOn(settings.sms_enabled);
+          setCfgWebOn(settings.webhook_enabled);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setConfigBusy(false));
+  }, [showConfig]);
+
+  const saveConfig = async () => {
+    setConfigBusy(true);
+    setConfigSaved(false);
+    const payload: AlertSettingsPayload = {
+      email_enabled:   cfgEmailOn,
+      sms_enabled:     cfgSmsOn,
+      webhook_enabled: cfgWebOn,
+      email_address:   cfgEmail.trim() || null,
+      phone_number:    cfgPhone.trim() || null,
+      webhook_url:     cfgWebhook.trim() || null,
+    };
+    try {
+      await saveAlertSettings(payload);
+      setConfigSaved(true);
+      setTimeout(() => setConfigSaved(false), 2200);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save alert settings");
+    } finally {
+      setConfigBusy(false);
     }
   };
 
@@ -296,6 +349,118 @@ export default function SystemStatusCenter() {
                 <div className="text-xs app-text-muted mb-3">No open alert incidents.</div>
               )}
 
+              {/* Configure channels button */}
+              <button
+                onClick={() => setShowConfig((v) => !v)}
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-2xl bg-white/8 border border-white/12 py-2.5 text-xs font-bold app-text mb-2"
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+                {showConfig ? "Close channel config" : "Configure channels"}
+              </button>
+
+              {/* Expandable channel config panel */}
+              <AnimatePresence>
+                {showConfig && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-3 space-y-3">
+                      <p className="text-[10px] font-bold uppercase tracking-widest app-text-muted">
+                        Alert channel credentials
+                      </p>
+
+                      {/* Email */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-1.5 text-xs font-semibold app-text">
+                            <Mail className="h-3.5 w-3.5" /> Email alerts
+                          </label>
+                          <button
+                            role="switch"
+                            aria-checked={cfgEmailOn}
+                            onClick={() => setCfgEmailOn((v) => !v)}
+                            className={`relative h-6 w-10 flex-shrink-0 rounded-full transition-colors ${cfgEmailOn ? "bg-blue-500/70" : "bg-white/15"}`}
+                          >
+                            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${cfgEmailOn ? "translate-x-5" : "translate-x-0.5"}`} />
+                          </button>
+                        </div>
+                        <input
+                          value={cfgEmail}
+                          onChange={(e) => setCfgEmail(e.target.value)}
+                          placeholder="owner@example.com"
+                          type="email"
+                          className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs app-text placeholder:app-text-muted outline-none focus:border-white/25"
+                        />
+                      </div>
+
+                      {/* SMS */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-1.5 text-xs font-semibold app-text">
+                            <MessageSquare className="h-3.5 w-3.5" /> SMS alerts
+                          </label>
+                          <button
+                            role="switch"
+                            aria-checked={cfgSmsOn}
+                            onClick={() => setCfgSmsOn((v) => !v)}
+                            className={`relative h-6 w-10 flex-shrink-0 rounded-full transition-colors ${cfgSmsOn ? "bg-blue-500/70" : "bg-white/15"}`}
+                          >
+                            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${cfgSmsOn ? "translate-x-5" : "translate-x-0.5"}`} />
+                          </button>
+                        </div>
+                        <input
+                          value={cfgPhone}
+                          onChange={(e) => setCfgPhone(e.target.value)}
+                          placeholder="+63 9XX XXX XXXX"
+                          type="tel"
+                          className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs app-text placeholder:app-text-muted outline-none focus:border-white/25"
+                        />
+                        <p className="text-[10px] app-text-muted">Requires TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER env vars.</p>
+                      </div>
+
+                      {/* Webhook */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-1.5 text-xs font-semibold app-text">
+                            <Webhook className="h-3.5 w-3.5" /> Webhook alerts
+                          </label>
+                          <button
+                            role="switch"
+                            aria-checked={cfgWebOn}
+                            onClick={() => setCfgWebOn((v) => !v)}
+                            className={`relative h-6 w-10 flex-shrink-0 rounded-full transition-colors ${cfgWebOn ? "bg-blue-500/70" : "bg-white/15"}`}
+                          >
+                            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${cfgWebOn ? "translate-x-5" : "translate-x-0.5"}`} />
+                          </button>
+                        </div>
+                        <input
+                          value={cfgWebhook}
+                          onChange={(e) => setCfgWebhook(e.target.value)}
+                          placeholder="https://hooks.slack.com/…"
+                          type="url"
+                          className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs app-text placeholder:app-text-muted outline-none focus:border-white/25"
+                        />
+                        <p className="text-[10px] app-text-muted">Sends JSON POST — compatible with Slack, Discord, or any custom webhook.</p>
+                      </div>
+
+                      {/* Save */}
+                      <button
+                        onClick={saveConfig}
+                        disabled={configBusy}
+                        className="w-full inline-flex items-center justify-center gap-1.5 rounded-2xl py-2.5 text-xs font-bold text-white disabled:opacity-40"
+                        style={{ background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))" }}
+                      >
+                        {configBusy ? "Saving…" : configSaved ? <><Check className="h-3.5 w-3.5" /> Saved!</> : "Save channel settings"}
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Test alert */}
               <button
                 onClick={fireTestAlert}
@@ -307,7 +472,7 @@ export default function SystemStatusCenter() {
               {testResult && <div className="mt-2 text-[11px] app-text-muted text-center">{testResult}</div>}
               {armedCount === 0 && (
                 <div className="mt-2 text-[11px] app-text-muted text-center">
-                  No channels armed — configure email, SMS, or webhook credentials to receive alerts.
+                  No channels armed — tap "Configure channels" above to set up email, SMS, or webhook.
                 </div>
               )}
             </div>

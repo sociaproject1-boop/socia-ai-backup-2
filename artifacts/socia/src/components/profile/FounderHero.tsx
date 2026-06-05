@@ -442,11 +442,11 @@ export function KingBadge() {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
-   VerifiedFounderBadge — animated gold checkmark.
+   VerifiedFounderBadge — animated blue checkmark (Twitter/X style).
    Layers (back to front):
-     1. Outer rotating dashed ring  (6 s CW full rotation)
+     1. Outer rotating dashed ring  (6 s CW)
      2. Inner counter-rotating ring (9 s CCW)
-     3. Double pulse glow explosion (2.2 s)
+     3. Pulse glow explosion (2.4 s)
      4. Badge circle with shine sweep
 ══════════════════════════════════════════════════════════════════════════ */
 export function VerifiedFounderBadge() {
@@ -458,7 +458,7 @@ export function VerifiedFounderBadge() {
         transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
         style={{
           position: "absolute", inset: -4, borderRadius: "50%",
-          border: "1.5px dashed rgba(251,191,36,0.75)",
+          border: "1.5px dashed rgba(29,155,240,0.7)",
           pointerEvents: "none",
         }}
       />
@@ -468,17 +468,17 @@ export function VerifiedFounderBadge() {
         transition={{ duration: 9, repeat: Infinity, ease: "linear" }}
         style={{
           position: "absolute", inset: -1.5, borderRadius: "50%",
-          border: "1px solid rgba(253,230,138,0.45)",
+          border: "1px solid rgba(96,165,250,0.4)",
           pointerEvents: "none",
         }}
       />
       {/* Glow pulse explosion */}
       <motion.div
-        animate={{ scale: [1, 1.7, 1], opacity: [0.55, 0, 0.55] }}
-        transition={{ duration: 2.2, repeat: Infinity, ease: "easeOut" }}
+        animate={{ scale: [1, 1.7, 1], opacity: [0.5, 0, 0.5] }}
+        transition={{ duration: 2.4, repeat: Infinity, ease: "easeOut" }}
         style={{
           position: "absolute", inset: -5, borderRadius: "50%",
-          background: "rgba(251,191,36,0.38)",
+          background: "rgba(29,155,240,0.35)",
           pointerEvents: "none",
         }}
       />
@@ -488,23 +488,23 @@ export function VerifiedFounderBadge() {
         transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
         style={{
           position: "relative", width: 28, height: 28, borderRadius: "50%",
-          background: "linear-gradient(135deg, #d97706, #fbbf24 55%, #f59e0b)",
-          boxShadow: "0 0 16px rgba(251,191,36,0.75), 0 0 32px rgba(245,158,11,0.35)",
+          background: "linear-gradient(135deg, #1d9bf0, #0e71c7 55%, #1a8cd8)",
+          boxShadow: "0 0 16px rgba(29,155,240,0.8), 0 0 32px rgba(14,113,199,0.4)",
           display: "grid", placeItems: "center", overflow: "hidden",
         }}
       >
         {/* Checkmark */}
-        <svg viewBox="0 0 12 12" style={{ width: 12, height: 12, position: "relative", zIndex: 1 }}>
-          <path d="M2 6.5 L5 9.5 L10 3" stroke="#000" strokeWidth="2.2"
+        <svg viewBox="0 0 12 12" style={{ width: 13, height: 13, position: "relative", zIndex: 1 }}>
+          <path d="M2 6.5 L5 9.5 L10 3" stroke="#fff" strokeWidth="2.2"
             strokeLinecap="round" strokeLinejoin="round" fill="none" />
         </svg>
         {/* Shine sweep */}
         <motion.div
           animate={{ x: ["-160%", "160%"] }}
-          transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 1.8, ease: "easeInOut" }}
+          transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 2.0, ease: "easeInOut" }}
           style={{
             position: "absolute", top: "-10%", bottom: "-10%", width: "45%",
-            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent)",
+            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)",
             transform: "skewX(-18deg)", zIndex: 2,
           }}
         />

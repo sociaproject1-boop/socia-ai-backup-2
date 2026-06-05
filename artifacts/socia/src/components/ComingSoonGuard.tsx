@@ -2,21 +2,9 @@
  * ComingSoonGuard — reusable route-level lock for modules whose
  * backend/API integrations aren't production-ready yet.
  *
- * Two uses:
- *   1. As a *wrapper*: pass `children` and an `enabled` flag. When
- *      `enabled` is true (default: non-admin), the children never
- *      render — we show a Coming Soon screen instead. This means none
- *      of the locked page's queries, sockets, or heavy setup ever
- *      mounts, which is both safer (no leaked API calls) and lighter.
- *   2. As a *fallback*: render `<ComingSoonScreen title="…" />`
- *      directly.
- *
- * The lock is rendered as a full-page card so it slots in cleanly
- * under the app shell without disturbing the bottom nav. A clear
- * "Back to Create" action gets the user back where they came from —
- * we use `navigate("/create")` rather than `history.back()` so that
- * non-admins who land here via a deep link / refresh still get a
- * sensible destination.
+ * Unlocked for:
+ *   1. Super-admins (JWT-based, via useAdminState)
+ *   2. The platform owner (Supabase user with is_owner=true)
  */
 
 import { useEffect } from "react";
@@ -24,6 +12,7 @@ import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { ArrowLeft, Sparkles, Cpu } from "lucide-react";
 import { useAdminState } from "@/hooks/useIsAdmin";
+import { useAppStore } from "@/lib/store";
 
 interface ScreenProps {
   title: string;
@@ -59,7 +48,6 @@ export function ComingSoonScreen({
             "0 20px 60px -16px rgba(99,102,241,0.45), inset 0 1px 0 rgba(255,255,255,0.05)",
         }}
       >
-        {/* Decorative glow blob — purely visual. */}
         <div
           aria-hidden
           className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full"
@@ -105,36 +93,32 @@ export function ComingSoonScreen({
 }
 
 interface GuardProps {
-  /** Title shown on the Coming Soon screen if the user is locked out. */
   title: string;
   subtitle?: string;
   children: React.ReactNode;
 }
 
 /**
- * Wraps a route component. Admins see `children`; everyone else gets
- * the Coming Soon screen — and the wrapped component never mounts,
- * so no API calls, sockets, or render workers spin up for non-admins.
+ * Wraps a route component.
+ * Super-admins AND the platform owner (is_owner=true) see children.
+ * Everyone else gets the Coming Soon screen.
  */
 export function ComingSoonGuard({ title, subtitle, children }: GuardProps) {
   const { isAdmin, hydrated } = useAdminState();
+  const isOwner = useAppStore((s) => s.user?.isOwner === true);
   const [location, navigate] = useLocation();
 
-  /* Auto-redirect only after admin status is RESOLVED as non-admin.
-     Without the hydration check, real admins on a deep link / refresh
-     would get bounced before `adminFetchSession()` rehydrates the
-     store from localStorage. */
+  const isUnlocked = isAdmin || isOwner;
+
   useEffect(() => {
-    if (!hydrated || isAdmin) return;
+    if (!hydrated || isUnlocked) return;
     const t = window.setTimeout(() => {
       if (window.location.pathname.endsWith(location)) navigate("/create");
     }, 2400);
     return () => window.clearTimeout(t);
-  }, [hydrated, isAdmin, location, navigate]);
+  }, [hydrated, isUnlocked, location, navigate]);
 
-  /* Hold the page invisible while we resolve admin status — prevents
-     the lock screen from flashing for a real admin during bootstrap. */
   if (!hydrated) return null;
-  if (!isAdmin) return <ComingSoonScreen title={title} subtitle={subtitle} />;
+  if (!isUnlocked) return <ComingSoonScreen title={title} subtitle={subtitle} />;
   return <>{children}</>;
 }
