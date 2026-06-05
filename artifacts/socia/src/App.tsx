@@ -74,6 +74,8 @@ const SupportHub             = lazy(() => import("@/pages/SupportHub"));
 const SocialNotifications    = lazy(() => import("@/pages/SocialNotifications"));
 const SearchPage             = lazy(() => import("@/pages/Search"));
 const CreatorDashboard       = lazy(() => import("@/pages/CreatorDashboard"));
+const LiveStream             = lazy(() => import("@/pages/LiveStream"));
+const GoLive                 = lazy(() => import("@/pages/GoLive"));
 
 // Stable wrapper components defined outside Router to avoid remounts on re-render.
 // They reference lazy components which are resolved by the nearest Suspense boundary.
@@ -193,6 +195,8 @@ function Router() {
       <Route path="/messages/:id"         component={ChatThread} />
       <Route path="/profile"              component={Profile} />
       <Route path="/creator/dashboard"    component={CreatorDashboard} />
+      <Route path="/live/:id"             component={LiveStream} />
+      <Route path="/go-live"              component={GoLive} />
       <Route path="/profile/settings"     component={Settings} />
       <Route path="/profile/:id"          component={UserProfile} />
       <Route path="/post/:id"             component={PostDetail} />

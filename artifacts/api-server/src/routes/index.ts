@@ -44,6 +44,7 @@ import socialPostsRouter         from "./socialPosts.js";
 import userNotificationsRouter   from "./userNotifications.js";
 import searchRouter              from "./search.js";
 import tipRouter                 from "./tip.js";
+import streamsRouter             from "./streams.js";
 
 const router: IRouter = Router();
 
@@ -92,5 +93,6 @@ router.use(socialPostsRouter);
 router.use(userNotificationsRouter);
 router.use(searchRouter);
 router.use(tipRouter);
+router.use(streamsRouter);
 
 export default router;

@@ -421,3 +421,11 @@ html.light {
   0%, 100% { transform: translate3d(0, 0, 0); }
   50%      { transform: translate3d(var(--dx, 6px), var(--dy, -8px), 0); }
 }
+@keyframes livePulse {
+  0%, 100% { opacity: 1;    transform: scale(1);    }
+  50%      { opacity: 0.55; transform: scale(1.15); }
+}
+@keyframes spin {
+  from { transform: rotate(0deg);   }
+  to   { transform: rotate(360deg); }
+}

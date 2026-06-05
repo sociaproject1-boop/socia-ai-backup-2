@@ -11,10 +11,11 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Flame, Sparkles, RefreshCw, ArrowUp, WifiOff } from "lucide-react";
+import { Flame, Sparkles, RefreshCw, ArrowUp, WifiOff, Radio } from "lucide-react";
 import { FeedCard } from "@/components/feed/FeedCard";
 import { SupportSociaCard } from "@/components/home/SupportSociaCard";
 import { ImmersiveViewer } from "@/components/feed/ImmersiveViewer";
+import { LiveNowSection } from "@/components/live/LiveNowSection";
 import { useFeed, type FeedMode } from "@/lib/useFeed";
 import { useAppStore } from "@/lib/store";
 import { deletePost, type SocialPost } from "@/lib/postsClient";
@@ -140,6 +141,28 @@ export default function Home() {
         ))}
 
         <div className="flex-1" />
+
+        {/* Go Live shortcut */}
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={() => navigate("/go-live")}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            background: "rgba(239,68,68,0.14)",
+            border: "1px solid rgba(239,68,68,0.35)",
+            borderRadius: 20,
+            padding: "4px 10px 4px 8px",
+            cursor: "pointer",
+            marginRight: 4,
+          }}
+          aria-label="Go Live"
+        >
+          <Radio style={{ width: 11, height: 11, color: "#f87171" }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#f87171", letterSpacing: "0.02em" }}>Live</span>
+        </motion.button>
+
         <motion.button
           whileTap={{ scale: 0.85 }}
           onClick={refresh}
@@ -165,6 +188,9 @@ export default function Home() {
           </motion.button>
         )}
       </AnimatePresence>
+
+      {/* ── Live Now section ──────────────────────────────────────────── */}
+      <LiveNowSection />
 
       {/* ── Trending prompts (compact strip) ──────────────────────────── */}
       <div className="px-4 pt-3 pb-1">
