@@ -24,6 +24,8 @@ interface Props {
   onSave: (postId: string) => void;
   onComment: (postId: string) => void;
   onDelete?: (postId: string) => void;
+  /** If provided, single-tap on media opens the immersive viewer instead of navigating */
+  onOpenViewer?: (post: SocialPost) => void;
 }
 
 function relTime(iso: string): string {
@@ -41,7 +43,7 @@ function fmtCount(n: number): string {
   return String(n);
 }
 
-export function FeedCard({ post, onLike, onSave, onComment, onDelete }: Props) {
+export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenViewer }: Props) {
   const [, navigate]   = useLocation();
   const me             = useAppStore((s) => s.user);
   const followedIds    = useAppStore((s) => s.followedUserIds);
@@ -82,10 +84,11 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete }: Props) {
     touchStartY.current = null;
   }, [hasMulti, media.length]);
 
-  /* ── Double-tap to like ─────────────────────────────────────────────── */
+  /* ── Double-tap to like; single-tap opens immersive viewer ──────────── */
   const handleMediaTap = useCallback(() => {
     const now = Date.now();
     if (now - lastTap.current < 300) {
+      /* Double-tap → like */
       if (!post.has_liked) {
         onLike(post.id);
         setHeartBurst(true);
@@ -96,12 +99,14 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete }: Props) {
       lastTap.current = now;
       setTimeout(() => {
         if (lastTap.current === now) {
-          navigate(`/post/${post.id}`);
+          /* Single-tap → immersive viewer (or fall back to post detail) */
+          if (onOpenViewer) onOpenViewer(post);
+          else navigate(`/post/${post.id}`);
           lastTap.current = 0;
         }
       }, 310);
     }
-  }, [post.has_liked, post.id, onLike, navigate]);
+  }, [post, onLike, onOpenViewer, navigate]);
 
   /* ── Follow / unfollow ──────────────────────────────────────────────── */
   const handleFollow = useCallback(async (e: React.MouseEvent) => {

@@ -14,9 +14,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Flame, Sparkles, RefreshCw, ArrowUp, WifiOff } from "lucide-react";
 import { FeedCard } from "@/components/feed/FeedCard";
 import { SupportSociaCard } from "@/components/home/SupportSociaCard";
+import { ImmersiveViewer } from "@/components/feed/ImmersiveViewer";
 import { useFeed, type FeedMode } from "@/lib/useFeed";
 import { useAppStore } from "@/lib/store";
-import { deletePost } from "@/lib/postsClient";
+import { deletePost, type SocialPost } from "@/lib/postsClient";
 
 const TRENDING_PROMPTS = [
   "Neon city at midnight",
@@ -58,6 +59,7 @@ export default function Home() {
   const setActivePrompt  = useAppStore((s) => s.setActivePrompt);
 
   const [feedTab, setFeedTab] = useState<FeedMode>("for-you");
+  const [viewerIdx, setViewerIdx] = useState<number | null>(null);
 
   const {
     posts,
@@ -96,6 +98,12 @@ export default function Home() {
     }
   }, [removePost]);
 
+  /* ── Open immersive viewer ───────────────────────────────────────────── */
+  const handleOpenViewer = useCallback((post: SocialPost) => {
+    const idx = posts.findIndex((p) => p.id === post.id);
+    setViewerIdx(idx >= 0 ? idx : 0);
+  }, [posts]);
+
   /* ── Navigate to post detail / comment ──────────────────────────────── */
   const handleComment = useCallback((postId: string) => {
     navigate(`/post/${postId}`);
@@ -107,6 +115,7 @@ export default function Home() {
   };
 
   return (
+    <>
     <div className="app-bg pb-28 scroll-native h-full overflow-y-auto hide-scrollbar">
 
       {/* ── Sticky tab header ─────────────────────────────────────────── */}
@@ -248,6 +257,7 @@ export default function Home() {
                 onSave={handleSave}
                 onComment={handleComment}
                 onDelete={handleDelete}
+                onOpenViewer={handleOpenViewer}
               />
             ))}
           </div>
@@ -272,5 +282,20 @@ export default function Home() {
         </>
       )}
     </div>
+
+    {/* ── Immersive fullscreen viewer overlay ───────────────────────── */}
+    <AnimatePresence>
+      {viewerIdx !== null && (
+        <ImmersiveViewer
+          posts={posts}
+          startIndex={viewerIdx}
+          onClose={() => setViewerIdx(null)}
+          onLike={handleLike}
+          onSave={handleSave}
+          onComment={(postId) => { setViewerIdx(null); navigate(`/post/${postId}`); }}
+        />
+      )}
+    </AnimatePresence>
+    </>
   );
 }
