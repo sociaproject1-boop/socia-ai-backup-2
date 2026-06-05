@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useAppStore } from "@/lib/store";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -234,18 +234,34 @@ export default function Profile() {
     try { await supabase.from("users").update({ cover_photo_url: null }).eq("id", user.id); } catch { /* ok */ }
   };
 
-  /* ── Real posts from backend ────────────────────────────────────────── */
-  const [realMyPosts,       setRealMyPosts]       = useState<SocialPost[]>([]);
-  const [realSavedPosts,    setRealSavedPosts]    = useState<SocialPost[]>([]);
+  /* ── Real posts from backend (paginated) ───────────────────────────── */
+  const POSTS_PAGE = 20;
+  const [realMyPosts,        setRealMyPosts]        = useState<SocialPost[]>([]);
+  const [realSavedPosts,     setRealSavedPosts]     = useState<SocialPost[]>([]);
   const [liveCreationsCount, setLiveCreationsCount] = useState<number | null>(null);
-  const [creationsLoading,  setCreationsLoading]  = useState(true);
+  const [creationsLoading,   setCreationsLoading]   = useState(true);
+  const [postsOffset,        setPostsOffset]        = useState(0);
+  const [hasMorePosts,       setHasMorePosts]       = useState(false);
+  const [loadingMorePosts,   setLoadingMorePosts]   = useState(false);
+  const profileSentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!user?.id) return;
     let cancelled = false;
     setCreationsLoading(true);
-    fetchUserPosts(user.id, { limit: 60, viewerId: user.id })
-      .then((p) => { if (!cancelled) { setRealMyPosts(p); setCreationsLoading(false); } })
+    setRealMyPosts([]);
+    setPostsOffset(0);
+    setHasMorePosts(false);
+    fetchUserPosts(user.id, { limit: POSTS_PAGE + 1, offset: 0, viewerId: user.id })
+      .then((p) => {
+        if (!cancelled) {
+          const more = p.length > POSTS_PAGE;
+          setRealMyPosts(more ? p.slice(0, POSTS_PAGE) : p);
+          setHasMorePosts(more);
+          setPostsOffset(POSTS_PAGE);
+          setCreationsLoading(false);
+        }
+      })
       .catch(() => { if (!cancelled) setCreationsLoading(false); });
     fetchSavedFeed({ limit: 30 })
       .then((p) => { if (!cancelled) setRealSavedPosts(p); })
@@ -261,6 +277,31 @@ export default function Profile() {
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  const loadMorePosts = useCallback(async () => {
+    if (!user?.id || loadingMorePosts || !hasMorePosts) return;
+    setLoadingMorePosts(true);
+    try {
+      const p = await fetchUserPosts(user.id, { limit: POSTS_PAGE + 1, offset: postsOffset, viewerId: user.id });
+      const more = p.length > POSTS_PAGE;
+      setRealMyPosts((prev) => [...prev, ...(more ? p.slice(0, POSTS_PAGE) : p)]);
+      setHasMorePosts(more);
+      setPostsOffset((prev) => prev + POSTS_PAGE);
+    } catch { /* ok */ }
+    finally { setLoadingMorePosts(false); }
+  }, [user?.id, loadingMorePosts, hasMorePosts, postsOffset]);
+
+  /* IntersectionObserver — fires loadMorePosts when sentinel scrolls into view */
+  useEffect(() => {
+    const sentinel = profileSentinelRef.current;
+    if (!sentinel || !hasMorePosts) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMorePosts(); },
+      { threshold: 0.1 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMorePosts, loadMorePosts]);
 
   /* ── Live follower / following counts ──────────────────────────────── */
   useEffect(() => {
@@ -720,7 +761,19 @@ export default function Profile() {
                 )
                 : realMyPosts.length === 0
                   ? <EmptyState icon={Grid3x3} title="No creations yet" sub="Generate your first AI masterpiece." />
-                  : <div className="columns-2 gap-3">{realMyPosts.map((p, i) => <PostThumbnail key={p.id} post={p} index={i} />)}</div>
+                  : (
+                  <>
+                    <div className="columns-2 gap-3">{realMyPosts.map((p, i) => <PostThumbnail key={p.id} post={p} index={i} />)}</div>
+                    {hasMorePosts && (
+                      <div ref={profileSentinelRef} className="flex justify-center py-6">
+                        {loadingMorePosts && <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-purple-400" />}
+                      </div>
+                    )}
+                    {!hasMorePosts && realMyPosts.length > 0 && (
+                      <p className="py-4 text-center text-[10px] text-white/25">All {realMyPosts.length} creations loaded</p>
+                    )}
+                  </>
+                )
             )}
             {tab === "saved" && (
               <>

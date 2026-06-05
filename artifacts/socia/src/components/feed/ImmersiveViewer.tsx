@@ -323,6 +323,7 @@ export function ImmersiveViewer({
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       onClick={handleTap}
+      onContextMenu={(e) => e.preventDefault()}
     >
       {/* ── Media layer ───────────────────────────────────────────────── */}
       <AnimatePresence mode="wait" initial={false}>

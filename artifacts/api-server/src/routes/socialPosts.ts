@@ -600,34 +600,34 @@ router.post("/posts/:id/comments/:cid/report", requireAuth as any, async (req, r
 });
 
 /* ═══════════════════════════════════════════════════════════════════════
-   §6  VIEW COUNTER  (unique-view deduplication — in-memory per server session)
+   §6  VIEW COUNTER
+   Strategy:
+   • Authenticated users → DB-backed (post_views table, migration 45).
+     The record_post_view RPC atomically inserts and increments; the
+     unique constraint prevents double-counting across restarts/replicas.
+   • Anonymous users → in-memory 24 h fingerprint cache (IP + UA).
+     No user identity to store, so DB dedup is not possible.
 ═══════════════════════════════════════════════════════════════════════ */
 
-/**
- * Tracks (viewerKey, postId) pairs seen in this server session.
- * viewerKey = userId when authenticated, IP + user-agent fingerprint when anonymous.
- * Entries TTL: 24 h — we prune on each request.
- */
-const _viewSeen   = new Map<string, Set<string>>();   /* viewerKey → Set<postId> */
-const _viewSeenAt = new Map<string, number>();          /* viewerKey → last-seen timestamp */
-const VIEW_TTL_MS = 24 * 60 * 60 * 1000;              /* 24 h */
+/* ── Anonymous fallback: in-memory cache (anon users only) ── */
+const _anonSeen   = new Map<string, Set<string>>();
+const _anonSeenAt = new Map<string, number>();
+const ANON_TTL_MS = 24 * 60 * 60 * 1000;
 
-function pruneViewCache() {
+function pruneAnonCache() {
   const now = Date.now();
-  for (const [key, ts] of _viewSeenAt) {
-    if (now - ts > VIEW_TTL_MS) { _viewSeen.delete(key); _viewSeenAt.delete(key); }
+  for (const [key, ts] of _anonSeenAt) {
+    if (now - ts > ANON_TTL_MS) { _anonSeen.delete(key); _anonSeenAt.delete(key); }
   }
 }
-
-function hasViewedRecently(viewerKey: string, postId: string): boolean {
-  pruneViewCache();
-  return (_viewSeen.get(viewerKey) ?? new Set()).has(postId);
+function anonHasSeen(fingerprint: string, postId: string): boolean {
+  pruneAnonCache();
+  return (_anonSeen.get(fingerprint) ?? new Set()).has(postId);
 }
-
-function markViewed(viewerKey: string, postId: string) {
-  if (!_viewSeen.has(viewerKey)) _viewSeen.set(viewerKey, new Set());
-  _viewSeen.get(viewerKey)!.add(postId);
-  _viewSeenAt.set(viewerKey, Date.now());
+function anonMarkSeen(fingerprint: string, postId: string) {
+  if (!_anonSeen.has(fingerprint)) _anonSeen.set(fingerprint, new Set());
+  _anonSeen.get(fingerprint)!.add(postId);
+  _anonSeenAt.set(fingerprint, Date.now());
 }
 
 router.post("/posts/:id/view", async (req, res) => {
@@ -635,22 +635,28 @@ router.post("/posts/:id/view", async (req, res) => {
     const svc    = db();
     const postId = req.params["id"];
 
-    /* Build a stable viewer key (prefer authenticated userId, fallback to IP+UA) */
-    let viewerKey: string;
-    try {
-      viewerKey = getAuthedUser(req as any).id;
-    } catch {
+    let authedUserId: string | null = null;
+    try { authedUserId = getAuthedUser(req as any).id; } catch { /* anon */ }
+
+    if (authedUserId) {
+      /* ── Authenticated: DB-backed unique constraint ── */
+      try {
+        await svc.rpc("record_post_view", { p_post_id: postId, p_user_id: authedUserId });
+      } catch {
+        /* Graceful fallback if migration 45 hasn't run yet */
+        try { await svc.rpc("increment_post_views", { post_id: postId }); } catch { /* ok */ }
+      }
+    } else {
+      /* ── Anonymous: in-memory 24 h fingerprint ── */
       const ip = (req.headers["cf-connecting-ip"] as string)
         ?? (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim()
-        ?? req.socket?.remoteAddress
-        ?? "anon";
-      viewerKey = `${ip}:${(req.headers["user-agent"] ?? "").slice(0, 64)}`;
-    }
+        ?? req.socket?.remoteAddress ?? "anon";
+      const fingerprint = `${ip}:${(req.headers["user-agent"] ?? "").slice(0, 64)}`;
 
-    if (!hasViewedRecently(viewerKey, postId)) {
-      markViewed(viewerKey, postId);
-      /* Increment via RPC (graceful — table/function may not exist yet) */
-      try { await svc.rpc("increment_post_views", { post_id: postId }); } catch { /* ok */ }
+      if (!anonHasSeen(fingerprint, postId)) {
+        anonMarkSeen(fingerprint, postId);
+        try { await svc.rpc("increment_post_views", { post_id: postId }); } catch { /* ok */ }
+      }
     }
 
     res.json({ ok: true });

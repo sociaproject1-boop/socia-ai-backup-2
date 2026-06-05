@@ -3,7 +3,7 @@
  * Owner (is_owner=true) accounts get the full cinematic IMAGE-2 founder treatment.
  * Normal accounts get the standard layout.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { ArrowLeft, MessageCircle, UserPlus, UserCheck, Facebook, Instagram, Music2, Grid3x3 } from "lucide-react";
@@ -72,15 +72,55 @@ export default function UserProfile() {
     return () => { cancelled = true; };
   }, [userId, sessionUid]);
 
-  /* ── Fetch user's real posts ────────────────────────────────────────── */
+  /* ── Fetch user's real posts (paginated) ───────────────────────────── */
+  const UP_PAGE = 20;
+  const [postsOffset,      setPostsOffset]      = useState(0);
+  const [hasMorePosts,     setHasMorePosts]     = useState(false);
+  const [loadingMorePosts, setLoadingMorePosts] = useState(false);
+  const upSentinelRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
-    fetchUserPosts(userId, { limit: 30, viewerId: supabaseUser?.id })
-      .then((p) => { if (!cancelled) setUserPosts(p); })
+    setUserPosts([]);
+    setPostsOffset(0);
+    setHasMorePosts(false);
+    fetchUserPosts(userId, { limit: UP_PAGE + 1, offset: 0, viewerId: supabaseUser?.id })
+      .then((p) => {
+        if (!cancelled) {
+          const more = p.length > UP_PAGE;
+          setUserPosts(more ? p.slice(0, UP_PAGE) : p);
+          setHasMorePosts(more);
+          setPostsOffset(UP_PAGE);
+        }
+      })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [userId, supabaseUser?.id]);
+
+  const loadMoreUserPosts = useCallback(async () => {
+    if (!userId || loadingMorePosts || !hasMorePosts) return;
+    setLoadingMorePosts(true);
+    try {
+      const p = await fetchUserPosts(userId, { limit: UP_PAGE + 1, offset: postsOffset, viewerId: supabaseUser?.id });
+      const more = p.length > UP_PAGE;
+      setUserPosts((prev) => [...prev, ...(more ? p.slice(0, UP_PAGE) : p)]);
+      setHasMorePosts(more);
+      setPostsOffset((prev) => prev + UP_PAGE);
+    } catch { /* ok */ }
+    finally { setLoadingMorePosts(false); }
+  }, [userId, supabaseUser?.id, loadingMorePosts, hasMorePosts, postsOffset]);
+
+  useEffect(() => {
+    const sentinel = upSentinelRef.current;
+    if (!sentinel || !hasMorePosts) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMoreUserPosts(); },
+      { threshold: 0.1 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMorePosts, loadMoreUserPosts]);
 
   /* Realtime: live updates to this user's row */
   useEffect(() => {
@@ -290,6 +330,14 @@ export default function UserProfile() {
                   <div className="columns-2 gap-3">
                     {userPosts.map((p, i) => <PostThumbnail key={p.id} post={p} index={i} />)}
                   </div>
+                  {hasMorePosts && (
+                    <div ref={upSentinelRef} className="flex justify-center py-6">
+                      {loadingMorePosts && <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-purple-400" />}
+                    </div>
+                  )}
+                  {!hasMorePosts && userPosts.length >= UP_PAGE && (
+                    <p className="py-4 text-center text-[10px] text-white/25">All {userPosts.length} creations loaded</p>
+                  )}
                 </>
               )}
             </div>
@@ -387,6 +435,14 @@ export default function UserProfile() {
                   <div className="columns-2 gap-3">
                     {userPosts.map((p, i) => <PostThumbnail key={p.id} post={p} index={i} />)}
                   </div>
+                  {hasMorePosts && (
+                    <div ref={upSentinelRef} className="flex justify-center py-6">
+                      {loadingMorePosts && <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-purple-400" />}
+                    </div>
+                  )}
+                  {!hasMorePosts && userPosts.length >= UP_PAGE && (
+                    <p className="py-4 text-center text-[10px] text-white/25">All {userPosts.length} creations loaded</p>
+                  )}
                 </>
               )}
             </div>
