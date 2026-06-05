@@ -219,7 +219,7 @@ export default function UserProfile() {
   );
 
   return (
-    <div className="app-bg flex h-full flex-col overflow-y-auto hide-scrollbar">
+    <div className="app-bg flex flex-col relative">
 
       {/* ══════════════════════════════════════════════════════════════
           FOUNDER / OWNER LAYOUT — matches IMAGE 2
