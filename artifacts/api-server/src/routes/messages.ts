@@ -154,6 +154,62 @@ router.post("/messages/seen", requireAuth, async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
+/* ── POST /api/messages/delivered ───────────────────────────────────────── */
+
+router.post("/messages/delivered", requireAuth, async (req, res): Promise<void> => {
+  const user     = getAuthedUser(req);
+  const supabase = getRequestSupabase(req);
+
+  const { other_id } = (req.body ?? {}) as Record<string, unknown>;
+  if (!other_id || typeof other_id !== "string") {
+    res.status(400).json({ error: "other_id is required", code: "MISSING_OTHER_ID" });
+    return;
+  }
+
+  // ENFORCED: receiver_id = auth user — only mark messages sent TO us as delivered.
+  const { error } = await supabase
+    .from("messages")
+    .update({ delivered_at: new Date().toISOString() })
+    .eq("receiver_id", user.id)
+    .eq("sender_id",   String(other_id))
+    .is("delivered_at", null);
+
+  if (error) {
+    logger.warn({ err: error, userId: user.id }, "messages/delivered update failed");
+    // non-critical — respond ok anyway so UI is not blocked
+  }
+
+  res.json({ ok: true });
+});
+
+/* ── POST /api/messages/delete ───────────────────────────────────────────── */
+
+router.post("/messages/delete", requireAuth, async (req, res): Promise<void> => {
+  const user     = getAuthedUser(req);
+  const supabase = getRequestSupabase(req);
+
+  const { message_id } = (req.body ?? {}) as Record<string, unknown>;
+  if (!message_id || typeof message_id !== "string") {
+    res.status(400).json({ error: "message_id is required", code: "MISSING_ID" });
+    return;
+  }
+
+  // ENFORCED: sender_id = auth user — only the original sender can delete their message.
+  const { error } = await supabase
+    .from("messages")
+    .delete()
+    .eq("id",        String(message_id))
+    .eq("sender_id", user.id);
+
+  if (error) {
+    logger.error({ err: error, userId: user.id }, "messages/delete failed");
+    res.status(500).json({ error: "Failed to delete message", code: "DB_ERROR" });
+    return;
+  }
+
+  res.json({ ok: true });
+});
+
 /* ── POST /api/messages/edit ─────────────────────────────────────────────── */
 
 router.post("/messages/edit", requireAuth, async (req, res): Promise<void> => {

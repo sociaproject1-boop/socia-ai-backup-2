@@ -18,6 +18,7 @@ import {
   ArrowLeft, Plus, Send, Image as ImageIcon, Check, CheckCheck,
   X, Download, Mic, Play, Pause, Square, AlertCircle,
   Copy, Sparkles, Wand2, ChevronDown, CornerUpLeft,
+  Info, Trash2, Clock,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { useAuth } from "@/lib/authContext";
@@ -28,7 +29,9 @@ import {
   fetchUserById,
   sendMessage,
   editMessage,
+  deleteMessage,
   markThreadSeen,
+  markThreadDelivered,
   toggleReaction,
   uploadChatImage,
   uploadAudioMessage,
@@ -41,6 +44,51 @@ import {
 } from "@/lib/useSupabaseChat";
 import { usePresenceStatus } from "@/lib/usePresence";
 import { NameBadges } from "@/components/Badges";
+
+/* ════════════════════════════════════════════════════════════════════════ */
+/*  Timestamp helpers                                                        */
+/* ════════════════════════════════════════════════════════════════════════ */
+
+/** Exact timestamp: "Today 3:42 PM" / "Yesterday 10:11 AM" / "Jun 5, 2026 9:14 PM" */
+function fmtExact(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const now = new Date();
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  const todayStr = now.toDateString();
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  if (d.toDateString() === todayStr)     return `Today ${time}`;
+  if (d.toDateString() === yest.toDateString()) return `Yesterday ${time}`;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) + ` ${time}`;
+}
+
+/** Day-only label for the separator: "Today", "Yesterday", "Jun 5, 2026" */
+function fmtDay(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  if (d.toDateString() === now.toDateString())  return "Today";
+  if (d.toDateString() === yest.toDateString()) return "Yesterday";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+/** "3:42 PM" — short time only */
+function fmtShortTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
+/* ════════════════════════════════════════════════════════════════════════ */
+/*  Day separator                                                            */
+/* ════════════════════════════════════════════════════════════════════════ */
+function DaySeparator({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 my-3 px-1">
+      <div className="flex-1 h-px bg-white/[0.06]" />
+      <span className="text-[10px] text-white/30 font-medium px-1">{label}</span>
+      <div className="flex-1 h-px bg-white/[0.06]" />
+    </div>
+  );
+}
 
 /* ════════════════════════════════════════════════════════════════════════ */
 /*  Skeleton loader                                                          */
@@ -285,6 +333,8 @@ interface BubbleProps {
   groupedNext:  boolean;   // true = next msg is same sender → tighter bottom radius
   replyPreview?: { senderName: string; text: string | null; isImage: boolean; isAudio: boolean } | null;
   onReply:       (msg: SupabaseMessage) => void;
+  showTimestamp: boolean;  // show time label below bubble
+  isLastMine:   boolean;   // used by parent for receipt; passed here for swipe affordance only
 }
 
 const REACTION_EMOJIS = ["❤️", "👍", "😂", "😮", "😢"] as const;
@@ -296,12 +346,35 @@ const MessageBubble = memo(function MessageBubble({
   isEditing, editText, onEditChange, onEditSave, onEditCancel,
   grouped: isGrouped, groupedNext: isGroupedNext,
   replyPreview, onReply,
+  showTimestamp,
 }: BubbleProps) {
   const isImage  = !!msg.image_url && !msg.audio_url;
   const isAudio  = !!msg.audio_url;
   const isPrompt = !!msg.is_prompt && !isImage && !isAudio;
   const lpTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [copied, setCopied] = useState(false);
+
+  /* ── Swipe-to-reply (received messages only) ─────────────────────── */
+  const swipeStartX = useRef(0);
+  const [swipeDx, setSwipeDx] = useState(0);
+  const isSwiping  = useRef(false);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    swipeStartX.current = e.touches[0].clientX;
+    isSwiping.current   = true;
+  };
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!isSwiping.current) return;
+    const raw = e.touches[0].clientX - swipeStartX.current;
+    /* Only allow right-swipe on received; left-swipe on mine */
+    const dx = mine ? Math.max(0, -raw) : Math.max(0, raw);
+    setSwipeDx(Math.min(dx, 72));
+  };
+  const onTouchEnd = () => {
+    if (swipeDx >= 48) onReply(msg);
+    setSwipeDx(0);
+    isSwiping.current = false;
+  };
 
   const promptText = (msg.prompt || msg.text || "").trim();
 
@@ -339,18 +412,27 @@ const MessageBubble = memo(function MessageBubble({
     </div>
   );
 
+  /* Reply icon that fades in on swipe */
+  const replyIconOpacity = Math.min(1, swipeDx / 36);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
       className={"flex flex-col " + (mine ? "items-end" : "items-start") + (isGrouped ? " mt-0.5" : " mt-2")}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
     >
-      <div className={
-        "flex items-end gap-2 " +
-        (mine ? "flex-row-reverse " : "") +
-        (isImage ? "max-w-[88%]" : "max-w-[78%]")
-      }>
+      <div
+        className={
+          "flex items-end gap-2 " +
+          (mine ? "flex-row-reverse " : "") +
+          (isImage ? "max-w-[88%]" : "max-w-[78%]")
+        }
+        style={{ transform: swipeDx ? `translateX(${mine ? -swipeDx : swipeDx}px)` : undefined, transition: swipeDx ? "none" : "transform 0.18s ease" }}
+      >
         {/* Peer avatar — hide (but reserve space) when grouped */}
         {!mine && !isImage && (isGrouped ? <div className="h-6 w-6 shrink-0" /> : <Avatar />)}
         {!mine &&  isAudio && (isGrouped ? <div className="h-6 w-6 shrink-0" /> : <Avatar />)}
@@ -358,7 +440,7 @@ const MessageBubble = memo(function MessageBubble({
         {/* ── Content ─────────────────────────────────────────────────── */}
         <div
           onMouseDown={startLp} onMouseUp={cancelLp} onMouseLeave={cancelLp}
-          onTouchStart={startLp} onTouchEnd={cancelLp} onTouchMove={cancelLp}
+          onTouchStart={startLp} onTouchEnd={cancelLp}
           className="select-none"
         >
           {/* Reply preview — quoted snippet when this msg replies to another */}
@@ -506,6 +588,27 @@ const MessageBubble = memo(function MessageBubble({
           ))}
         </div>
       )}
+
+      {/* ── Timestamp + swipe-reply icon ──────────────────────────────── */}
+      {(showTimestamp || replyIconOpacity > 0.05) && (
+        <div className={"flex items-center gap-1.5 mt-0.5 " + (mine ? "justify-end pr-1" : "justify-start pl-8")}>
+          {!mine && replyIconOpacity > 0.05 && (
+            <CornerUpLeft
+              className="h-3 w-3 text-purple-400 shrink-0"
+              style={{ opacity: replyIconOpacity }}
+            />
+          )}
+          {showTimestamp && (
+            <span className="text-[10px] text-white/25">{fmtShortTime(msg.created_at)}</span>
+          )}
+          {mine && replyIconOpacity > 0.05 && (
+            <CornerUpLeft
+              className="h-3 w-3 text-purple-400 shrink-0 scale-x-[-1]"
+              style={{ opacity: replyIconOpacity }}
+            />
+          )}
+        </div>
+      )}
     </motion.div>
   );
 });
@@ -626,8 +729,11 @@ export default function ChatThread() {
   const [editText,    setEditText]    = useState("");
 
   /* Action sheet (long-press menu) */
-  type ActionSheet = { id: string; mine: boolean; text: string | null };
+  type ActionSheet = { id: string; mine: boolean; text: string | null; msg: SupabaseMessage };
   const [actionSheet, setActionSheet] = useState<ActionSheet | null>(null);
+
+  /* Message Info bottom sheet */
+  const [msgInfoMsg, setMsgInfoMsg] = useState<SupabaseMessage | null>(null);
 
   /* Nickname */
   const [nickname,       setNickname]       = useState<string | null>(null);
@@ -684,9 +790,17 @@ export default function ChatThread() {
     (m) => m.sender_id === otherId && !m.seen,
   ).length;
 
+  const undeliveredInboundCount = messages.filter(
+    (m) => m.sender_id === otherId && !m.delivered_at,
+  ).length;
+
   useEffect(() => {
     if (myId && otherId) markThreadSeen(myId, otherId);
   }, [myId, otherId, unseenInboundCount]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (myId && otherId) markThreadDelivered(myId, otherId);
+  }, [myId, otherId, undeliveredInboundCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -865,8 +979,9 @@ export default function ChatThread() {
 
   /* Long-press → open action sheet */
   const handleLongPress = useCallback((id: string, mine: boolean, text: string | null) => {
-    setActionSheet({ id, mine, text });
-  }, []);
+    const msg = messages.find((m) => m.id === id);
+    if (msg) setActionSheet({ id, mine, text, msg });
+  }, [messages]);
 
   /* Edit */
   const handleStartEdit = useCallback(() => {
@@ -904,6 +1019,29 @@ export default function ChatThread() {
     optimisticToggle(msgId, myId, emoji);
     await toggleReaction(msgId, myId, emoji);
   }, [myId, optimisticToggle]);
+
+  /* Copy text from action sheet */
+  const handleCopyText = useCallback(async () => {
+    if (!actionSheet?.text) return;
+    try { await navigator.clipboard.writeText(actionSheet.text); } catch {}
+    setActionSheet(null);
+  }, [actionSheet]);
+
+  /* Delete own message from action sheet */
+  const handleDeleteMsg = useCallback(async () => {
+    if (!actionSheet?.mine) return;
+    const id = actionSheet.id;
+    setActionSheet(null);
+    const err = await deleteMessage(id);
+    if (err) setSendError("Failed to delete message.");
+  }, [actionSheet]);
+
+  /* Message Info from action sheet */
+  const handleMsgInfo = useCallback(() => {
+    if (!actionSheet) return;
+    setMsgInfoMsg(actionSheet.msg);
+    setActionSheet(null);
+  }, [actionSheet]);
 
   /* Nickname */
   const handleOpenNickname = useCallback(() => {
@@ -1106,43 +1244,54 @@ export default function ChatThread() {
           {!loading && (
             <div className="px-4 py-4">
               <AnimatePresence initial={false}>
-                {messages.map((msg, idx) => {
-                  const prev = idx > 0 ? messages[idx - 1] : null;
-                  const next = idx < messages.length - 1 ? messages[idx + 1] : null;
-                  const GROUP_MS = 3 * 60_000;
-                  /* grouped = same sender within 3 min of previous message */
-                  const grouped = !!(prev && prev.sender_id === msg.sender_id &&
-                    new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() < GROUP_MS);
-                  /* groupedNext = next message also continues the chain */
-                  const groupedNext = !!(next && next.sender_id === msg.sender_id &&
-                    new Date(next.created_at).getTime() - new Date(msg.created_at).getTime() < GROUP_MS);
-                  const mine = msg.sender_id === myId;
-                  return (
-                    <MessageBubble
-                      key={msg.id}
-                      msg={msg}
-                      mine={mine}
-                      peerAvatar={peerAvatar}
-                      peerName={peerName}
-                      isLast={idx === messages.length - 1}
-                      onImageTap={handleImageTap}
-                      onLongPress={handleLongPress}
-                      reactions={allReactions.filter((r) => r.message_id === msg.id)}
-                      myId={myId}
-                      senderIsKing={mine ? myIsKing : peerIsKing}
-                      onUsePrompt={handleUsePrompt}
-                      isEditing={editingId === msg.id}
-                      editText={editText}
-                      onEditChange={setEditText}
-                      onEditSave={handleEditSave}
-                      onEditCancel={handleEditCancel}
-                      grouped={grouped}
-                      groupedNext={groupedNext}
-                      replyPreview={msg.reply_to_id ? (replyMap.get(msg.reply_to_id) ?? null) : null}
-                      onReply={() => { setReplyTo(msg); setTimeout(() => textareaRef.current?.focus(), 80); }}
-                    />
-                  );
-                })}
+                {(() => {
+                  const lastMineIdx = messages.reduce((acc, m, i) => m.sender_id === myId ? i : acc, -1);
+                  return messages.map((msg, idx) => {
+                    const prev = idx > 0 ? messages[idx - 1] : null;
+                    const next = idx < messages.length - 1 ? messages[idx + 1] : null;
+                    const GROUP_MS = 3 * 60_000;
+                    const grouped = !!(prev && prev.sender_id === msg.sender_id &&
+                      new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() < GROUP_MS);
+                    const groupedNext = !!(next && next.sender_id === msg.sender_id &&
+                      new Date(next.created_at).getTime() - new Date(msg.created_at).getTime() < GROUP_MS);
+                    const mine = msg.sender_id === myId;
+                    /* Day separator: show when this is the first message or day changes */
+                    const showDaySep = !prev ||
+                      new Date(prev.created_at).toDateString() !== new Date(msg.created_at).toDateString();
+                    /* Timestamp label below bubble: show at end of each consecutive group */
+                    const showTimestamp = !groupedNext;
+                    const isLastMine = mine && idx === lastMineIdx;
+                    return (
+                      <div key={msg.id}>
+                        {showDaySep && <DaySeparator label={fmtDay(msg.created_at)} />}
+                        <MessageBubble
+                          msg={msg}
+                          mine={mine}
+                          peerAvatar={peerAvatar}
+                          peerName={peerName}
+                          isLast={idx === messages.length - 1}
+                          onImageTap={handleImageTap}
+                          onLongPress={handleLongPress}
+                          reactions={allReactions.filter((r) => r.message_id === msg.id)}
+                          myId={myId}
+                          senderIsKing={mine ? myIsKing : peerIsKing}
+                          onUsePrompt={handleUsePrompt}
+                          isEditing={editingId === msg.id}
+                          editText={editText}
+                          onEditChange={setEditText}
+                          onEditSave={handleEditSave}
+                          onEditCancel={handleEditCancel}
+                          grouped={grouped}
+                          groupedNext={groupedNext}
+                          replyPreview={msg.reply_to_id ? (replyMap.get(msg.reply_to_id) ?? null) : null}
+                          onReply={() => { setReplyTo(msg); setTimeout(() => textareaRef.current?.focus(), 80); }}
+                          showTimestamp={showTimestamp}
+                          isLastMine={isLastMine}
+                        />
+                      </div>
+                    );
+                  });
+                })()}
               </AnimatePresence>
 
               {/* Typing indicator bubble */}
@@ -1170,12 +1319,12 @@ export default function ChatThread() {
             </div>
           )}
 
-          {/* ── Seen / sent receipt ─────────────────────────────────────── */}
+          {/* ── Message receipt (Sent / Delivered / Seen) ───────────────── */}
           {!loading && lastMyMsg && (
             <div className="pb-2 pr-4 flex items-center justify-end gap-1.5">
               {lastMyMsg.seen_at ? (
-                /* ✔✔ blue + avatar = Seen */
-                <div title="Seen" className="flex items-center gap-1.5">
+                /* ✓✓ blue + avatar — Seen */
+                <div title={`Seen ${fmtExact(lastMyMsg.seen_at)}`} className="flex items-center gap-1.5">
                   <CheckCheck className="h-3.5 w-3.5 text-blue-400" />
                   {peerAvatar ? (
                     <img src={peerAvatar} alt="Seen" loading="lazy" className="h-4 w-4 rounded-full object-cover ring-1 ring-blue-400/60" />
@@ -1185,8 +1334,14 @@ export default function ChatThread() {
                     </div>
                   )}
                 </div>
+              ) : lastMyMsg.delivered_at ? (
+                /* ✓✓ grey — Delivered */
+                <span title={`Delivered ${fmtExact(lastMyMsg.delivered_at)}`} className="flex items-center gap-0.5 text-[10px] text-white/40">
+                  <CheckCheck className="h-3.5 w-3.5" />
+                  Delivered
+                </span>
               ) : (
-                /* ✔ grey = Sent (not yet read) */
+                /* ✓ grey — Sent */
                 <span className="flex items-center gap-0.5 text-[10px] text-white/35">
                   <Check className="h-3 w-3" />
                   Sent
@@ -1392,6 +1547,17 @@ export default function ChatThread() {
               </div>
               <div className="h-px bg-white/10 mb-3" />
 
+              {/* Copy — text messages only */}
+              {actionSheet.text && (
+                <button
+                  onClick={handleCopyText}
+                  className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm text-white hover:bg-white/5 active:bg-white/10"
+                >
+                  <Copy className="h-4 w-4 text-white/60" />
+                  Copy
+                </button>
+              )}
+
               {/* Reply — available for all messages */}
               <button
                 onClick={handleReply}
@@ -1401,7 +1567,7 @@ export default function ChatThread() {
                 Reply
               </button>
 
-              {/* Edit (own messages only) */}
+              {/* Edit (own text messages only) */}
               {actionSheet.mine && actionSheet.text && (
                 <button
                   onClick={handleStartEdit}
@@ -1414,12 +1580,101 @@ export default function ChatThread() {
                 </button>
               )}
 
+              {/* Message Info — own messages */}
+              {actionSheet.mine && (
+                <button
+                  onClick={handleMsgInfo}
+                  className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm text-white hover:bg-white/5 active:bg-white/10"
+                >
+                  <Info className="h-4 w-4 text-white/60" />
+                  Message info
+                </button>
+              )}
+
+              {/* Delete — own messages */}
+              {actionSheet.mine && (
+                <button
+                  onClick={handleDeleteMsg}
+                  className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm text-rose-400 hover:bg-white/5 active:bg-white/10"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete message
+                </button>
+              )}
+
               <button
                 onClick={() => setActionSheet(null)}
                 className="mt-1 flex w-full items-center justify-center rounded-xl px-4 py-3 text-sm text-white/50 hover:bg-white/5"
               >
                 Cancel
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Message Info bottom sheet ────────────────────────────────────── */}
+      <AnimatePresence>
+        {msgInfoMsg && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end justify-center"
+            onClick={() => setMsgInfoMsg(null)}
+          >
+            <div className="absolute inset-0 bg-black/80" />
+            <motion.div
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 26, stiffness: 260 }}
+              className="relative w-full max-w-md rounded-t-3xl border-t border-white/[0.05] bg-[#0a0a0a] p-5 pb-10 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Handle bar */}
+              <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15" />
+              <h3 className="mb-5 text-center text-sm font-semibold text-white">Message Info</h3>
+
+              {/* Message preview */}
+              {msgInfoMsg.text && (
+                <div className="mb-5 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
+                  <p className="text-sm text-white/70 break-words line-clamp-3">{msgInfoMsg.text}</p>
+                </div>
+              )}
+
+              {/* Receipt rows */}
+              <div className="space-y-0 divide-y divide-white/[0.04]">
+                {/* Sent */}
+                <div className="flex items-center justify-between py-3.5">
+                  <div className="flex items-center gap-2.5 text-sm text-white/70">
+                    <Clock className="h-4 w-4 text-white/40 shrink-0" />
+                    Sent
+                  </div>
+                  <span className="text-sm text-white/50">{fmtExact(msgInfoMsg.created_at)}</span>
+                </div>
+
+                {/* Delivered */}
+                <div className="flex items-center justify-between py-3.5">
+                  <div className="flex items-center gap-2.5 text-sm text-white/70">
+                    <CheckCheck className={"h-4 w-4 shrink-0 " + (msgInfoMsg.delivered_at ? "text-white/40" : "text-white/15")} />
+                    Delivered
+                  </div>
+                  <span className="text-sm text-white/50">
+                    {msgInfoMsg.delivered_at ? fmtExact(msgInfoMsg.delivered_at) : <span className="text-white/20">—</span>}
+                  </span>
+                </div>
+
+                {/* Seen */}
+                <div className="flex items-center justify-between py-3.5">
+                  <div className="flex items-center gap-2.5 text-sm text-white/70">
+                    <CheckCheck className={"h-4 w-4 shrink-0 " + (msgInfoMsg.seen_at ? "text-blue-400" : "text-white/15")} />
+                    Seen
+                  </div>
+                  <span className="text-sm text-white/50">
+                    {msgInfoMsg.seen_at ? fmtExact(msgInfoMsg.seen_at) : <span className="text-white/20">—</span>}
+                  </span>
+                </div>
+              </div>
+
+              {/* Message ID (subtle, for debugging) */}
+              <p className="mt-5 text-center font-mono text-[9px] text-white/15 break-all">{msgInfoMsg.id}</p>
             </motion.div>
           </motion.div>
         )}

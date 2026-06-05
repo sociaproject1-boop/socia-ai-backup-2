@@ -30,9 +30,10 @@ export interface SupabaseMessage {
   text:         string | null;
   image_url:    string | null;
   audio_url:    string | null;
-  seen:         boolean;
-  seen_at:      string | null;
-  edited:       boolean;
+  seen:          boolean;
+  seen_at:       string | null;
+  delivered_at?: string | null;
+  edited:        boolean;
   created_at:   string;
   reply_to_id?: string | null;
   /* Prompt-to-chat — populated by send_prompt_message RPC.
@@ -572,6 +573,23 @@ export async function markThreadSeen(_myId: string, otherId: string): Promise<vo
 }
 
 /* ══════════════════════════════════════════════════════════════════════════ */
+/*  markThreadDelivered                                                        */
+/* ══════════════════════════════════════════════════════════════════════════ */
+
+export async function markThreadDelivered(_myId: string, otherId: string): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) return;
+  try {
+    await fetch("/api/messages/delivered", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body:    JSON.stringify({ other_id: otherId }),
+    });
+  } catch { /* non-critical — ignore silently */ }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════ */
 /*  uploadChatImage — Supabase Storage: chat-images bucket                   */
 /* ══════════════════════════════════════════════════════════════════════════ */
 
@@ -691,6 +709,27 @@ export async function editMessage(
     return null;
   } catch (err) {
     console.error("[Chat] editMessage ERROR:", err);
+    return err instanceof Error ? err.message : "Network error";
+  }
+}
+
+export async function deleteMessage(messageId: string): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  if (!token) return "Not signed in";
+  try {
+    const res = await fetch("/api/messages/delete", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body:    JSON.stringify({ message_id: messageId }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({})) as { error?: string };
+      return j.error ?? `Failed to delete message (${res.status})`;
+    }
+    return null;
+  } catch (err) {
+    console.error("[Chat] deleteMessage ERROR:", err);
     return err instanceof Error ? err.message : "Network error";
   }
 }
