@@ -54,6 +54,7 @@ export interface Comment {
   author_id: string;
   content: string;
   created_at: string;
+  parent_comment_id?: string | null;
   author: {
     id: string;
     name: string;
@@ -62,15 +63,34 @@ export interface Comment {
   };
 }
 
+export interface Notification {
+  id: string;
+  type: "like" | "comment" | "reply" | "follow" | "mention";
+  read: boolean;
+  created_at: string;
+  post_id: string | null;
+  comment_id: string | null;
+  actor: {
+    id: string;
+    name: string;
+    username: string;
+    avatar_url: string | null;
+  } | null;
+}
+
+/* ── Feeds ──────────────────────────────────────────────────────────────── */
+
 export async function fetchFeed(opts?: {
   limit?: number;
   offset?: number;
-  userId?: string;
+  viewerId?: string;
+  sort?: "trending" | "newest";
 }): Promise<SocialPost[]> {
   const params = new URLSearchParams();
-  if (opts?.limit)  params.set("limit",  String(opts.limit));
-  if (opts?.offset) params.set("offset", String(opts.offset));
-  if (opts?.userId) params.set("userId", opts.userId);
+  if (opts?.limit)    params.set("limit",    String(opts.limit));
+  if (opts?.offset)   params.set("offset",   String(opts.offset));
+  if (opts?.viewerId) params.set("viewerId", opts.viewerId);
+  if (opts?.sort)     params.set("sort",     opts.sort);
 
   const r = await fetch(`${BASE}/api/posts?${params}`, {
     headers: await authHeaders(),
@@ -80,10 +100,54 @@ export async function fetchFeed(opts?: {
   return j.posts ?? [];
 }
 
-export async function fetchUserPosts(uid: string, opts?: { limit?: number; offset?: number }): Promise<SocialPost[]> {
+export async function fetchFollowingFeed(opts?: {
+  limit?: number;
+  offset?: number;
+  viewerId?: string;
+}): Promise<SocialPost[]> {
   const params = new URLSearchParams();
   if (opts?.limit)  params.set("limit",  String(opts.limit));
   if (opts?.offset) params.set("offset", String(opts.offset));
+
+  const r = await fetch(`${BASE}/api/posts/feed/following?${params}`, {
+    headers: await authHeaders(),
+  });
+  if (!r.ok) {
+    if (r.status === 401) return [];
+    throw new Error(`Following feed error: ${r.status}`);
+  }
+  const j = await r.json();
+  return j.posts ?? [];
+}
+
+export async function fetchSavedFeed(opts?: {
+  limit?: number;
+  offset?: number;
+}): Promise<SocialPost[]> {
+  const params = new URLSearchParams();
+  if (opts?.limit)  params.set("limit",  String(opts.limit));
+  if (opts?.offset) params.set("offset", String(opts.offset));
+
+  const r = await fetch(`${BASE}/api/posts/feed/saved?${params}`, {
+    headers: await authHeaders(),
+  });
+  if (!r.ok) {
+    if (r.status === 401) return [];
+    throw new Error(`Saved feed error: ${r.status}`);
+  }
+  const j = await r.json();
+  return j.posts ?? [];
+}
+
+export async function fetchUserPosts(uid: string, opts?: {
+  limit?: number;
+  offset?: number;
+  viewerId?: string;
+}): Promise<SocialPost[]> {
+  const params = new URLSearchParams();
+  if (opts?.limit)    params.set("limit",    String(opts.limit));
+  if (opts?.offset)   params.set("offset",   String(opts.offset));
+  if (opts?.viewerId) params.set("viewerId", opts.viewerId);
 
   const r = await fetch(`${BASE}/api/posts/user/${uid}?${params}`, {
     headers: await authHeaders(),
@@ -92,6 +156,21 @@ export async function fetchUserPosts(uid: string, opts?: { limit?: number; offse
   const j = await r.json();
   return j.posts ?? [];
 }
+
+export async function fetchSinglePost(id: string, viewerId?: string): Promise<SocialPost | null> {
+  const params = new URLSearchParams();
+  if (viewerId) params.set("viewerId", viewerId);
+
+  const r = await fetch(`${BASE}/api/posts/${id}?${params}`, {
+    headers: await authHeaders(),
+  });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`Post error: ${r.status}`);
+  const j = await r.json();
+  return j.post ?? null;
+}
+
+/* ── Post CRUD ──────────────────────────────────────────────────────────── */
 
 export async function createPost(payload: {
   caption?: string;
@@ -121,6 +200,8 @@ export async function deletePost(postId: string): Promise<void> {
   if (!r.ok) throw new Error(`Delete error: ${r.status}`);
 }
 
+/* ── Like / Save ────────────────────────────────────────────────────────── */
+
 export async function toggleLike(postId: string): Promise<{ liked: boolean }> {
   const headers = await authHeaders();
   const r = await fetch(`${BASE}/api/posts/${postId}/like`, {
@@ -141,21 +222,44 @@ export async function toggleSave(postId: string): Promise<{ saved: boolean }> {
   return r.json();
 }
 
-export async function fetchComments(postId: string): Promise<Comment[]> {
-  const r = await fetch(`${BASE}/api/posts/${postId}/comments`);
+/* ── Comments ───────────────────────────────────────────────────────────── */
+
+export async function fetchComments(postId: string, opts?: {
+  parentId?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<Comment[]> {
+  const params = new URLSearchParams();
+  if (opts?.parentId) params.set("parentId", opts.parentId);
+  if (opts?.limit)    params.set("limit",    String(opts.limit));
+  if (opts?.offset)   params.set("offset",   String(opts.offset));
+
+  const r = await fetch(`${BASE}/api/posts/${postId}/comments?${params}`);
   if (!r.ok) throw new Error(`Comments error: ${r.status}`);
   const j = await r.json();
   return j.comments ?? [];
 }
 
-export async function addComment(postId: string, content: string): Promise<Comment> {
+export async function addComment(postId: string, content: string, parentCommentId?: string): Promise<Comment> {
   const headers = await authHeaders();
   const r = await fetch(`${BASE}/api/posts/${postId}/comments`, {
     method:  "POST",
     headers: { ...headers, "Content-Type": "application/json" },
-    body:    JSON.stringify({ content }),
+    body:    JSON.stringify({ content, parent_comment_id: parentCommentId ?? null }),
   });
   if (!r.ok) throw new Error(`Comment error: ${r.status}`);
+  const j = await r.json();
+  return j.comment;
+}
+
+export async function editComment(postId: string, commentId: string, content: string): Promise<Comment> {
+  const headers = await authHeaders();
+  const r = await fetch(`${BASE}/api/posts/${postId}/comments/${commentId}`, {
+    method:  "PUT",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body:    JSON.stringify({ content }),
+  });
+  if (!r.ok) throw new Error(`Edit comment error: ${r.status}`);
   const j = await r.json();
   return j.comment;
 }
@@ -169,10 +273,62 @@ export async function deleteComment(postId: string, commentId: string): Promise<
   if (!r.ok) throw new Error(`Delete comment error: ${r.status}`);
 }
 
-/**
- * Upload a file to the post-media Supabase bucket.
- * Returns the public URL.
- */
+/* ── Reports ────────────────────────────────────────────────────────────── */
+
+export type ReportReason = "spam" | "inappropriate" | "harassment" | "misinformation" | "other";
+
+export async function reportPost(postId: string, reason: ReportReason, notes?: string): Promise<void> {
+  const headers = await authHeaders();
+  await fetch(`${BASE}/api/posts/${postId}/report`, {
+    method:  "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body:    JSON.stringify({ reason, notes }),
+  });
+}
+
+export async function reportComment(postId: string, commentId: string, reason: ReportReason, notes?: string): Promise<void> {
+  const headers = await authHeaders();
+  await fetch(`${BASE}/api/posts/${postId}/comments/${commentId}/report`, {
+    method:  "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body:    JSON.stringify({ reason, notes }),
+  });
+}
+
+/* ── View counter ───────────────────────────────────────────────────────── */
+
+export async function recordView(postId: string): Promise<void> {
+  await fetch(`${BASE}/api/posts/${postId}/view`, { method: "POST" }).catch(() => {});
+}
+
+/* ── Notifications ──────────────────────────────────────────────────────── */
+
+export async function fetchNotifications(opts?: { limit?: number; offset?: number }): Promise<{
+  notifications: Notification[];
+  unread: number;
+}> {
+  const params = new URLSearchParams();
+  if (opts?.limit)  params.set("limit",  String(opts.limit));
+  if (opts?.offset) params.set("offset", String(opts.offset));
+
+  const headers = await authHeaders();
+  const r = await fetch(`${BASE}/api/notifications?${params}`, { headers });
+  if (!r.ok) return { notifications: [], unread: 0 };
+  return r.json();
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  const headers = await authHeaders();
+  await fetch(`${BASE}/api/notifications/read-all`, { method: "PUT", headers });
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  const headers = await authHeaders();
+  await fetch(`${BASE}/api/notifications/${id}/read`, { method: "PUT", headers });
+}
+
+/* ── Media upload ───────────────────────────────────────────────────────── */
+
 export async function uploadPostMedia(
   file: File,
   userId: string,
@@ -192,9 +348,6 @@ export async function uploadPostMedia(
   return urlData.publicUrl;
 }
 
-/**
- * Upload a cover photo for the profile.
- */
 export async function uploadCoverPhoto(file: File, userId: string): Promise<string> {
   const ext  = file.name.split(".").pop() ?? "jpg";
   const path = `${userId}/cover.${ext}`;
@@ -211,9 +364,8 @@ export async function uploadCoverPhoto(file: File, userId: string): Promise<stri
   return `${urlData.publicUrl}?t=${Date.now()}`;
 }
 
-/**
- * Get/save alert settings (owner only).
- */
+/* ── Alert settings (owner) ─────────────────────────────────────────────── */
+
 export interface AlertSettingsPayload {
   email_enabled: boolean;
   sms_enabled: boolean;
@@ -223,17 +375,14 @@ export interface AlertSettingsPayload {
   webhook_url: string | null;
 }
 
-export async function getAlertSettings(): Promise<{
-  settings: AlertSettingsPayload | null;
-  env: { email_enabled: boolean; sms_enabled: boolean; webhook_enabled: boolean };
-}> {
+export async function getAlertSettings() {
   const headers = await authHeaders();
   const r = await fetch(`${BASE}/api/alert-settings`, { headers });
   if (!r.ok) throw new Error(`Alert settings error: ${r.status}`);
   return r.json();
 }
 
-export async function saveAlertSettings(payload: AlertSettingsPayload): Promise<AlertSettingsPayload> {
+export async function saveAlertSettings(payload: AlertSettingsPayload) {
   const headers = await authHeaders();
   const r = await fetch(`${BASE}/api/alert-settings`, {
     method:  "PUT",
@@ -245,15 +394,9 @@ export async function saveAlertSettings(payload: AlertSettingsPayload): Promise<
   return j.settings;
 }
 
-export async function sendTestAlertToChannels(): Promise<{
-  delivered: number;
-  results: Array<{ channel: string; success: boolean; error?: string }>;
-}> {
+export async function sendTestAlertToChannels() {
   const headers = await authHeaders();
-  const r = await fetch(`${BASE}/api/alert-settings/test`, {
-    method: "POST",
-    headers,
-  });
+  const r = await fetch(`${BASE}/api/alert-settings/test`, { method: "POST", headers });
   if (!r.ok) throw new Error(`Test error: ${r.status}`);
   return r.json();
 }

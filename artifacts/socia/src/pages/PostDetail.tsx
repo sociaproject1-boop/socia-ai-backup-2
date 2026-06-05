@@ -1,188 +1,561 @@
+/**
+ * PostDetail.tsx — Full post view with real comments, like/save, and moderation.
+ *
+ * Fetches post and comments from the backend. Supports:
+ * - Like, save, share
+ * - Comment list (paginated)
+ * - Add / edit / delete own comments
+ * - Report post or comment
+ * - Owner can delete any comment
+ * - Follow / unfollow author inline
+ */
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useLocation, useRoute } from "wouter";
-import { motion } from "framer-motion";
-import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, Play } from "lucide-react";
-import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ArrowLeft, Heart, MessageCircle, Bookmark, Share2,
+  Send, BadgeCheck, MoreHorizontal, Trash2, Flag, Eye,
+} from "lucide-react";
+import { VideoPostPlayer } from "@/components/feed/VideoPostPlayer";
+import {
+  fetchSinglePost, fetchComments, addComment, deleteComment, editComment,
+  toggleLike, toggleSave, reportPost, reportComment, recordView,
+  type SocialPost, type Comment,
+} from "@/lib/postsClient";
 import { useAppStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
-import { VideoPlayerModal } from "@/components/ui/VideoPlayerModal";
 
+function relTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60_000) return "now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function fmtCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+/* ── Comment item ───────────────────────────────────────────────────────── */
+function CommentItem({
+  comment, postId, meId, isOwner,
+  onDelete, onEdit, onReport,
+}: {
+  comment: Comment;
+  postId: string;
+  meId: string | null;
+  isOwner: boolean;
+  onDelete: (cid: string) => void;
+  onEdit: (cid: string, content: string) => void;
+  onReport: (cid: string) => void;
+}) {
+  const [showMenu, setShowMenu] = useState(false);
+  const [editing,  setEditing]  = useState(false);
+  const [draft,    setDraft]    = useState(comment.content);
+  const [saving,   setSaving]   = useState(false);
+
+  const isOwnerMe = meId === comment.author_id || isOwner;
+
+  const saveEdit = async () => {
+    if (!draft.trim() || draft === comment.content) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      await onEdit(comment.id, draft.trim());
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex gap-3 py-3">
+      {/* Avatar */}
+      <div className="flex-shrink-0">
+        {comment.author?.avatar_url ? (
+          <img
+            src={comment.author.avatar_url}
+            alt=""
+            className="h-8 w-8 rounded-full object-cover"
+            style={{ border: "1px solid rgba(255,255,255,0.1)" }}
+          />
+        ) : (
+          <div
+            className="h-8 w-8 rounded-full grid place-items-center text-xs font-bold text-white"
+            style={{ background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))" }}
+          >
+            {(comment.author?.name || comment.author?.username || "?").charAt(0).toUpperCase()}
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <span className="text-[12px] font-bold app-text">
+            {comment.author?.name || comment.author?.username || "User"}
+          </span>
+          <span className="text-[10px] app-text-muted">{relTime(comment.created_at)}</span>
+        </div>
+
+        {editing ? (
+          <div className="flex items-end gap-2">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value.slice(0, 2000))}
+              rows={2}
+              autoFocus
+              className="flex-1 text-sm app-text bg-white/5 rounded-xl px-3 py-2 outline-none resize-none"
+              style={{ border: "1px solid rgba(255,255,255,0.12)" }}
+            />
+            <div className="flex flex-col gap-1">
+              <button onClick={saveEdit} disabled={saving}
+                className="rounded-lg px-2 py-1 text-[11px] font-bold text-white bg-purple-600 disabled:opacity-50">
+                {saving ? "…" : "Save"}
+              </button>
+              <button onClick={() => { setEditing(false); setDraft(comment.content); }}
+                className="rounded-lg px-2 py-1 text-[11px] app-text-muted bg-white/5">
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm app-text leading-relaxed">{comment.content}</p>
+        )}
+      </div>
+
+      {/* 3-dot menu */}
+      <div className="relative flex-shrink-0">
+        <motion.button
+          whileTap={{ scale: 0.85 }}
+          onClick={() => setShowMenu((v) => !v)}
+          className="grid h-7 w-7 place-items-center rounded-full"
+        >
+          <MoreHorizontal className="h-3.5 w-3.5 app-text-muted" />
+        </motion.button>
+
+        <AnimatePresence>
+          {showMenu && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setShowMenu(false)} />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: -4 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="absolute right-0 top-8 z-40 min-w-[130px] rounded-xl border shadow-xl overflow-hidden"
+                style={{ background: "rgba(18,18,18,0.97)", borderColor: "rgba(255,255,255,0.1)" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {meId === comment.author_id && (
+                  <button
+                    onClick={() => { setShowMenu(false); setEditing(true); }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-xs font-medium app-text hover:bg-white/5"
+                  >
+                    Edit
+                  </button>
+                )}
+                {isOwnerMe && (
+                  <button
+                    onClick={() => { setShowMenu(false); onDelete(comment.id); }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-xs font-medium text-rose-400 hover:bg-white/5"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                  </button>
+                )}
+                {meId !== comment.author_id && (
+                  <button
+                    onClick={() => { setShowMenu(false); onReport(comment.id); }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-xs font-medium app-text-muted hover:bg-white/5"
+                  >
+                    <Flag className="h-3.5 w-3.5" /> Report
+                  </button>
+                )}
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+/* ── Main PostDetail ─────────────────────────────────────────────────────── */
 export default function PostDetail() {
-  const [, params] = useRoute("/post/:id");
+  const [, params]   = useRoute("/post/:id");
   const [, navigate] = useLocation();
-  const post = useAppStore((s) => s.posts.find((p) => p.id === params?.id));
-  const toggleLike = useAppStore((s) => s.toggleLike);
-  const toggleSavePost = useAppStore((s) => s.toggleSavePost);
-  const savedPostIds = useAppStore((s) => s.savedPostIds);
-  const [videoOpen, setVideoOpen] = useState(false);
+  const me           = useAppStore((s) => s.user);
+  const followedIds  = useAppStore((s) => s.followedUserIds);
+  const setFollowedIds = useAppStore((s) => s.setFollowedUserIds);
 
-  if (!post) {
+  const [post,         setPost]         = useState<SocialPost | null>(null);
+  const [comments,     setComments]     = useState<Comment[]>([]);
+  const [loadingPost,  setLoadingPost]  = useState(true);
+  const [loadingComments, setLoadingComments] = useState(true);
+  const [postError,    setPostError]    = useState<string | null>(null);
+
+  const [newComment,   setNewComment]   = useState("");
+  const [submitting,   setSubmitting]   = useState(false);
+  const [mediaIndex,   setMediaIndex]   = useState(0);
+  const [followWorking, setFollowWorking] = useState(false);
+
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
+  const postId = params?.id;
+
+  const meId    = me?.id ?? null;
+  const isOwner = me?.isOwner === true;
+  const isMe    = meId === post?.author_id;
+  const isFollowing = post ? followedIds.includes(post.author_id) : false;
+
+  /* ── Load post ──────────────────────────────────────────────────────── */
+  useEffect(() => {
+    if (!postId) return;
+    setLoadingPost(true);
+    setPostError(null);
+    fetchSinglePost(postId, meId ?? undefined)
+      .then((p) => {
+        if (!p) { setPostError("Post not found"); return; }
+        setPost(p);
+      })
+      .catch((e) => setPostError(e.message ?? "Failed to load post"))
+      .finally(() => setLoadingPost(false));
+
+    /* Record view (fire and forget) */
+    void recordView(postId);
+  }, [postId, meId]);
+
+  /* ── Load comments ──────────────────────────────────────────────────── */
+  useEffect(() => {
+    if (!postId) return;
+    setLoadingComments(true);
+    fetchComments(postId, { limit: 50 })
+      .then(setComments)
+      .catch(() => setComments([]))
+      .finally(() => setLoadingComments(false));
+  }, [postId]);
+
+  /* ── Add comment ────────────────────────────────────────────────────── */
+  const handleAddComment = useCallback(async () => {
+    if (!newComment.trim() || !postId || submitting) return;
+    setSubmitting(true);
+    try {
+      const comment = await addComment(postId, newComment.trim());
+      setComments((prev) => [...prev, comment]);
+      setPost((p) => p ? { ...p, comment_count: p.comment_count + 1 } : p);
+      setNewComment("");
+    } catch { /* show nothing — comment failed */ }
+    finally { setSubmitting(false); }
+  }, [newComment, postId, submitting]);
+
+  /* ── Delete comment ─────────────────────────────────────────────────── */
+  const handleDeleteComment = useCallback(async (commentId: string) => {
+    if (!postId) return;
+    try {
+      await deleteComment(postId, commentId);
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+      setPost((p) => p ? { ...p, comment_count: Math.max(0, p.comment_count - 1) } : p);
+    } catch { /* silent */ }
+  }, [postId]);
+
+  /* ── Edit comment ───────────────────────────────────────────────────── */
+  const handleEditComment = useCallback(async (commentId: string, content: string) => {
+    if (!postId) return;
+    const updated = await editComment(postId, commentId, content);
+    setComments((prev) => prev.map((c) => c.id === commentId ? updated : c));
+  }, [postId]);
+
+  /* ── Report comment ─────────────────────────────────────────────────── */
+  const handleReportComment = useCallback(async (commentId: string) => {
+    if (!postId) return;
+    try { await reportComment(postId, commentId, "inappropriate"); } catch { /* silent */ }
+  }, [postId]);
+
+  /* ── Like ───────────────────────────────────────────────────────────── */
+  const handleLike = useCallback(async () => {
+    if (!post) return;
+    const prev = { liked: post.has_liked, count: post.like_count };
+    const nowLiked = !post.has_liked;
+    setPost((p) => p ? { ...p, has_liked: nowLiked, like_count: p.like_count + (nowLiked ? 1 : -1) } : p);
+    try {
+      const result = await toggleLike(post.id);
+      setPost((p) => p ? { ...p, has_liked: result.liked, like_count: p.like_count + (result.liked === p.has_liked ? 0 : result.liked ? 1 : -1) } : p);
+    } catch {
+      setPost((p) => p ? { ...p, has_liked: prev.liked, like_count: prev.count } : p);
+    }
+  }, [post]);
+
+  /* ── Save ───────────────────────────────────────────────────────────── */
+  const handleSave = useCallback(async () => {
+    if (!post) return;
+    const prev = { saved: post.has_saved, count: post.save_count ?? 0 };
+    const nowSaved = !post.has_saved;
+    setPost((p) => p ? { ...p, has_saved: nowSaved, save_count: (p.save_count ?? 0) + (nowSaved ? 1 : -1) } : p);
+    try {
+      await toggleSave(post.id);
+    } catch {
+      setPost((p) => p ? { ...p, has_saved: prev.saved, save_count: prev.count } : p);
+    }
+  }, [post]);
+
+  /* ── Share ──────────────────────────────────────────────────────────── */
+  const handleShare = useCallback(async () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      try { await navigator.share({ url, title: post?.caption ?? "Post" }); }
+      catch { navigator.clipboard?.writeText(url); }
+    } else {
+      navigator.clipboard?.writeText(url);
+    }
+  }, [post]);
+
+  /* ── Follow ─────────────────────────────────────────────────────────── */
+  const handleFollow = useCallback(async () => {
+    if (!post || followWorking || isMe) return;
+    setFollowWorking(true);
+    try {
+      if (isFollowing) {
+        const { error } = await supabase.rpc("unfollow_user", { target_id: post.author_id });
+        if (!error) setFollowedIds(followedIds.filter((id) => id !== post.author_id));
+      } else {
+        const { error } = await supabase.rpc("follow_user", { target_id: post.author_id });
+        if (!error) setFollowedIds([...followedIds, post.author_id]);
+      }
+    } finally { setFollowWorking(false); }
+  }, [post, followWorking, isMe, isFollowing, followedIds, setFollowedIds]);
+
+  const media = post?.media ?? [];
+  const currentMedia = media[mediaIndex];
+
+  /* ── Loading state ──────────────────────────────────────────────────── */
+  if (loadingPost) {
     return (
-      <div className="grid h-full place-items-center text-white/60">
-        <button onClick={() => navigate("/")} className="text-sm underline">Back to feed</button>
+      <div className="flex h-full flex-col app-bg">
+        <div className="flex items-center gap-3 px-4 py-3 app-header">
+          <button onClick={() => navigate(-1 as any)} className="grid h-9 w-9 place-items-center rounded-full app-surface">
+            <ArrowLeft className="h-4 w-4 app-text" />
+          </button>
+        </div>
+        <div className="shimmer flex-1" style={{ maxHeight: 400 }} />
+        <div className="space-y-3 px-4 py-4">
+          <div className="h-4 w-32 rounded-full shimmer" />
+          <div className="h-3 w-full rounded-full shimmer" />
+          <div className="h-3 w-3/4 rounded-full shimmer" />
+        </div>
       </div>
     );
   }
 
-  const author = useAppStore.getState().user;
-  const hasVideo = Boolean(post.videoUrl);
-  const isSaved = savedPostIds.includes(post.id);
-
-  const handleShare = async () => {
-    if (navigator.share) {
-      try { await navigator.share({ url: post.imageUrl, title: post.prompt }); }
-      catch { navigator.clipboard?.writeText(post.imageUrl); }
-    } else {
-      navigator.clipboard?.writeText(post.imageUrl);
-    }
-  };
+  if (postError || !post) {
+    return (
+      <div className="grid h-full place-items-center app-bg text-center px-6">
+        <div>
+          <p className="font-semibold app-text mb-2">{postError ?? "Post not found"}</p>
+          <button onClick={() => navigate("/")} className="text-sm app-text-muted underline">Back to feed</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <>
-      <div className="flex h-full flex-col">
-        <div
-          className="absolute inset-x-0 top-0 z-20 flex items-center justify-between px-4"
-          style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 14px)` }}
-        >
-          <button onClick={() => navigate("/")} className="grid h-9 w-9 place-items-center rounded-full bg-[#000000] border border-white/[0.08] text-white">
-            <ArrowLeft className="h-4 w-4" />
-          </button>
+    <div className="flex h-full flex-col app-bg overflow-hidden">
+      {/* ── Header ───────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 px-4 py-3 app-header flex-shrink-0" style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)` }}>
+        <button onClick={() => navigate(-1 as any)} className="grid h-9 w-9 place-items-center rounded-full app-surface">
+          <ArrowLeft className="h-4 w-4 app-text" />
+        </button>
+        <div className="flex-1 flex items-center gap-2">
+          {post.author?.avatar_url ? (
+            <img src={post.author.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover" />
+          ) : (
+            <div className="h-8 w-8 rounded-full grid place-items-center text-xs font-bold text-white" style={{ background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))" }}>
+              {(post.author?.name || "?").charAt(0)}
+            </div>
+          )}
+          <div>
+            <div className="flex items-center gap-1">
+              <span className="text-sm font-bold app-text">{post.author?.name || post.author?.username}</span>
+              {(post.author?.is_verified || post.author?.is_owner) && (
+                <BadgeCheck className="h-3.5 w-3.5" style={{ color: "var(--accent-primary)" }} />
+              )}
+            </div>
+            {post.author?.username && <div className="text-[10px] app-text-muted">@{post.author.username}</div>}
+          </div>
+        </div>
+        {!isMe && (
           <motion.button
-            whileTap={{ scale: 0.88 }}
-            onClick={() => toggleSavePost(post.id)}
-            className={
-              "grid h-9 w-9 place-items-center rounded-full border transition " +
-              (isSaved
-                ? "bg-purple-600/70 border-purple-400/40 text-white"
-                : "bg-[#000000] border-white/[0.08] text-white")
+            whileTap={{ scale: 0.93 }}
+            onClick={handleFollow}
+            disabled={followWorking}
+            className="rounded-full px-3.5 py-1.5 text-xs font-bold transition disabled:opacity-50"
+            style={isFollowing
+              ? { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.12)" }
+              : { background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))", color: "white" }
             }
           >
-            <Bookmark className={"h-4 w-4 " + (isSaved ? "fill-white" : "")} />
+            {isFollowing ? "Following" : "Follow"}
           </motion.button>
-        </div>
-
-        <motion.div
-          initial={{ opacity: 0, scale: 1.02 }} animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-          className="relative h-full w-full"
-        >
-          <img src={post.imageUrl} alt={post.prompt} className="absolute inset-0 h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-black/30" />
-
-          {/* Play button — only for real videos */}
-          {hasVideo && (
-            <button onClick={() => setVideoOpen(true)} className="absolute inset-0 grid place-items-center">
-              <motion.span
-                whileTap={{ scale: 0.88 }}
-                className="grid h-16 w-16 place-items-center rounded-full border border-white/20 bg-gradient-to-br from-purple-600/80 via-pink-500/80 to-blue-500/80"
-              >
-                <Play className="h-7 w-7 fill-white text-white" />
-              </motion.span>
-            </button>
-          )}
-
-          {post.duration && (
-            <span className="absolute right-4 top-16 rounded-full bg-[#000000] px-2.5 py-1 text-xs font-semibold text-white">
-              {post.duration}
-            </span>
-          )}
-
-          <div
-            className="absolute inset-x-0 bottom-0 px-5"
-            style={{ paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + 28px)` }}
-          >
-            <div className="flex items-center gap-2.5">
-              <img src={author?.avatar} alt="" className="h-10 w-10 rounded-full border border-white/20 object-cover" />
-              <div className="flex-1">
-                <div className="text-sm font-semibold text-white">@{author?.handle}</div>
-                <div className="text-[11px] text-white/65">{author?.name}</div>
-              </div>
-              <FollowButton authorId={post.authorId} />
-            </div>
-
-            <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-white/90">{post.prompt}</p>
-
-            <div className="mt-4 flex items-center gap-3">
-              <ActionBtn icon={Heart} label={fmtCount(post.likes)} active={post.hasLiked} onClick={() => toggleLike(post.id)} />
-              <ActionBtn icon={MessageCircle} label="Reply" />
-              <ActionBtn icon={Share2} label="Share" onClick={handleShare} />
-              <ActionBtn
-                icon={Bookmark}
-                label={isSaved ? "Saved" : "Save"}
-                active={isSaved}
-                onClick={() => toggleSavePost(post.id)}
-              />
-            </div>
-          </div>
-        </motion.div>
+        )}
       </div>
 
-      {hasVideo && (
-        <VideoPlayerModal videoUrl={post.videoUrl!} posterUrl={post.imageUrl} open={videoOpen} onClose={() => setVideoOpen(false)} />
-      )}
-    </>
+      {/* ── Scrollable body ──────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto scroll-native hide-scrollbar pb-28">
+
+        {/* Media */}
+        {media.length > 0 && (
+          <div className="relative">
+            {currentMedia?.type === "video" ? (
+              <VideoPostPlayer url={currentMedia.url} aspectRatio="4/5" />
+            ) : (
+              <div style={{ aspectRatio: "4/5", background: "#0a0a0a" }}>
+                <img src={currentMedia?.url} alt={post.caption ?? ""} className="h-full w-full object-cover" />
+              </div>
+            )}
+
+            {media.length > 1 && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                {media.map((_, i) => (
+                  <button key={i} onClick={() => setMediaIndex(i)}
+                    className="h-1.5 rounded-full transition-all"
+                    style={{ width: i === mediaIndex ? 16 : 6, background: i === mediaIndex ? "white" : "rgba(255,255,255,0.45)" }}
+                  />
+                ))}
+              </div>
+            )}
+            {media.length > 1 && mediaIndex > 0 && (
+              <button onClick={() => setMediaIndex((i) => i - 1)}
+                className="absolute left-3 top-1/2 -translate-y-1/2 grid h-9 w-9 place-items-center rounded-full bg-black/50 backdrop-blur-sm text-white text-lg font-bold">‹</button>
+            )}
+            {media.length > 1 && mediaIndex < media.length - 1 && (
+              <button onClick={() => setMediaIndex((i) => i + 1)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 grid h-9 w-9 place-items-center rounded-full bg-black/50 backdrop-blur-sm text-white text-lg font-bold">›</button>
+            )}
+          </div>
+        )}
+
+        {/* Actions row */}
+        <div className="flex items-center gap-1 px-3 pt-4">
+          <motion.button whileTap={{ scale: 0.82 }} onClick={handleLike}
+            className="flex items-center gap-1.5 rounded-full px-3 py-2">
+            <Heart className="h-5 w-5 transition-colors"
+              style={{ fill: post.has_liked ? "#f43f5e" : "none", color: post.has_liked ? "#f43f5e" : "rgba(255,255,255,0.7)" }} />
+            <span className="text-xs font-semibold" style={{ color: post.has_liked ? "#f43f5e" : "rgba(255,255,255,0.7)" }}>
+              {fmtCount(post.like_count ?? 0)}
+            </span>
+          </motion.button>
+
+          <motion.button whileTap={{ scale: 0.82 }} onClick={() => commentInputRef.current?.focus()}
+            className="flex items-center gap-1.5 rounded-full px-3 py-2">
+            <MessageCircle className="h-5 w-5" style={{ color: "rgba(255,255,255,0.7)" }} />
+            <span className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.7)" }}>
+              {fmtCount(post.comment_count ?? 0)}
+            </span>
+          </motion.button>
+
+          <motion.button whileTap={{ scale: 0.82 }} onClick={handleSave}
+            className="flex items-center gap-1.5 rounded-full px-3 py-2">
+            <Bookmark className="h-5 w-5 transition-colors"
+              style={{ fill: post.has_saved ? "#a855f7" : "none", color: post.has_saved ? "#a855f7" : "rgba(255,255,255,0.7)" }} />
+          </motion.button>
+
+          <motion.button whileTap={{ scale: 0.82 }} onClick={handleShare}
+            className="flex items-center gap-1.5 rounded-full px-3 py-2">
+            <Share2 className="h-5 w-5" style={{ color: "rgba(255,255,255,0.7)" }} />
+          </motion.button>
+
+          <div className="flex-1" />
+          <div className="flex items-center gap-1 px-3">
+            <Eye className="h-4 w-4" style={{ color: "rgba(255,255,255,0.3)" }} />
+            <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.35)" }}>{fmtCount(post.view_count ?? 0)}</span>
+          </div>
+        </div>
+
+        {/* Caption */}
+        {post.caption && (
+          <div className="px-4 pt-1 pb-3">
+            <p className="text-sm leading-relaxed app-text">{post.caption}</p>
+          </div>
+        )}
+
+        {/* Comments section */}
+        <div className="border-t px-4 pt-4" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+          <h3 className="text-[12px] font-semibold app-text-muted uppercase tracking-wide mb-2">
+            {comments.length > 0 ? `${comments.length} Comments` : "Comments"}
+          </h3>
+
+          {loadingComments ? (
+            <div className="space-y-4 py-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex gap-3">
+                  <div className="h-8 w-8 rounded-full shimmer flex-shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-2.5 w-20 rounded-full shimmer" />
+                    <div className="h-2.5 w-full rounded-full shimmer" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : comments.length === 0 ? (
+            <p className="text-sm app-text-muted py-4">No comments yet. Be the first!</p>
+          ) : (
+            <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+              {comments.map((c) => (
+                <CommentItem
+                  key={c.id}
+                  comment={c}
+                  postId={post.id}
+                  meId={meId}
+                  isOwner={isOwner}
+                  onDelete={handleDeleteComment}
+                  onEdit={handleEditComment}
+                  onReport={handleReportComment}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Sticky comment input ─────────────────────────────────────── */}
+      <div
+        className="flex-shrink-0 flex items-end gap-3 px-4 pt-3 app-header border-t"
+        style={{ paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + 16px)`, borderColor: "rgba(255,255,255,0.07)" }}
+      >
+        {me?.avatar && (
+          <img src={me.avatar} alt="" className="h-8 w-8 rounded-full object-cover flex-shrink-0 mb-1" />
+        )}
+        <div
+          className="flex flex-1 items-end gap-2 rounded-2xl px-3 py-2"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+          <textarea
+            ref={commentInputRef}
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value.slice(0, 2000))}
+            placeholder="Add a comment…"
+            rows={1}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleAddComment(); } }}
+            className="flex-1 text-sm app-text bg-transparent outline-none resize-none placeholder:app-text-muted"
+            style={{ maxHeight: 96, minHeight: 20, overflowY: "auto" }}
+          />
+          <AnimatePresence>
+            {newComment.trim() && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.7 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.7 }}
+                whileTap={{ scale: 0.85 }}
+                onClick={handleAddComment}
+                disabled={submitting}
+                className="flex-shrink-0 grid h-7 w-7 place-items-center rounded-full text-white disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))" }}
+              >
+                <Send className="h-3.5 w-3.5" />
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </div>
   );
-}
-
-function FollowButton({ authorId }: { authorId: string }) {
-  const me                 = useAppStore((s) => s.user);
-  const followedUserIds    = useAppStore((s) => s.followedUserIds);
-  const setFollowedUserIds = useAppStore((s) => s.setFollowedUserIds);
-  const [working, setWorking] = useState(false);
-
-  if (authorId === me?.id || authorId === "me") return null;
-
-  const isFollowing = followedUserIds.includes(authorId);
-
-  const handleToggle = async () => {
-    if (working) return;
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) return;
-    setWorking(true);
-    try {
-      if (isFollowing) {
-        const { error } = await supabase.rpc("unfollow_user", { target_id: authorId });
-        if (!error) setFollowedUserIds(followedUserIds.filter((id) => id !== authorId));
-      } else {
-        const { error } = await supabase.rpc("follow_user", { target_id: authorId });
-        if (!error) setFollowedUserIds([...followedUserIds, authorId]);
-      }
-    } finally {
-      setWorking(false);
-    }
-  };
-
-  return (
-    <motion.button
-      whileTap={{ scale: 0.94 }}
-      onClick={handleToggle}
-      disabled={working}
-      className={
-        "rounded-full px-3.5 py-1.5 text-xs font-semibold transition disabled:opacity-60 " +
-        (isFollowing
-          ? "border border-white/20 bg-white/10 text-white/75"
-          : "bg-gradient-to-r from-purple-600 to-pink-500 text-white")
-      }
-    >
-      {isFollowing ? "Following" : "Follow"}
-    </motion.button>
-  );
-}
-
-function ActionBtn({
-  icon: Icon, label, active, onClick,
-}: { icon: typeof Heart; label: string; active?: boolean; onClick?: () => void }) {
-  return (
-    <motion.button
-      whileTap={{ scale: 0.92 }} onClick={onClick}
-      className="flex items-center gap-1.5 rounded-full bg-[#0a0a0a] border border-white/[0.08] px-3 py-1.5 text-xs font-semibold text-white"
-    >
-      <Icon className={"h-4 w-4 " + (active ? "fill-pink-500 text-pink-500" : "text-white")} />
-      {label}
-    </motion.button>
-  );
-}
-
-function fmtCount(n: number) {
-  if (n < 1000) return n.toString();
-  return (n / 1000).toFixed(1) + "k";
 }

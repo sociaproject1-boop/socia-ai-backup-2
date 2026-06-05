@@ -6,13 +6,15 @@
 import { useEffect, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { ArrowLeft, MessageCircle, UserPlus, UserCheck, Facebook, Instagram, Music2 } from "lucide-react";
+import { ArrowLeft, MessageCircle, UserPlus, UserCheck, Facebook, Instagram, Music2, Grid3x3 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { DbUser } from "@/lib/supabase";
 import { useAuth } from "@/lib/authContext";
 import { NameBadges, OnlineDot } from "@/components/Badges";
 import { usePresenceStatus } from "@/lib/usePresence";
 import { FounderHero, VerifiedFounderBadge } from "@/components/profile/FounderHero";
+import { PostThumbnail } from "@/components/feed/PostThumbnail";
+import { fetchUserPosts, type SocialPost } from "@/lib/postsClient";
 
 function compact(n: number) {
   if (n < 1000) return String(n);
@@ -30,6 +32,7 @@ export default function UserProfile() {
   const [loading,       setLoading]       = useState(true);
   const [followed,      setFollowed]      = useState(false);
   const [followWorking, setFollowWorking] = useState(false);
+  const [userPosts,     setUserPosts]     = useState<SocialPost[]>([]);
 
   const fetchCounts = async () => {
     const { data, error } = await supabase
@@ -68,6 +71,16 @@ export default function UserProfile() {
     })();
     return () => { cancelled = true; };
   }, [userId, sessionUid]);
+
+  /* ── Fetch user's real posts ────────────────────────────────────────── */
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    fetchUserPosts(userId, { limit: 30, viewerId: supabaseUser?.id })
+      .then((p) => { if (!cancelled) setUserPosts(p); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [userId, supabaseUser?.id]);
 
   /* Realtime: live updates to this user's row */
   useEffect(() => {
@@ -252,18 +265,32 @@ export default function UserProfile() {
               <StatBox label="Following" value={profile.following ?? 0} onClick={() => navigate(`/following/${userId}`)} />
             </div>
 
-            {/* No creations nudge */}
-            <div className="mt-8 flex flex-col items-center gap-3 py-10 text-center">
-              <div className="text-3xl">👑</div>
-              <p className="text-sm font-semibold text-white">No creations yet</p>
-              <p className="text-xs text-white/40">Send a message instead!</p>
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => navigate(`/messages/${userId}`)}
-                className="mt-2 flex items-center gap-2 rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_4px_18px_-4px_rgba(236,72,153,0.45)]"
-              >
-                <MessageCircle className="h-4 w-4" /> Start a conversation
-              </motion.button>
+            {/* Creations grid */}
+            <div className="mt-8 px-1">
+              {userPosts.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 py-10 text-center">
+                  <div className="text-3xl">👑</div>
+                  <p className="text-sm font-semibold text-white">No creations yet</p>
+                  <p className="text-xs text-white/40">Send a message instead!</p>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => navigate(`/messages/${userId}`)}
+                    className="mt-2 flex items-center gap-2 rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_4px_18px_-4px_rgba(236,72,153,0.45)]"
+                  >
+                    <MessageCircle className="h-4 w-4" /> Start a conversation
+                  </motion.button>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-3 flex items-center gap-2 text-white/40">
+                    <Grid3x3 className="h-3.5 w-3.5" />
+                    <span className="text-[10.5px] font-semibold uppercase tracking-wider">Creations</span>
+                  </div>
+                  <div className="columns-2 gap-3">
+                    {userPosts.map((p, i) => <PostThumbnail key={p.id} post={p} index={i} />)}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </>
@@ -335,18 +362,32 @@ export default function UserProfile() {
               <StatBox label="Following" value={profile.following ?? 0} onClick={() => navigate(`/following/${userId}`)} />
             </div>
 
-            {/* Empty posts */}
-            <div className="mt-8 flex flex-col items-center gap-3 py-12 text-center">
-              <div className="text-3xl">🎨</div>
-              <p className="text-sm font-semibold text-white">No creations yet</p>
-              <p className="text-xs text-white/40">Send them a message instead!</p>
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => navigate(`/messages/${userId}`)}
-                className="mt-2 flex items-center gap-2 rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_4px_18px_-4px_rgba(236,72,153,0.45)]"
-              >
-                <MessageCircle className="h-4 w-4" /> Start a conversation
-              </motion.button>
+            {/* Creations grid */}
+            <div className="mt-8">
+              {userPosts.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 py-12 text-center">
+                  <div className="text-3xl">🎨</div>
+                  <p className="text-sm font-semibold text-white">No creations yet</p>
+                  <p className="text-xs text-white/40">Send them a message instead!</p>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => navigate(`/messages/${userId}`)}
+                    className="mt-2 flex items-center gap-2 rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_4px_18px_-4px_rgba(236,72,153,0.45)]"
+                  >
+                    <MessageCircle className="h-4 w-4" /> Start a conversation
+                  </motion.button>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-3 flex items-center gap-2 text-white/40">
+                    <Grid3x3 className="h-3.5 w-3.5" />
+                    <span className="text-[10.5px] font-semibold uppercase tracking-wider">Creations</span>
+                  </div>
+                  <div className="columns-2 gap-3">
+                    {userPosts.map((p, i) => <PostThumbnail key={p.id} post={p} index={i} />)}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </>

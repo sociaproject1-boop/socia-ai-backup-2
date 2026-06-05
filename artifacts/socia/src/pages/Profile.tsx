@@ -6,8 +6,9 @@ import {
   Settings, Heart, Bookmark, Grid3x3, Copy, ArrowUpRight, Camera,
   Check, X, Facebook, Instagram, Music2, Shield, ChevronRight, ImagePlus, Trash2,
 } from "lucide-react";
-import { FeedCard } from "@/components/feed/FeedCard";
+import { PostThumbnail } from "@/components/feed/PostThumbnail";
 import { supabase, uploadAvatar, upsertProfile, isSupabaseReady } from "@/lib/supabase";
+import { fetchUserPosts, fetchSavedFeed, type SocialPost } from "@/lib/postsClient";
 import { NameBadges, OnlineDot } from "@/components/Badges";
 import { usePresenceStatus } from "@/lib/usePresence";
 import {
@@ -196,15 +197,16 @@ export default function Profile() {
   /* ── Load cover photo from Supabase on mount ────────────────────────── */
   useEffect(() => {
     if (!user?.id || !isAdminProfile) return;
-    supabase
-      .from("users")
-      .select("cover_photo_url")
-      .eq("id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("users")
+          .select("cover_photo_url")
+          .eq("id", user.id)
+          .maybeSingle();
         if (data?.cover_photo_url) setCoverPhotoUrl(data.cover_photo_url);
-      })
-      .catch(() => {});
+      } catch { /* ignore */ }
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -229,8 +231,25 @@ export default function Profile() {
   const deleteCoverPhoto = async () => {
     if (!user) return;
     setCoverPhotoUrl(null);
-    await supabase.from("users").update({ cover_photo_url: null }).eq("id", user.id).catch(() => {});
+    try { await supabase.from("users").update({ cover_photo_url: null }).eq("id", user.id); } catch { /* ok */ }
   };
+
+  /* ── Real posts from backend ────────────────────────────────────────── */
+  const [realMyPosts,    setRealMyPosts]    = useState<SocialPost[]>([]);
+  const [realSavedPosts, setRealSavedPosts] = useState<SocialPost[]>([]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    fetchUserPosts(user.id, { limit: 30, viewerId: user.id })
+      .then((p) => { if (!cancelled) setRealMyPosts(p); })
+      .catch(() => {});
+    fetchSavedFeed({ limit: 30 })
+      .then((p) => { if (!cancelled) setRealSavedPosts(p); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   /* ── Live follower / following counts ──────────────────────────────── */
   useEffect(() => {
@@ -675,17 +694,17 @@ export default function Profile() {
             transition={{ duration: 0.16 }}
           >
             {tab === "creations" && (
-              myPosts.length === 0
+              realMyPosts.length === 0
                 ? <EmptyState icon={Grid3x3} title="No creations yet" sub="Generate your first AI masterpiece." />
-                : <div className="columns-2 gap-3">{myPosts.map((p, i) => <FeedCard key={p.id} post={p} index={i} />)}</div>
+                : <div className="columns-2 gap-3">{realMyPosts.map((p, i) => <PostThumbnail key={p.id} post={p} index={i} />)}</div>
             )}
             {tab === "saved" && (
               <>
-                {savedPosts.length === 0 && savedPrompts.length === 0 && (
+                {realSavedPosts.length === 0 && savedPrompts.length === 0 && (
                   <EmptyState icon={Bookmark} title="Nothing saved yet" sub="Bookmark any post to see it here." />
                 )}
-                {savedPosts.length > 0 && (
-                  <div className="columns-2 gap-3 mb-6">{savedPosts.map((p, i) => <FeedCard key={p.id} post={p} index={i} />)}</div>
+                {realSavedPosts.length > 0 && (
+                  <div className="columns-2 gap-3 mb-6">{realSavedPosts.map((p, i) => <PostThumbnail key={p.id} post={p} index={i} />)}</div>
                 )}
                 {savedPrompts.length > 0 && (
                   <>
@@ -718,9 +737,9 @@ export default function Profile() {
               </>
             )}
             {tab === "liked" && (
-              liked.length === 0
-                ? <EmptyState icon={Heart} title="Nothing liked yet" sub="Double-tap any creation to heart it." />
-                : <div className="columns-2 gap-3">{liked.map((p, i) => <FeedCard key={p.id} post={p} index={i} />)}</div>
+              realMyPosts.filter(p => p.has_liked).length === 0
+                ? <EmptyState icon={Heart} title="Nothing liked yet" sub="Like posts to see them here." />
+                : <div className="columns-2 gap-3">{realMyPosts.filter(p => p.has_liked).map((p, i) => <PostThumbnail key={p.id} post={p} index={i} />)}</div>
             )}
           </motion.div>
         </AnimatePresence>
