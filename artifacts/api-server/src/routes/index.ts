@@ -42,6 +42,8 @@ import aiGovernanceRouter      from "./aiGovernance.js";
 import alertSettingsRouter       from "./alertSettings.js";
 import socialPostsRouter         from "./socialPosts.js";
 import userNotificationsRouter   from "./userNotifications.js";
+import searchRouter              from "./search.js";
+import tipRouter                 from "./tip.js";
 
 const router: IRouter = Router();
 
@@ -88,5 +90,7 @@ router.use(aiGovernanceRouter);
 router.use(alertSettingsRouter);
 router.use(socialPostsRouter);
 router.use(userNotificationsRouter);
+router.use(searchRouter);
+router.use(tipRouter);
 
 export default router;

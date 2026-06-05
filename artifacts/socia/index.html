@@ -21,9 +21,13 @@
         });
       }
     </script>
+    <!-- Phase 20: Performance — preconnect to all external origins -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Preconnect to Supabase storage (media CDN) — eliminates cold-connect latency on first image load -->
+    <link rel="preconnect" href="https://supabase.co">
+    <link rel="dns-prefetch" href="https://supabase.co">
   </head>
   <body>
     <div id="root"></div>

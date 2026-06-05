@@ -1,18 +1,18 @@
 import { useLocation } from "wouter";
-import { Home, Sparkles, MessageCircle, User, Plus } from "lucide-react";
+import { Home, Search, MessageCircle, User, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 
 const SIDE_TABS = [
-  { path: "/",         label: "Home",   icon: Home,          match: (l: string) => l === "/" },
-  { path: "/create",   label: "Create", icon: Sparkles,      match: (l: string) => l.startsWith("/create") || l.startsWith("/studio") },
-  { path: "/messages", label: "Inbox",  icon: MessageCircle, match: (l: string) => l.startsWith("/messages") },
-  { path: "/profile",  label: "Me",     icon: User,          match: (l: string) => l.startsWith("/profile") },
+  { path: "/",        label: "Home",   icon: Home,          match: (l: string) => l === "/" },
+  { path: "/search",  label: "Explore",icon: Search,        match: (l: string) => l.startsWith("/search") },
+  { path: "/messages",label: "Inbox",  icon: MessageCircle, match: (l: string) => l.startsWith("/messages") },
+  { path: "/profile", label: "Me",     icon: User,          match: (l: string) => l.startsWith("/profile") },
 ] as const;
 
 const TAB_COLOR: Record<string, string> = {
   "/":         "#a855f7",
-  "/create":   "#d946ef",
+  "/search":   "#ec4899",
   "/messages": "#60a5fa",
   "/profile":  "#a855f7",
 };

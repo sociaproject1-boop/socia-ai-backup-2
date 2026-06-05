@@ -120,3 +120,58 @@ async function cacheFirstMedia(request) {
     return new Response("", { status: 408 });
   }
 }
+
+/* ── Push Notifications ────────────────────────────────────────────────── */
+
+/**
+ * push event — show a native notification when the server sends a push.
+ *
+ * Expected push payload (JSON):
+ *   { title, body, icon?, badge?, url?, tag? }
+ *
+ * Falls back to a generic "Socia" notification if payload is unparseable.
+ */
+self.addEventListener("push", (event) => {
+  let data = { title: "Socia", body: "You have a new notification." };
+  try {
+    if (event.data) data = { ...data, ...event.data.json() };
+  } catch { /* keep defaults */ }
+
+  const options = {
+    body:              data.body,
+    icon:              data.icon  || "/icons/icon-192.png",
+    badge:             data.badge || "/icons/icon-96.png",
+    tag:               data.tag   || "socia-notification",
+    data:              { url: data.url || "/" },
+    vibrate:           [100, 50, 100],
+    requireInteraction: false,
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
+});
+
+/**
+ * notificationclick — navigate to the notification's target URL and
+ * focus an existing client window if one is already open.
+ */
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || "/";
+
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      /* Prefer an already-open Socia tab */
+      for (const client of clientList) {
+        const clientUrl = new URL(client.url);
+        if (clientUrl.origin === self.location.origin) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      /* No open tab — open a new one */
+      return clients.openWindow(targetUrl);
+    })
+  );
+});

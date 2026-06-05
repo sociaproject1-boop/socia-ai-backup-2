@@ -11,13 +11,13 @@
  *  • useCallback on all event handlers
  *  • Send error toast
  */
-import { useEffect, useRef, useState, useCallback, memo } from "react";
+import { useEffect, useRef, useState, useCallback, memo, useMemo } from "react";
 import { useLocation, useRoute } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Plus, Send, Image as ImageIcon, Check, CheckCheck,
   X, Download, Mic, Play, Pause, Square, AlertCircle,
-  Copy, Sparkles, Wand2, ChevronDown,
+  Copy, Sparkles, Wand2, ChevronDown, CornerUpLeft,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { useAuth } from "@/lib/authContext";
@@ -283,6 +283,8 @@ interface BubbleProps {
   /* Grouping (Messenger-style consecutive messages) */
   grouped:      boolean;   // true = same sender as previous msg within 3 min → less top margin, no avatar
   groupedNext:  boolean;   // true = next msg is same sender → tighter bottom radius
+  replyPreview?: { senderName: string; text: string | null; isImage: boolean; isAudio: boolean } | null;
+  onReply:       (msg: SupabaseMessage) => void;
 }
 
 const REACTION_EMOJIS = ["❤️", "👍", "😂", "😮", "😢"] as const;
@@ -293,6 +295,7 @@ const MessageBubble = memo(function MessageBubble({
   senderIsKing, onUsePrompt,
   isEditing, editText, onEditChange, onEditSave, onEditCancel,
   grouped: isGrouped, groupedNext: isGroupedNext,
+  replyPreview, onReply,
 }: BubbleProps) {
   const isImage  = !!msg.image_url && !msg.audio_url;
   const isAudio  = !!msg.audio_url;
@@ -358,6 +361,24 @@ const MessageBubble = memo(function MessageBubble({
           onTouchStart={startLp} onTouchEnd={cancelLp} onTouchMove={cancelLp}
           className="select-none"
         >
+          {/* Reply preview — quoted snippet when this msg replies to another */}
+          {replyPreview && !isImage && !isAudio && (
+            <div
+              className={"mb-1.5 flex items-start gap-1.5 rounded-xl px-3 py-2 border-l-2 "
+                + (mine ? "border-purple-400/50 bg-purple-500/10" : "border-white/20 bg-white/5")}
+              style={{ maxWidth: 240 }}
+            >
+              <CornerUpLeft className="h-3 w-3 shrink-0 mt-0.5 text-white/30" />
+              <div className="min-w-0">
+                <span className="text-[10px] font-semibold text-white/40 block truncate">
+                  {replyPreview.senderName}
+                </span>
+                <span className="text-[11px] text-white/35 truncate block">
+                  {replyPreview.isImage ? "📷 Photo" : replyPreview.isAudio ? "🎵 Voice" : (replyPreview.text ?? "").slice(0, 55)}
+                </span>
+              </div>
+            </div>
+          )}
           {isAudio ? (
             <AudioPlayer url={msg.audio_url!} />
 
@@ -621,6 +642,7 @@ export default function ChatThread() {
   const isNearBottomRef   = useRef(true);
   const prevMsgCountRef   = useRef(0);
   const [newMsgBanner,  setNewMsgBanner]  = useState(false);
+  const [replyTo,       setReplyTo]       = useState<SupabaseMessage | null>(null);
 
   const recorder = useVoiceRecorder();
 
@@ -629,6 +651,20 @@ export default function ChatThread() {
 
   const messageIds = messages.map((m) => m.id);
   const { reactions: allReactions, optimisticToggle } = useReactions(myId || null, otherId || null, messageIds);
+
+  /* Pre-compute reply previews keyed by message id for O(1) bubble lookup */
+  const replyMap = useMemo(() => {
+    const map = new Map<string, { senderName: string; text: string | null; isImage: boolean; isAudio: boolean }>();
+    messages.forEach((m) => {
+      map.set(m.id, {
+        senderName: m.sender_id === myId ? "You" : (otherUser?.name ?? "User"),
+        text:       m.text,
+        isImage:    !!m.image_url && !m.audio_url,
+        isAudio:    !!m.audio_url,
+      });
+    });
+    return map;
+  }, [messages, myId, otherUser]);
 
   useEffect(() => {
     if (!otherId) return;
@@ -763,12 +799,14 @@ export default function ChatThread() {
   const send = useCallback(async () => {
     const t = text.trim();
     if (!t || !myId || !otherId) return;
+    const rid = replyTo?.id;
     setText("");
+    setReplyTo(null);
     sendTyping(false); /* Clear typing indicator on send */
     if (typingTimer.current) clearTimeout(typingTimer.current);
-    const err = await sendMessage(myId, otherId, { text: t });
+    const err = await sendMessage(myId, otherId, { text: t, ...(rid ? { reply_to_id: rid } : {}) });
     if (err) setSendError("Failed to send. Check connection.");
-  }, [text, myId, otherId, sendTyping]);
+  }, [text, myId, otherId, sendTyping, replyTo]);
 
   const handleImagePick = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -849,6 +887,15 @@ export default function ChatThread() {
   }, [editingId, editText, myId]);
 
   const handleEditCancel = useCallback(() => { setEditingId(null); setEditText(""); }, []);
+
+  /* Reply — find the target message and open the reply banner */
+  const handleReply = useCallback(() => {
+    if (!actionSheet) return;
+    const msg = messages.find((m) => m.id === actionSheet.id);
+    if (msg) setReplyTo(msg);
+    setActionSheet(null);
+    setTimeout(() => textareaRef.current?.focus(), 80);
+  }, [actionSheet, messages]);
 
   /* Reaction from action sheet */
   const handleReact = useCallback(async (msgId: string, emoji: string) => {
@@ -1091,6 +1138,8 @@ export default function ChatThread() {
                       onEditCancel={handleEditCancel}
                       grouped={grouped}
                       groupedNext={groupedNext}
+                      replyPreview={msg.reply_to_id ? (replyMap.get(msg.reply_to_id) ?? null) : null}
+                      onReply={() => { setReplyTo(msg); setTimeout(() => textareaRef.current?.focus(), 80); }}
                     />
                   );
                 })}
@@ -1187,6 +1236,31 @@ export default function ChatThread() {
               </div>
               <button onClick={recorder.cancel} className="flex items-center gap-1 text-xs text-white/50 hover:text-white/80">
                 <X className="h-3.5 w-3.5" /> Cancel
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Reply banner ──────────────────────────────────────────────── */}
+        <AnimatePresence>
+          {replyTo && (
+            <motion.div
+              initial={{ opacity: 0, y: 6, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: "auto" }}
+              exit={{ opacity: 0, y: 6, height: 0 }}
+              className="flex items-center gap-2.5 border-t border-purple-500/20 bg-purple-500/8 px-4 py-2 overflow-hidden"
+            >
+              <CornerUpLeft className="h-3.5 w-3.5 shrink-0 text-purple-400" />
+              <div className="flex-1 min-w-0">
+                <span className="text-[10.5px] font-semibold text-purple-300 block">
+                  {replyTo.sender_id === myId ? "Replying to yourself" : `Replying to ${peerName}`}
+                </span>
+                <span className="text-[11px] text-white/40 truncate block">
+                  {replyTo.image_url ? "📷 Photo" : replyTo.audio_url ? "🎵 Voice message" : (replyTo.text ?? "").slice(0, 60)}
+                </span>
+              </div>
+              <button onClick={() => setReplyTo(null)} className="p-1 shrink-0">
+                <X className="h-3.5 w-3.5 text-white/40" />
               </button>
             </motion.div>
           )}
@@ -1317,6 +1391,15 @@ export default function ChatThread() {
                 ))}
               </div>
               <div className="h-px bg-white/10 mb-3" />
+
+              {/* Reply — available for all messages */}
+              <button
+                onClick={handleReply}
+                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm text-white hover:bg-white/5 active:bg-white/10"
+              >
+                <CornerUpLeft className="h-4 w-4 text-white/60" />
+                Reply
+              </button>
 
               {/* Edit (own messages only) */}
               {actionSheet.mine && actionSheet.text && (

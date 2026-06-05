@@ -14,7 +14,7 @@ import { useLocation, useRoute } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Heart, MessageCircle, Bookmark, Share2,
-  Send, BadgeCheck, MoreHorizontal, Trash2, Flag, Eye,
+  Send, BadgeCheck, MoreHorizontal, Trash2, Flag, Eye, Zap, X,
 } from "lucide-react";
 import { VideoPostPlayer } from "@/components/feed/VideoPostPlayer";
 import {
@@ -194,6 +194,11 @@ export default function PostDetail() {
   const [loadingPost,  setLoadingPost]  = useState(true);
   const [loadingComments, setLoadingComments] = useState(true);
   const [postError,    setPostError]    = useState<string | null>(null);
+  /* Tip state */
+  const [tipOpen,    setTipOpen]    = useState(false);
+  const [tipAmt,     setTipAmt]     = useState<number>(5);
+  const [tipBusy,    setTipBusy]    = useState(false);
+  const [tipResult,  setTipResult]  = useState<{ ok: boolean; msg: string } | null>(null);
 
   const [newComment,   setNewComment]   = useState("");
   const [submitting,   setSubmitting]   = useState(false);
@@ -207,6 +212,35 @@ export default function PostDetail() {
   const isOwner = me?.isOwner === true;
   const isMe    = meId === post?.author_id;
   const isFollowing = post ? followedIds.includes(post.author_id) : false;
+
+  const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+  const handleTip = useCallback(async () => {
+    if (!post || !meId) return;
+    setTipBusy(true);
+    setTipResult(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) { setTipResult({ ok: false, msg: "Please sign in to tip." }); return; }
+      const res = await fetch(`${BASE}/api/tip`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ creator_id: post.author_id, post_id: post.id, amount: tipAmt }),
+      });
+      const j = await res.json().catch(() => ({})) as { ok?: boolean; error?: string; creator?: string; newBalance?: number };
+      if (res.ok && j.ok) {
+        setTipResult({ ok: true, msg: `${tipAmt} credit${tipAmt > 1 ? "s" : ""} sent to ${j.creator ?? "creator"}! 🎉` });
+        setTimeout(() => setTipOpen(false), 2200);
+      } else {
+        setTipResult({ ok: false, msg: j.error ?? "Failed to send tip." });
+      }
+    } catch (e) {
+      setTipResult({ ok: false, msg: "Network error. Please try again." });
+    } finally {
+      setTipBusy(false);
+    }
+  }, [post, meId, tipAmt, BASE]);
 
   /* ── Load post ──────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -463,6 +497,18 @@ export default function PostDetail() {
             <Share2 className="h-5 w-5" style={{ color: "rgba(255,255,255,0.7)" }} />
           </motion.button>
 
+          {/* Tip creator button — hidden for own posts */}
+          {!isMe && (
+            <motion.button
+              whileTap={{ scale: 0.82 }}
+              onClick={() => { setTipResult(null); setTipOpen(true); }}
+              className="flex items-center gap-1.5 rounded-full px-3 py-2"
+            >
+              <Zap className="h-5 w-5" style={{ color: "#fbbf24" }} />
+              <span className="text-xs font-semibold" style={{ color: "#fbbf24" }}>Tip</span>
+            </motion.button>
+          )}
+
           <div className="flex-1" />
           <div className="flex items-center gap-1 px-3">
             <Eye className="h-4 w-4" style={{ color: "rgba(255,255,255,0.3)" }} />
@@ -556,6 +602,106 @@ export default function PostDetail() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* ── Tip bottom sheet ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {tipOpen && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end justify-center"
+            onClick={() => !tipBusy && setTipOpen(false)}
+          >
+            <div className="absolute inset-0 bg-black/75" />
+            <motion.div
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 26, stiffness: 260 }}
+              className="relative w-full max-w-md rounded-t-3xl border-t border-white/[0.05] bg-[#0a0a0a] p-6 pb-10 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h3 className="text-[16px] font-bold text-white">Tip Creator</h3>
+                  <p className="text-[11px] text-white/40 mt-0.5">
+                    Send credits to {post.author?.name ?? "this creator"}
+                  </p>
+                </div>
+                <button onClick={() => setTipOpen(false)} disabled={tipBusy} className="p-1">
+                  <X className="h-4 w-4 text-white/40" />
+                </button>
+              </div>
+
+              {/* Amount selector */}
+              <div className="grid grid-cols-5 gap-2 mb-5">
+                {[1, 5, 10, 25, 50].map((amt) => (
+                  <button
+                    key={amt}
+                    onClick={() => setTipAmt(amt)}
+                    className="rounded-2xl py-3 text-[13px] font-bold transition-all"
+                    style={{
+                      background: tipAmt === amt
+                        ? "linear-gradient(135deg,#fbbf24,#f59e0b)"
+                        : "rgba(255,255,255,0.07)",
+                      color: tipAmt === amt ? "#0a0a0a" : "rgba(255,255,255,0.6)",
+                      border: tipAmt === amt ? "none" : "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    {amt}
+                  </button>
+                ))}
+              </div>
+
+              {/* Selected amount display */}
+              <div
+                className="rounded-2xl p-4 text-center mb-4"
+                style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)" }}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <Zap className="h-5 w-5 text-amber-400" />
+                  <span className="text-[18px] font-black text-amber-400">{tipAmt} credits</span>
+                </div>
+                <p className="text-[11px] text-white/35 mt-1">will be sent to the creator</p>
+              </div>
+
+              {/* Result message */}
+              <AnimatePresence>
+                {tipResult && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="mb-3 rounded-xl px-4 py-2.5 text-sm text-center font-medium"
+                    style={{
+                      background: tipResult.ok ? "rgba(52,211,153,0.1)" : "rgba(248,113,113,0.1)",
+                      color:      tipResult.ok ? "#34d399"               : "#f87171",
+                      border: `1px solid ${tipResult.ok ? "rgba(52,211,153,0.25)" : "rgba(248,113,113,0.25)"}`,
+                    }}
+                  >
+                    {tipResult.msg}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Send button */}
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={handleTip}
+                disabled={tipBusy}
+                className="w-full rounded-2xl py-4 text-[15px] font-bold text-black disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg,#fbbf24,#f59e0b)" }}
+              >
+                {tipBusy
+                  ? <span className="flex items-center justify-center gap-2"><span className="h-4 w-4 animate-spin rounded-full border-2 border-black/30 border-t-black" /> Sending…</span>
+                  : `⚡ Send ${tipAmt} credits`}
+              </motion.button>
+
+              <p className="mt-3 text-center text-[10px] text-white/25">
+                Tips are non-refundable. Credits deducted from your balance.
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

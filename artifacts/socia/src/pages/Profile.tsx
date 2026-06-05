@@ -713,17 +713,30 @@ export default function Profile() {
           </div>
 
           {!isEditing && (
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              onClick={() => {
-                setEditName(user.name); setEditHandle(user.handle); setEditBio(user.bio ?? "");
-                setEditFb(user.social?.facebook ?? ""); setEditIg(user.social?.instagram ?? "");
-                setEditTt(user.social?.tiktok   ?? ""); setIsEditing(true);
-              }}
-              className="mt-3 w-full rounded-[14px] py-2.5 text-[13px] font-semibold tracking-wide app-surface app-text"
-            >
-              Edit Profile
-            </motion.button>
+            <div className="mt-3 flex gap-2">
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={() => {
+                  setEditName(user.name); setEditHandle(user.handle); setEditBio(user.bio ?? "");
+                  setEditFb(user.social?.facebook ?? ""); setEditIg(user.social?.instagram ?? "");
+                  setEditTt(user.social?.tiktok   ?? ""); setIsEditing(true);
+                }}
+                className="flex-1 rounded-[14px] py-2.5 text-[13px] font-semibold tracking-wide app-surface app-text"
+              >
+                Edit Profile
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={() => navigate("/creator/dashboard")}
+                className="flex items-center gap-1.5 rounded-[14px] px-4 py-2.5 text-[13px] font-semibold"
+                style={{ background: "linear-gradient(135deg,rgba(168,85,247,0.15),rgba(236,72,153,0.15))", border: "1px solid rgba(168,85,247,0.3)", color: "#a855f7" }}
+              >
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5">
+                  <path d="M2 12h12M2 8l4-4 3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Studio
+              </motion.button>
+            </div>
           )}
         </div>
       )}

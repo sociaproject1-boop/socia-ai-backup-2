@@ -6,7 +6,7 @@ import { BusinessVerificationModal } from "@/components/BusinessVerificationModa
 import { useAppStore } from "@/lib/store";
 import { useAuth } from "@/lib/authContext";
 import { usePreferences } from "@/lib/PreferencesContext";
-import { TextSizeKey } from "@/lib/preferences";
+import { TextSizeKey, Preferences, Notifs } from "@/lib/preferences";
 import { supabase } from "@/lib/supabase";
 
 type Section = "main" | "account" | "notifications" | "appearance" | "privacy" | "about";
@@ -390,30 +390,10 @@ export default function Settings() {
 
         {/* ── NOTIFICATIONS ─────────────────────────────────────────── */}
         {section === "notifications" && (
-          <motion.div key="notifications" {...slide} className="flex h-full flex-col">
-            <Header title="Notifications" />
-            <div className="flex-1 overflow-y-auto hide-scrollbar px-4 pt-4 space-y-2"
-              style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
-              {([
-                { key: "push"      as const, label: "Push Notifications", desc: "Alerts when app is closed" },
-                { key: "email"     as const, label: "Email Updates",      desc: "Weekly digest & product news" },
-                { key: "sound"     as const, label: "In-app Sounds",      desc: "Sound effects for actions" },
-                { key: "followers" as const, label: "New Followers",      desc: "When someone follows you" },
-                { key: "likes"     as const, label: "Post Likes",         desc: "When someone likes your post" },
-              ]).map((item) => (
-                <ToggleRow
-                  key={item.key}
-                  label={item.label}
-                  desc={item.desc}
-                  on={prefs.notifs[item.key]}
-                  onChange={(v) => setNotif(item.key, v)}
-                />
-              ))}
-              <p className="px-1 pt-1 text-[10.5px] app-text-muted">
-                Toggle states are saved locally and will power backend push integration in a future release.
-              </p>
-            </div>
-          </motion.div>
+          <NotificationsSection
+            prefs={prefs}
+            setNotif={setNotif}
+          />
         )}
 
         {/* ── APPEARANCE ─────────────────────────────────────────────── */}
@@ -678,6 +658,122 @@ function ToggleRow({ label, desc, on, onChange }: {
       </div>
       <Toggle on={on} onChange={onChange} />
     </div>
+  );
+}
+
+/* ── NotificationsSection — handles real browser push permission ───── */
+interface NotifSectionProps {
+  prefs:    Preferences;
+  setNotif: (key: keyof Notifs, v: boolean) => void;
+}
+function NotificationsSection({ prefs, setNotif }: NotifSectionProps) {
+  const [permState, setPermState] = useState<NotificationPermission | "unsupported">("default");
+
+  useEffect(() => {
+    if (!("Notification" in window)) { setPermState("unsupported"); return; }
+    setPermState(Notification.permission);
+  }, []);
+
+  const requestPermission = useCallback(async () => {
+    if (!("Notification" in window)) return;
+    const perm = await Notification.requestPermission();
+    setPermState(perm);
+    if (perm === "granted") setNotif("push", true);
+    else setNotif("push", false);
+  }, [setNotif]);
+
+  const handlePushToggle = useCallback(async (v: boolean) => {
+    if (v && permState !== "granted") {
+      await requestPermission();
+    } else {
+      setNotif("push", v);
+    }
+  }, [permState, requestPermission, setNotif]);
+
+  return (
+    <motion.div key="notifications" {...{
+      initial:    { opacity: 0, x: 28 },
+      animate:    { opacity: 1, x: 0 },
+      exit:       { opacity: 0, x: -16 },
+      transition: { duration: 0.18, ease: [0.32, 0.72, 0, 1] as const },
+    }} className="flex h-full flex-col">
+      <header className="app-header sticky top-0 z-20 flex items-center gap-3 px-4"
+        style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)`, paddingBottom: 12 }}>
+        <div className="w-9" />
+        <h2 className="flex-1 text-center font-display text-[15px] font-semibold app-text">Notifications</h2>
+        <div className="w-9" />
+      </header>
+
+      <div className="flex-1 overflow-y-auto hide-scrollbar px-4 pt-4 space-y-2"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 80px)" }}>
+
+        {/* Browser push permission status */}
+        {permState !== "unsupported" && (
+          <div
+            className="rounded-2xl p-3.5 mb-1 flex items-start gap-3"
+            style={{
+              background: permState === "granted"
+                ? "rgba(52,211,153,0.08)"
+                : permState === "denied"
+                  ? "rgba(248,113,113,0.08)"
+                  : "rgba(251,191,36,0.08)",
+              border: `1px solid ${permState === "granted" ? "rgba(52,211,153,0.25)" : permState === "denied" ? "rgba(248,113,113,0.25)" : "rgba(251,191,36,0.25)"}`,
+            }}
+          >
+            <Bell
+              className="h-4 w-4 shrink-0 mt-0.5"
+              style={{
+                color: permState === "granted" ? "#34d399" : permState === "denied" ? "#f87171" : "#fbbf24",
+              }}
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-[12.5px] font-semibold app-text">
+                {permState === "granted" ? "Notifications allowed" : permState === "denied" ? "Notifications blocked" : "Notifications not enabled"}
+              </p>
+              <p className="text-[11px] app-text-muted mt-0.5">
+                {permState === "granted"
+                  ? "You'll receive alerts for likes, comments, and messages."
+                  : permState === "denied"
+                    ? "Re-enable in your browser/OS settings to receive alerts."
+                    : "Tap the push toggle to enable browser alerts."}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Push notification toggle (wired to browser permission API) */}
+        <div className="app-card flex items-center gap-3 rounded-[18px] px-4 py-3.5">
+          <div className="flex-1 min-w-0">
+            <p className="text-[13.5px] font-semibold app-text">Push Notifications</p>
+            <p className="text-[11px] app-text-muted mt-0.5">Alerts when app is closed</p>
+          </div>
+          <Toggle
+            on={prefs.notifs.push && permState === "granted"}
+            onChange={handlePushToggle}
+          />
+        </div>
+
+        {/* Other notification toggles */}
+        {([
+          { key: "email"     as const, label: "Email Updates",  desc: "Weekly digest & product news" },
+          { key: "sound"     as const, label: "In-app Sounds",  desc: "Sound effects for actions" },
+          { key: "followers" as const, label: "New Followers",  desc: "When someone follows you" },
+          { key: "likes"     as const, label: "Post Likes",     desc: "When someone likes your post" },
+        ]).map((item) => (
+          <ToggleRow
+            key={item.key}
+            label={item.label}
+            desc={item.desc}
+            on={prefs.notifs[item.key]}
+            onChange={(v) => setNotif(item.key, v)}
+          />
+        ))}
+
+        <p className="px-1 pt-1 text-[10.5px] app-text-muted">
+          Push alerts use your browser's native notification system. Manage them in OS settings anytime.
+        </p>
+      </div>
+    </motion.div>
   );
 }
 

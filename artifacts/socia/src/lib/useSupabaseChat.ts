@@ -24,20 +24,21 @@ import { supabase } from "./supabase";
 /* ══════════════════════════════════════════════════════════════════════════ */
 
 export interface SupabaseMessage {
-  id:          string;
-  sender_id:   string;
-  receiver_id: string;
-  text:        string | null;
-  image_url:   string | null;
-  audio_url:   string | null;
-  seen:        boolean;
-  seen_at:     string | null;
-  edited:      boolean;
-  created_at:  string;
+  id:           string;
+  sender_id:    string;
+  receiver_id:  string;
+  text:         string | null;
+  image_url:    string | null;
+  audio_url:    string | null;
+  seen:         boolean;
+  seen_at:      string | null;
+  edited:       boolean;
+  created_at:   string;
+  reply_to_id?: string | null;
   /* Prompt-to-chat — populated by send_prompt_message RPC.
      Optional/?: harmless on older rows that predate the §13 schema. */
-  prompt?:     string | null;
-  is_prompt?:  boolean;
+  prompt?:      string | null;
+  is_prompt?:   boolean;
 }
 
 export interface MessageReaction {
@@ -417,7 +418,7 @@ export async function fetchUserById(id: string): Promise<ConversationUser | null
 export async function sendMessage(
   _senderId:  string,   // ignored — server enforces sender identity from JWT
   receiverId: string,
-  payload:    { text?: string; image_url?: string; audio_url?: string },
+  payload:    { text?: string; image_url?: string; audio_url?: string; reply_to_id?: string },
 ): Promise<string | null> {
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;

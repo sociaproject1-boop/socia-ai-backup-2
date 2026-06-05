@@ -72,6 +72,8 @@ const UploadPage         = lazy(() => import("@/pages/Upload"));
 const PublicStatus       = lazy(() => import("@/pages/PublicStatus"));
 const SupportHub             = lazy(() => import("@/pages/SupportHub"));
 const SocialNotifications    = lazy(() => import("@/pages/SocialNotifications"));
+const SearchPage             = lazy(() => import("@/pages/Search"));
+const CreatorDashboard       = lazy(() => import("@/pages/CreatorDashboard"));
 
 // Stable wrapper components defined outside Router to avoid remounts on re-render.
 // They reference lazy components which are resolved by the nearest Suspense boundary.
@@ -164,6 +166,7 @@ function Router() {
       <Route path="/forgot-password"       component={ResetPassword} />
       <Route path="/reset-password"        component={ResetPassword} />
       <Route path="/"                      component={Home} />
+      <Route path="/search"               component={SearchPage} />
       <Route path="/create"               component={CreateHub} />
       <Route path="/create/prompt-image"  component={CreatePromptImage} />
       <Route path="/create/prompt-video"  component={CreatePromptVideo} />
@@ -189,6 +192,7 @@ function Router() {
       <Route path="/messages"             component={Messages} />
       <Route path="/messages/:id"         component={ChatThread} />
       <Route path="/profile"              component={Profile} />
+      <Route path="/creator/dashboard"    component={CreatorDashboard} />
       <Route path="/profile/settings"     component={Settings} />
       <Route path="/profile/:id"          component={UserProfile} />
       <Route path="/post/:id"             component={PostDetail} />

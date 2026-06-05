@@ -49,7 +49,7 @@ router.post("/messages/send", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const { receiver_id, text, image_url, audio_url } = (req.body ?? {}) as Record<string, unknown>;
+  const { receiver_id, text, image_url, audio_url, reply_to_id } = (req.body ?? {}) as Record<string, unknown>;
 
   if (!receiver_id || typeof receiver_id !== "string") {
     res.status(400).json({ error: "receiver_id is required", code: "MISSING_RECEIVER" });
@@ -76,6 +76,7 @@ router.post("/messages/send", requireAuth, async (req, res): Promise<void> => {
       text:        text        ? String(text).trim()  : null,
       image_url:   image_url   ? String(image_url)    : null,
       audio_url:   audio_url   ? String(audio_url)    : null,
+      reply_to_id: reply_to_id && typeof reply_to_id === "string" ? reply_to_id : null,
       seen:        false,
       seen_at:     null,
     })
