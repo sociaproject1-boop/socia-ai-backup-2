@@ -181,8 +181,9 @@ export default function Profile() {
   const [saveError,    setSaveError]    = useState<string>("");
   const [liveFollowers, setLiveFollowers] = useState<number | null>(null);
   const [liveFollowing, setLiveFollowing] = useState<number | null>(null);
-  const fileRef      = useRef<HTMLInputElement>(null);
-  const coverFileRef = useRef<HTMLInputElement>(null);
+  const fileRef         = useRef<HTMLInputElement>(null);
+  const coverFileRef    = useRef<HTMLInputElement>(null);
+  const scrollRef       = useRef<HTMLDivElement>(null);
 
   /* ── Cover photo state ──────────────────────────────────────────────── */
   const [coverPhotoUrl,  setCoverPhotoUrl]  = useState<string | null>(null);
@@ -190,6 +191,13 @@ export default function Profile() {
   const [coverError,     setCoverError]     = useState<string>("");
 
   const isAdminProfile = user?.isOwner === true;
+
+  /* ── Scroll-to-top + overflow lock when edit mode activates ────────── */
+  useEffect(() => {
+    if (isEditing && scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
+  }, [isEditing]);
 
   /* ── Realtime presence status (replaces stale user.isOnline from store) ── */
   const presenceStatus = usePresenceStatus(user?.id ?? null);
@@ -389,7 +397,10 @@ export default function Profile() {
   };
 
   return (
-    <div className="app-bg pb-28 hide-scrollbar overflow-y-auto h-full scroll-native">
+    <div
+      ref={scrollRef}
+      className={`app-bg pb-28 hide-scrollbar h-full ${isEditing ? "overflow-hidden" : "overflow-y-auto scroll-native"}`}
+    >
 
       {/* ── Save toast ─────────────────────────────────────────────────── */}
       <AnimatePresence>
@@ -562,9 +573,9 @@ export default function Profile() {
             >
               <StatBtn label="Creations" value={myPosts.length} />
               <div className="my-3 w-px self-stretch" style={{ background: "rgba(251,191,36,0.12)" }} />
-              <StatBtn label="Followers" value={liveFollowers ?? user.followers} onClick={() => navigate(`/followers/${user.id}`)} />
+              <StatBtn label="Followers" value={liveFollowers ?? user.followers} onClick={isEditing ? undefined : () => navigate(`/followers/${user.id}`)} />
               <div className="my-3 w-px self-stretch" style={{ background: "rgba(251,191,36,0.12)" }} />
-              <StatBtn label="Following" value={liveFollowing ?? user.following} onClick={() => navigate(`/following/${user.id}`)} />
+              <StatBtn label="Following" value={liveFollowing ?? user.following} onClick={isEditing ? undefined : () => navigate(`/following/${user.id}`)} />
             </div>
 
             {/* Edit profile button */}
@@ -707,9 +718,9 @@ export default function Profile() {
           <div className="mt-4 flex items-center overflow-hidden rounded-[18px] app-card">
             <StatBtn label="Creations" value={liveCreationsCount ?? realMyPosts.length} />
             <div className="my-3 w-px self-stretch" style={{ background: "var(--s-border-a)" }} />
-            <StatBtn label="Followers" value={liveFollowers ?? user.followers} onClick={() => navigate(`/followers/${user.id}`)} />
+            <StatBtn label="Followers" value={liveFollowers ?? user.followers} onClick={isEditing ? undefined : () => navigate(`/followers/${user.id}`)} />
             <div className="my-3 w-px self-stretch" style={{ background: "var(--s-border-a)" }} />
-            <StatBtn label="Following" value={liveFollowing ?? user.following} onClick={() => navigate(`/following/${user.id}`)} />
+            <StatBtn label="Following" value={liveFollowing ?? user.following} onClick={isEditing ? undefined : () => navigate(`/following/${user.id}`)} />
           </div>
 
           {!isEditing && (
@@ -741,8 +752,11 @@ export default function Profile() {
         </div>
       )}
 
-      {/* ── Tabs ──────────────────────────────────────────────────────── */}
-      <div className="app-header sticky top-0 z-10 flex mt-4">
+      {/* ── Tabs — locked while editing ───────────────────────────────── */}
+      <div
+        className="app-header sticky top-0 z-10 flex mt-4 transition-opacity duration-200"
+        style={isEditing ? { pointerEvents: "none", opacity: 0.25 } : {}}
+      >
         <TabBtn active={tab === "creations"} onClick={() => setTab("creations")} icon={Grid3x3}>Creations</TabBtn>
         <TabBtn active={tab === "saved"}     onClick={() => setTab("saved")}     icon={Bookmark}>
           Saved{savedPosts.length > 0 ? ` (${savedPosts.length})` : ""}
@@ -750,8 +764,11 @@ export default function Profile() {
         <TabBtn active={tab === "liked"}     onClick={() => setTab("liked")}     icon={Heart}>Liked</TabBtn>
       </div>
 
-      {/* ── Tab content ───────────────────────────────────────────────── */}
-      <div className="px-4 pt-4">
+      {/* ── Tab content — locked while editing ────────────────────────── */}
+      <div
+        className="px-4 pt-4 transition-opacity duration-200"
+        style={isEditing ? { pointerEvents: "none", userSelect: "none", opacity: 0.25 } : {}}
+      >
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={tab}

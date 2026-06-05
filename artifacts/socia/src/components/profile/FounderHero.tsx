@@ -367,8 +367,9 @@ export function FounderHero({
         style={{ width: 48, background: "linear-gradient(to left, rgba(0,0,0,0.6), transparent)" }} />
 
       {/* ── Layer 4: Avatar centered in lower hero ─────────────────── */}
+      {/* z-20 ensures the camera-button overlay sits ABOVE the z-10 cover overlay */}
       <div
-        className="absolute flex flex-col items-center"
+        className="absolute flex flex-col items-center z-20"
         style={{ bottom: 18, left: 0, right: 0, alignItems: "center" }}
       >
         {/* Crown floats above avatar */}
