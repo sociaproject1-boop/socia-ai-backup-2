@@ -120,11 +120,20 @@ export function usePresenceHeartbeat(_userId: string | null): void {
 /*  useMessages — messages in a single thread                                 */
 /* ══════════════════════════════════════════════════════════════════════════ */
 
+const CHAT_PAGE_SIZE = 50;
+
 export function useMessages(myId: string | null, otherId: string | null) {
-  const [messages, setMessages] = useState<SupabaseMessage[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState<string | null>(null);
+  const [messages,      setMessages]      = useState<SupabaseMessage[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState<string | null>(null);
+  const [hasMore,       setHasMore]       = useState(false);
+  const [loadingOlder,  setLoadingOlder]  = useState(false);
   const seenIds = useRef(new Set<string>());
+
+  const threadFilter = useCallback(() =>
+    `and(sender_id.eq.${myId},receiver_id.eq.${otherId}),` +
+    `and(sender_id.eq.${otherId},receiver_id.eq.${myId})`,
+  [myId, otherId]);
 
   const load = useCallback(async () => {
     if (!myId || !otherId) {
@@ -132,38 +141,65 @@ export function useMessages(myId: string | null, otherId: string | null) {
       return;
     }
 
-    /* Use SELECT * so missing optional columns (edited, edited_at, etc.)
-       on older schemas never break the query. */
+    /* Fetch the most-recent PAGE_SIZE messages (desc) then reverse to asc.
+       Fetching one extra lets us know if there are older pages. */
     const { data, error: qErr } = await supabase
       .from("messages")
       .select("*")
-      .or(
-        `and(sender_id.eq.${myId},receiver_id.eq.${otherId}),` +
-        `and(sender_id.eq.${otherId},receiver_id.eq.${myId})`
-      )
-      .order("created_at", { ascending: true })
-      .limit(300);
+      .or(threadFilter())
+      .order("created_at", { ascending: false })
+      .limit(CHAT_PAGE_SIZE + 1);
 
     if (qErr) {
-      /* Log loudly but DO NOT scare the user with a banner — the empty
-         state is friendlier for the common "no messages yet" case. */
       console.error("[Chat] useMessages load:", qErr.code, qErr.message);
       seenIds.current = new Set();
       setMessages([]);
       setError(null);
+      setHasMore(false);
     } else {
-      const rows = (data ?? []) as SupabaseMessage[];
+      const raw = (data ?? []) as SupabaseMessage[];
+      const more = raw.length > CHAT_PAGE_SIZE;
+      const rows = (more ? raw.slice(0, CHAT_PAGE_SIZE) : raw).reverse();
       seenIds.current = new Set(rows.map((m) => m.id));
       setMessages(rows);
+      setHasMore(more);
       setError(null);
     }
     setLoading(false);
-  }, [myId, otherId]);
+  }, [myId, otherId, threadFilter]);
+
+  /** Load the page of messages older than the oldest currently loaded. */
+  const loadOlder = useCallback(async (oldestCreatedAt: string) => {
+    if (!myId || !otherId || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const { data, error: qErr } = await supabase
+        .from("messages")
+        .select("*")
+        .or(threadFilter())
+        .lt("created_at", oldestCreatedAt)
+        .order("created_at", { ascending: false })
+        .limit(CHAT_PAGE_SIZE + 1);
+
+      if (!qErr) {
+        const raw = (data ?? []) as SupabaseMessage[];
+        const more = raw.length > CHAT_PAGE_SIZE;
+        const rows = (more ? raw.slice(0, CHAT_PAGE_SIZE) : raw).reverse();
+        const newOnes = rows.filter((m) => !seenIds.current.has(m.id));
+        newOnes.forEach((m) => seenIds.current.add(m.id));
+        if (newOnes.length > 0) setMessages((prev) => [...newOnes, ...prev]);
+        setHasMore(more);
+      }
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [myId, otherId, loadingOlder, threadFilter]);
 
   useEffect(() => {
     seenIds.current.clear();
     setMessages([]);
     setError(null);
+    setHasMore(false);
     setLoading(true);
     load();
 
@@ -204,7 +240,7 @@ export function useMessages(myId: string | null, otherId: string | null) {
     };
   }, [myId, otherId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { messages, loading, error };
+  return { messages, loading, error, hasMore, loadOlder, loadingOlder };
 }
 
 /* ══════════════════════════════════════════════════════════════════════════ */

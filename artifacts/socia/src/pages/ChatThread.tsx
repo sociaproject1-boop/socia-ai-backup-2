@@ -17,7 +17,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Plus, Send, Image as ImageIcon, Check, CheckCheck,
   X, Download, Mic, Play, Pause, Square, AlertCircle,
-  Copy, Sparkles, Wand2,
+  Copy, Sparkles, Wand2, ChevronDown,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { useAuth } from "@/lib/authContext";
@@ -613,14 +613,19 @@ export default function ChatThread() {
   const [nicknamingOpen, setNicknamingOpen] = useState(false);
   const [nicknameInput,  setNicknameInput]  = useState("");
 
-  const scrollRef   = useRef<HTMLDivElement>(null);
-  const fileRef     = useRef<HTMLInputElement>(null);
-  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollRef      = useRef<HTMLDivElement>(null);
+  const fileRef        = useRef<HTMLInputElement>(null);
+  const textareaRef    = useRef<HTMLTextAreaElement>(null);
+  const typingTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef   = useRef(true);
+  const prevMsgCountRef   = useRef(0);
+  const [newMsgBanner,  setNewMsgBanner]  = useState(false);
 
   const recorder = useVoiceRecorder();
 
   const peerStatus = usePresenceStatus(otherId || null);
-  const { messages, loading, error: msgError } = useMessages(myId || null, otherId || null);
+  const { messages, loading, error: msgError, hasMore, loadOlder, loadingOlder } = useMessages(myId || null, otherId || null);
 
   const messageIds = messages.map((m) => m.id);
   const { reactions: allReactions, optimisticToggle } = useReactions(myId || null, otherId || null, messageIds);
@@ -648,13 +653,97 @@ export default function ChatThread() {
   }, [myId, otherId, unseenInboundCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  /* ── Smart auto-scroll ────────────────────────────────────────────── */
   useEffect(() => {
-    /* rAF ensures the new message node is painted before we scroll */
+    const count = messages.length;
+    if (count === 0) { prevMsgCountRef.current = 0; return; }
+
+    const prevCount = prevMsgCountRef.current;
+    prevMsgCountRef.current = count;
+
     const raf = requestAnimationFrame(() => {
-      bottomRef.current?.scrollIntoView({ behavior: messages.length <= 1 ? "auto" : "smooth" });
+      const el = scrollRef.current;
+      if (!el) return;
+
+      if (prevCount === 0) {
+        /* Initial load → snap instantly to the bottom */
+        el.scrollTop = el.scrollHeight;
+        setNewMsgBanner(false);
+        return;
+      }
+
+      /* New message arrived — decide scroll vs banner */
+      const lastMsg = messages[count - 1];
+      const isMine  = lastMsg?.sender_id === myId;
+
+      if (isMine || isNearBottomRef.current) {
+        el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+        setNewMsgBanner(false);
+      } else {
+        /* Peer sent while user is reading old messages → show banner */
+        setNewMsgBanner(true);
+      }
     });
     return () => cancelAnimationFrame(raf);
-  }, [messages.length]);
+  }, [messages.length, myId]);
+
+  /* Track whether the user is within 120 px of the bottom */
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    isNearBottomRef.current = distFromBottom < 120;
+    if (isNearBottomRef.current) setNewMsgBanner(false);
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    setNewMsgBanner(false);
+  }, []);
+
+  /* ── Upward sentinel — load older messages when scrolled to top ─── */
+  useEffect(() => {
+    const sentinel = topSentinelRef.current;
+    if (!sentinel || !hasMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0].isIntersecting) return;
+        const oldest = messages[0]?.created_at;
+        if (oldest) {
+          /* Preserve scroll position when messages are prepended */
+          const el = scrollRef.current;
+          const prevScrollHeight = el?.scrollHeight ?? 0;
+          loadOlder(oldest).then(() => {
+            requestAnimationFrame(() => {
+              if (el) {
+                el.scrollTop += el.scrollHeight - prevScrollHeight;
+              }
+            });
+          });
+        }
+      },
+      { threshold: 0.1, root: scrollRef.current },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, messages, loadOlder]);
+
+  /* ── Auto-resize textarea (1 line → up to 8 lines) ───────────────── */
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    const LINE_H   = 20;   /* px — matches leading-5 */
+    const PADDING  = 20;   /* vertical padding inside the bubble */
+    const maxH     = LINE_H * 8 + PADDING;
+    const newH     = Math.min(ta.scrollHeight, maxH);
+    ta.style.height = newH + "px";
+    ta.style.overflowY = ta.scrollHeight > maxH ? "scroll" : "hidden";
+  }, [text]);
 
   /* ── Typing indicator is handled by useTypingStatus (Supabase) ── */
 
@@ -930,7 +1019,7 @@ export default function ChatThread() {
         )}
 
         {/* ── Messages ──────────────────────────────────────────────────── */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto hide-scrollbar">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto hide-scrollbar" onScroll={handleScroll}>
           {loading && <SkeletonList />}
 
           {!loading && messages.length === 0 && !msgError && (
@@ -950,6 +1039,21 @@ export default function ChatThread() {
               </div>
               <p className="text-xs text-white/40">Say hello! This is the start of your conversation.</p>
             </div>
+          )}
+
+          {/* ── Top sentinel for upward pagination ──────────────────────── */}
+          {!loading && (
+            <>
+              <div ref={topSentinelRef} className="h-px" />
+              {loadingOlder && (
+                <div className="flex justify-center py-3">
+                  <div className="h-5 w-5 rounded-full border-2 border-white/20 border-t-purple-400 animate-spin" />
+                </div>
+              )}
+              {!hasMore && messages.length > 0 && !loadingOlder && (
+                <p className="py-3 text-center text-[10px] text-white/25">Beginning of conversation</p>
+              )}
+            </>
           )}
 
           {!loading && (
@@ -1046,6 +1150,28 @@ export default function ChatThread() {
           <div ref={bottomRef} className="h-px" />
         </div>
 
+        {/* ── New Messages banner ───────────────────────────────────────── */}
+        <AnimatePresence>
+          {newMsgBanner && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="flex justify-center py-2"
+            >
+              <button
+                onClick={scrollToBottom}
+                className="flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-white shadow-xl"
+                style={{ background: "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))" }}
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+                New message
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* ── Recording bar ─────────────────────────────────────────────── */}
         <AnimatePresence>
           {isRecording && (
@@ -1083,16 +1209,16 @@ export default function ChatThread() {
             )}
           </AnimatePresence>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-end gap-2">
             {/* + attach button (hidden while recording) */}
             {!isRecording && (
-              <motion.button whileTap={{ scale: 0.9 }} onClick={() => setShowAttach((v) => !v)} className="card-premium grid h-10 w-10 shrink-0 place-items-center rounded-full text-white">
+              <motion.button whileTap={{ scale: 0.9 }} onClick={() => setShowAttach((v) => !v)} className="card-premium mb-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full text-white">
                 <Plus className={"h-5 w-5 transition-transform " + (showAttach ? "rotate-45" : "")} />
               </motion.button>
             )}
 
-            {/* Input area */}
-            <div className="flex flex-1 items-center rounded-full border border-white/[0.06] bg-[#0a0a0a] px-4">
+            {/* Input area — auto-expanding */}
+            <div className="flex flex-1 items-end rounded-2xl border border-white/[0.06] bg-[#0a0a0a] px-4 py-0">
               {uploading ? (
                 <div className="flex h-10 flex-1 items-center gap-2 text-xs text-white/60">
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-purple-500" />
@@ -1104,12 +1230,20 @@ export default function ChatThread() {
                   <span className="text-sm text-white/70">Tap stop to send</span>
                 </div>
               ) : (
-                <input
+                <textarea
+                  ref={textareaRef}
                   value={text}
+                  rows={1}
                   onChange={(e) => handleTextChange(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
                   placeholder={`Message ${peerName.split(" ")[0]}`}
-                  className="h-10 flex-1 bg-transparent text-sm text-white placeholder:text-white/40 focus:outline-none"
+                  className="flex-1 resize-none bg-transparent py-[10px] text-sm leading-5 text-white placeholder:text-white/40 focus:outline-none"
+                  style={{ height: 40, overflowY: "hidden" }}
                 />
               )}
             </div>
