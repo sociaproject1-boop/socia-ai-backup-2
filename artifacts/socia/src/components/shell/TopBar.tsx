@@ -56,27 +56,28 @@ export function TopBar() {
 
       {/* ── Right: Action buttons ─────────────────────────────────────────── */}
       {/*
-        Gap spec:
-          Search → Bell → Chat → Bell → Creator : 16px between each
-          Creator → Live                          : 24px (16px base + 8px marginLeft on Live)
-          Live → Refresh                          : 16px (from flex gap)
+        Gap spec (mobile-first, 360px safe):
+          Search → Bell → Chat → Bell             : 8px flex-gap between each
+          Bell → Creator                           : 12px (8px gap + 4px marginLeft on Creator)
+          Creator → Live                           : 8px (flex-gap only)
+          Live → Refresh                           : 8px (flex-gap)
       */}
-      <div className="flex items-center" style={{ gap: 16 }}>
+      <div className="flex items-center" style={{ gap: 8 }}>
 
         {/* Search — Home only */}
         {isHome && (
           <IconBtn onClick={() => {}}>
-            <Search style={{ width: 17, height: 17, strokeWidth: 1.9 }} />
+            <Search style={{ width: 16, height: 16, strokeWidth: 1.9 }} />
           </IconBtn>
         )}
 
         {/* Notification bell */}
         {user && (
           <IconBtn onClick={() => navigate("/notifications")}>
-            <Bell style={{ width: 17, height: 17, strokeWidth: 1.9 }} />
+            <Bell style={{ width: 16, height: 16, strokeWidth: 1.9 }} />
             {notifUnread > 0 && (
               <span
-                className="absolute right-2 top-2 flex h-4 min-w-4 items-center justify-center rounded-full px-0.5 text-[9px] font-bold text-white"
+                className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-0.5 text-[9px] font-bold text-white"
                 style={{ background: "var(--accent-primary)", boxShadow: "0 0 6px 1px var(--accent-glow)" }}
               >
                 {notifUnread > 9 ? "9+" : notifUnread}
@@ -87,10 +88,10 @@ export function TopBar() {
 
         {/* Chat */}
         <IconBtn onClick={() => navigate("/messages")}>
-          <MessageCircle style={{ width: 17, height: 17, strokeWidth: 1.9 }} />
+          <MessageCircle style={{ width: 16, height: 16, strokeWidth: 1.9 }} />
           {unread && (
             <span
-              className="absolute right-2 top-2 h-2 w-2 rounded-full"
+              className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full"
               style={{ background: "var(--accent-primary)", boxShadow: "0 0 6px 1px var(--accent-glow)" }}
             />
           )}
@@ -99,18 +100,20 @@ export function TopBar() {
         {/* Refund notification bell (second bell) */}
         {user && <RefundNotificationBell />}
 
-        {/* Creator / Credits badge — pill button */}
+        {/* Creator / Credits badge — 12px total gap = 8px flex-gap + 4px extra */}
         {user && (
-          <CreditsBadge
-            compact
-            className="h-11 min-w-[64px] justify-center rounded-[22px] text-[12px]"
-          />
+          <div style={{ marginLeft: 4, flexShrink: 0 }}>
+            <CreditsBadge
+              compact
+              className="h-10 min-w-[56px] justify-center rounded-[20px] text-[12px]"
+            />
+          </div>
         )}
 
         {/* ── Home-only: Live + Refresh ────────────────────────────────── */}
         {isHome && (
           <>
-            {/* Live — marginLeft: 8 adds extra 8px → total 24px gap from Creator */}
+            {/* Live — 8px total gap from Creator = flex-gap only, no extra marginLeft */}
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={() => navigate("/go-live")}
@@ -119,33 +122,32 @@ export function TopBar() {
                 display:        "flex",
                 alignItems:     "center",
                 justifyContent: "center",
-                gap:            6,
-                height:         44,
-                minWidth:       88,
-                borderRadius:   22,
-                marginLeft:     8,
+                gap:            5,
+                height:         40,
+                minWidth:       72,
+                borderRadius:   20,
                 background:     "rgba(239,68,68,0.14)",
                 border:         "1px solid rgba(239,68,68,0.35)",
                 cursor:         "pointer",
-                padding:        "0 14px",
+                padding:        "0 10px",
                 flexShrink:     0,
               }}
             >
-              <Radio style={{ width: 13, height: 13, color: "#f87171", flexShrink: 0 }} />
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#f87171", letterSpacing: "0.02em", whiteSpace: "nowrap" }}>
+              <Radio style={{ width: 12, height: 12, color: "#f87171", flexShrink: 0 }} />
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#f87171", letterSpacing: "0.02em", whiteSpace: "nowrap" }}>
                 Live
               </span>
             </motion.button>
 
-            {/* Refresh — 16px gap from Live (flex gap) */}
+            {/* Refresh — 8px gap from Live (flex gap) */}
             <motion.button
               whileTap={{ scale: 0.85 }}
               onClick={handleRefresh}
               aria-label="Refresh feed"
               className="app-surface relative grid place-items-center app-text"
-              style={{ width: 44, height: 44, borderRadius: "50%", flexShrink: 0 }}
+              style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0 }}
             >
-              <RefreshCw style={{ width: 16, height: 16 }} />
+              <RefreshCw style={{ width: 15, height: 15 }} />
             </motion.button>
           </>
         )}
@@ -160,7 +162,7 @@ function IconBtn({ onClick, children }: { onClick: () => void; children: React.R
       whileTap={{ scale: 0.88 }}
       onClick={onClick}
       className="app-surface relative grid place-items-center rounded-full app-text"
-      style={{ width: 44, height: 44, borderRadius: "50%", flexShrink: 0 }}
+      style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0 }}
     >
       {children}
     </motion.button>
