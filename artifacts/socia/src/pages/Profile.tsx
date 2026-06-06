@@ -10,6 +10,9 @@ import { PostThumbnail } from "@/components/feed/PostThumbnail";
 import { supabase, uploadAvatar, upsertProfile, isSupabaseReady } from "@/lib/supabase";
 import { fetchUserPosts, fetchSavedFeed, type SocialPost } from "@/lib/postsClient";
 import { NameBadges, OnlineDot } from "@/components/Badges";
+import {
+  FoundingSupporterBadge, SupporterProfileRing, SupporterLabel, getSupporterTier,
+} from "@/components/profile/FoundingSupporterBadge";
 import { usePresenceStatus } from "@/lib/usePresence";
 import {
   FounderHero, VerifiedFounderBadge, MiniWaveform,
@@ -190,7 +193,8 @@ export default function Profile() {
   const [coverUploading, setCoverUploading] = useState(false);
   const [coverError,     setCoverError]     = useState<string>("");
 
-  const isAdminProfile = user?.isOwner === true;
+  const isAdminProfile    = user?.isOwner === true;
+  const supporterTier     = getSupporterTier(user as unknown as Record<string, unknown>);
 
   /* ── Scroll-to-top + overflow lock when edit mode activates ────────── */
   useEffect(() => {
@@ -678,6 +682,7 @@ export default function Profile() {
             {/* Avatar row — avatar overlaps cover */}
             <div className="flex items-end justify-between">
               <div className="relative">
+                <SupporterProfileRing tier={supporterTier} size={88}>
                 <div className="h-[88px] w-[88px] overflow-hidden rounded-full"
                   style={{ border: "3px solid #000", boxShadow: "0 2px 16px rgba(0,0,0,0.6)" }}>
                   {showAvatar ? (
@@ -690,6 +695,7 @@ export default function Profile() {
                     </div>
                   )}
                 </div>
+                </SupporterProfileRing>
                 {isEditing && (
                   <motion.button
                     initial={{ scale: 0 }} animate={{ scale: 1 }} whileTap={{ scale: 0.88 }}
@@ -738,7 +744,13 @@ export default function Profile() {
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="font-display text-[24px] font-bold leading-tight app-text">{user.name}</h2>
                     {user.isOwner && <NameBadges isOwner={user.isOwner} isVerified={user.isVerified} size="md" />}
+                    {supporterTier && !user.isOwner && (
+                      <FoundingSupporterBadge tier={supporterTier} size={22} />
+                    )}
                   </div>
+                  {supporterTier && !user.isOwner && (
+                    <div className="mt-1"><SupporterLabel tier={supporterTier} /></div>
+                  )}
                   <p className="mt-0.5 flex items-center gap-1.5 text-sm app-text-muted">
                     <OnlineDot status={presenceStatus} size={8} />
                     @{user.handle}

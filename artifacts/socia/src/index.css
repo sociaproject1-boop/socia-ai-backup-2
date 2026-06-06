@@ -429,3 +429,27 @@ html.light {
   from { transform: rotate(0deg);   }
   to   { transform: rotate(360deg); }
 }
+
+/* ── Prism Seal badge shimmer ─────────────────────────────────────── */
+/* Sweeps a light stripe across the badge; pauses 3.8s between each sweep */
+@keyframes prismSealShimmer {
+  0%,  68% { transform: rotate(20deg) translateX(-20px); opacity: 0; }
+  74%       { opacity: 1; }
+  88%       { transform: rotate(20deg) translateX(20px);  opacity: 1; }
+  96%, 100% { transform: rotate(20deg) translateX(20px);  opacity: 0; }
+}
+.prism-seal-shimmer {
+  animation: prismSealShimmer 5.6s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* ── Tier 4 Legendary profile ring — slow hue rotation ────────────── */
+@keyframes legendaryRingHue {
+  0%   { filter: hue-rotate(0deg)   brightness(1.05); }
+  50%  { filter: hue-rotate(200deg) brightness(1.18); }
+  100% { filter: hue-rotate(360deg) brightness(1.05); }
+}
+.legendary-ring {
+  animation: legendaryRingHue 6s linear infinite;
+  will-change: filter;
+}

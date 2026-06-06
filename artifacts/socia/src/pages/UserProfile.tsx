@@ -12,6 +12,9 @@ import { supabase } from "@/lib/supabase";
 import type { DbUser } from "@/lib/supabase";
 import { useAuth } from "@/lib/authContext";
 import { NameBadges, OnlineDot } from "@/components/Badges";
+import {
+  FoundingSupporterBadge, SupporterProfileRing, SupporterLabel, getSupporterTier,
+} from "@/components/profile/FoundingSupporterBadge";
 import { usePresenceStatus } from "@/lib/usePresence";
 import { FounderHero, VerifiedFounderBadge } from "@/components/profile/FounderHero";
 import { PostThumbnail } from "@/components/feed/PostThumbnail";
@@ -191,9 +194,10 @@ export default function UserProfile() {
     );
   }
 
-  const isOwner  = !!profile.is_owner;
-  const avatarSrc = profile.avatar_url;
-  const initials  = (profile.name || "?").charAt(0).toUpperCase();
+  const isOwner       = !!profile.is_owner;
+  const supporterTier = getSupporterTier(profile as unknown as Record<string, unknown>);
+  const avatarSrc     = profile.avatar_url;
+  const initials      = (profile.name || "?").charAt(0).toUpperCase();
 
   /* ── Follow + Message + Stars action buttons ── */
   const isOwnProfile = !!sessionUid && sessionUid === userId;
@@ -400,6 +404,7 @@ export default function UserProfile() {
             {/* Avatar row */}
             <div className="flex items-end justify-between mb-3">
               <div className="relative">
+                <SupporterProfileRing tier={supporterTier} size={88}>
                 <div className="h-[88px] w-[88px] overflow-hidden rounded-full"
                   style={{ border: "3px solid #000", boxShadow: "0 2px 16px rgba(0,0,0,0.6)" }}>
                   {avatarSrc
@@ -407,6 +412,7 @@ export default function UserProfile() {
                     : <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-2xl font-bold text-white">{initials}</div>
                   }
                 </div>
+                </SupporterProfileRing>
                 <div className="absolute bottom-0.5 right-0.5">
                   <OnlineDot status={presenceStatus} size={14} />
                 </div>
@@ -414,7 +420,7 @@ export default function UserProfile() {
               <div className="relative z-10"><ActionButtons /></div>
             </div>
 
-            {/* Name / username / bio — no badges for standard users */}
+            {/* Name / username / bio */}
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="font-display text-[22px] font-bold leading-tight text-white">
@@ -423,7 +429,13 @@ export default function UserProfile() {
                 {profile.is_owner && (
                   <NameBadges isOwner={profile.is_owner} isVerified={profile.is_verified} size="md" />
                 )}
+                {supporterTier && (
+                  <FoundingSupporterBadge tier={supporterTier} size={22} />
+                )}
               </div>
+              {supporterTier && (
+                <div className="mt-1"><SupporterLabel tier={supporterTier} /></div>
+              )}
               {profile.username && (
                 <p className="mt-0.5 flex items-center gap-1.5 text-sm text-white/50">
                   <span className="text-[10px] font-semibold uppercase tracking-[0.1em]">

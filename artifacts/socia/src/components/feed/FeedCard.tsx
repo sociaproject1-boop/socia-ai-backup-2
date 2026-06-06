@@ -17,6 +17,9 @@ import { reportPost } from "@/lib/postsClient";
 import type { SocialPost } from "@/lib/postsClient";
 import { useAppStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
+import {
+  FoundingSupporterBadge, getSupporterTier,
+} from "@/components/profile/FoundingSupporterBadge";
 
 interface Props {
   post: SocialPost;
@@ -58,8 +61,9 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
   const lastTap      = useRef(0);
   const touchStartX  = useRef<number | null>(null);
   const touchStartY  = useRef<number | null>(null);
-  const isOwner  = me?.isOwner === true;
-  const isMe     = me?.id === post.author_id;
+  const isOwner            = me?.isOwner === true;
+  const isMe               = me?.id === post.author_id;
+  const authorSupporterTier = getSupporterTier(post.author as unknown as Record<string, unknown>);
   const isFollowing = followedIds.includes(post.author_id);
 
   const media = post.media ?? [];
@@ -167,12 +171,14 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
             >
               {post.author?.name || post.author?.username || "User"}
             </motion.button>
-            {(post.author?.is_owner ||
-              (post.author?.is_verified &&
-                (post.author?.subscription_status === "active" ||
-                 post.author?.subscription_status === "owner"))) && (
-              <BadgeCheck className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "var(--accent-primary)" }} />
-            )}
+            {authorSupporterTier
+              ? <FoundingSupporterBadge tier={authorSupporterTier} size={14} showGlow={false} />
+              : (post.author?.is_verified &&
+                  (post.author?.subscription_status === "active" ||
+                   post.author?.subscription_status === "owner")) && (
+                <BadgeCheck className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "var(--accent-primary)" }} />
+              )
+            }
             <span className="text-[11px] app-text-muted ml-1">{relTime(post.created_at)}</span>
           </div>
           {post.author?.username && (
