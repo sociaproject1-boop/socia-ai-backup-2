@@ -30,6 +30,7 @@ export interface PostAuthor {
   avatar_url: string | null;
   is_verified: boolean;
   is_owner: boolean;
+  subscription_status?: string;
 }
 
 export interface SocialPost {

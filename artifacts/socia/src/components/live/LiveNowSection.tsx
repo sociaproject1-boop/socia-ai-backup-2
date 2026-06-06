@@ -24,8 +24,9 @@ export interface LiveStreamPreview {
     name:        string;
     username:    string;
     avatar_url:  string | null;
-    is_verified: boolean;
-    is_owner:    boolean;
+    is_verified:         boolean;
+    is_owner:            boolean;
+    subscription_status: string;
   };
 }
 
@@ -193,7 +194,10 @@ function StreamCard({
           }}
         >
           {stream.creator.username}
-          {stream.creator.is_verified && (
+          {(stream.creator.is_owner ||
+            (stream.creator.is_verified &&
+              (stream.creator.subscription_status === "active" ||
+               stream.creator.subscription_status === "owner"))) && (
             <span style={{ marginLeft: 2, color: "#60a5fa", fontSize: 10 }}>✓</span>
           )}
         </div>

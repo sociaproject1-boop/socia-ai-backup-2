@@ -475,7 +475,10 @@ export function ImmersiveViewer({
               >
                 {author?.name || author?.username || "Creator"}
               </span>
-              {(author?.is_verified || author?.is_owner) && (
+              {(author?.is_owner ||
+                (author?.is_verified &&
+                  (author?.subscription_status === "active" ||
+                   author?.subscription_status === "owner"))) && (
                 <BadgeCheck className="h-4 w-4" style={{ color: "var(--accent-primary)" }} />
               )}
             </div>

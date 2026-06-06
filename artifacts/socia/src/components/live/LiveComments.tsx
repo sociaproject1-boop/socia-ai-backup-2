@@ -16,7 +16,8 @@ export interface LiveComment {
     name:        string;
     username:    string;
     avatar_url:  string | null;
-    is_verified: boolean;
+    is_verified:         boolean;
+    subscription_status: string;
   };
 }
 
@@ -69,7 +70,9 @@ function CommentRow({ comment }: { comment: LiveComment }) {
       >
         <span style={{ fontSize: 11, fontWeight: 700, color: "#e879f9", marginRight: 4 }}>
           {comment.user.username}
-          {comment.user.is_verified && (
+          {(comment.user.is_verified &&
+            (comment.user.subscription_status === "active" ||
+             comment.user.subscription_status === "owner")) && (
             <span style={{ marginLeft: 3, color: "#60a5fa" }}>✓</span>
           )}
         </span>

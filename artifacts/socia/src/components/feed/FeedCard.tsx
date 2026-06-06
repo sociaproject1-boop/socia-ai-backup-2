@@ -167,7 +167,10 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
             >
               {post.author?.name || post.author?.username || "User"}
             </motion.button>
-            {(post.author?.is_verified || post.author?.is_owner) && (
+            {(post.author?.is_owner ||
+              (post.author?.is_verified &&
+                (post.author?.subscription_status === "active" ||
+                 post.author?.subscription_status === "owner"))) && (
               <BadgeCheck className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "var(--accent-primary)" }} />
             )}
             <span className="text-[11px] app-text-muted ml-1">{relTime(post.created_at)}</span>

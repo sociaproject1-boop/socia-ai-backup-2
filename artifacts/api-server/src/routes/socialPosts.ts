@@ -44,7 +44,7 @@ function isOwnerUser(req: any): boolean {
 
 const BASE_POST_SELECT = `
   id, author_id, caption, type, view_count, created_at, updated_at,
-  author:users!posts_author_id_fkey(id, name, username, avatar_url, is_verified, is_owner),
+  author:users!posts_author_id_fkey(id, name, username, avatar_url, is_verified, is_owner, subscription_status),
   media:post_media(id, url, type, width, height, duration, position)
 `;
 
