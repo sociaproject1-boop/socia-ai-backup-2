@@ -6,10 +6,11 @@ import {
   Settings, Heart, Bookmark, Grid3x3, Copy, ArrowUpRight, Camera,
   Check, X, Facebook, Instagram, Music2, Shield, ChevronRight,
 } from "lucide-react";
-import { PostThumbnail } from "@/components/feed/PostThumbnail";
 import { supabase, uploadAvatar, upsertProfile, isSupabaseReady } from "@/lib/supabase";
 import { fetchUserPosts, fetchSavedFeed, type SocialPost } from "@/lib/postsClient";
 import { NameBadges, OnlineDot } from "@/components/Badges";
+import { ProfileTabs } from "@/components/profile/ProfileTabs";
+import { MutualConnections } from "@/components/profile/MutualConnections";
 import {
   FoundingSupporterBadge, SupporterProfileRing, SupporterLabel, getSupporterTier,
 } from "@/components/profile/FoundingSupporterBadge";
@@ -801,104 +802,22 @@ export default function Profile() {
         </>
       )}
 
-      {/* ── Tabs — locked while editing ───────────────────────────────── */}
-      <div
-        className="app-header sticky top-0 z-10 flex mt-4 transition-opacity duration-200"
-        style={isEditing ? { pointerEvents: "none", opacity: 0.25 } : {}}
-      >
-        <TabBtn active={tab === "creations"} onClick={() => setTab("creations")} icon={Grid3x3}>Creations</TabBtn>
-        <TabBtn active={tab === "saved"}     onClick={() => setTab("saved")}     icon={Bookmark}>
-          Saved{savedPosts.length > 0 ? ` (${savedPosts.length})` : ""}
-        </TabBtn>
-        <TabBtn active={tab === "liked"}     onClick={() => setTab("liked")}     icon={Heart}>Liked</TabBtn>
-      </div>
-
-      {/* ── Tab content — locked while editing ────────────────────────── */}
-      <div
-        className="px-4 pt-4 transition-opacity duration-200"
-        style={isEditing ? { pointerEvents: "none", userSelect: "none", opacity: 0.25 } : {}}
-      >
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={tab}
-            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.16 }}
-          >
-            {tab === "creations" && (
-              creationsLoading
-                ? (
-                  <div className="columns-2 gap-3">
-                    {[...Array(6)].map((_, i) => (
-                      <div key={i} className="break-inside-avoid mb-3">
-                        <div
-                          className="w-full rounded-[16px] shimmer"
-                          style={{ aspectRatio: i % 5 === 0 ? "3/4" : i % 7 === 0 ? "1/1" : "9/13" }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )
-                : realMyPosts.length === 0
-                  ? <EmptyState icon={Grid3x3} title="No creations yet" sub="Generate your first AI masterpiece." />
-                  : (
-                  <>
-                    <div className="columns-2 gap-3">{realMyPosts.map((p, i) => <PostThumbnail key={p.id} post={p} index={i} />)}</div>
-                    {hasMorePosts && (
-                      <div ref={profileSentinelRef} className="flex justify-center py-6">
-                        {loadingMorePosts && <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-purple-400" />}
-                      </div>
-                    )}
-                    {!hasMorePosts && realMyPosts.length > 0 && (
-                      <p className="py-4 text-center text-[10px] text-white/25">All {realMyPosts.length} creations loaded</p>
-                    )}
-                  </>
-                )
-            )}
-            {tab === "saved" && (
-              <>
-                {realSavedPosts.length === 0 && savedPrompts.length === 0 && (
-                  <EmptyState icon={Bookmark} title="Nothing saved yet" sub="Bookmark any post to see it here." />
-                )}
-                {realSavedPosts.length > 0 && (
-                  <div className="columns-2 gap-3 mb-6">{realSavedPosts.map((p, i) => <PostThumbnail key={p.id} post={p} index={i} />)}</div>
-                )}
-                {savedPrompts.length > 0 && (
-                  <>
-                    <h3 className="mb-3 text-[10.5px] font-semibold uppercase tracking-wider app-text-muted">Saved Prompts</h3>
-                    <ul className="space-y-2">
-                      {savedPrompts.map((p, i) => (
-                        <motion.li key={p}
-                          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
-                          className="app-card flex items-center gap-3 rounded-[16px] p-3"
-                        >
-                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white"
-                            style={{ background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))" }}>
-                            <Bookmark style={{ width: 14, height: 14 }} />
-                          </span>
-                          <p className="flex-1 truncate text-sm app-text">{p}</p>
-                          <motion.button whileTap={{ scale: 0.85 }} onClick={() => navigator.clipboard?.writeText(p)}
-                            className="app-surface grid h-8 w-8 place-items-center rounded-lg app-text-muted">
-                            <Copy style={{ width: 13, height: 13 }} />
-                          </motion.button>
-                          <motion.button whileTap={{ scale: 0.85 }}
-                            onClick={() => { setActivePrompt(p); navigate("/create/prompt-image"); }}
-                            className="app-surface grid h-8 w-8 place-items-center rounded-lg app-text-muted">
-                            <ArrowUpRight style={{ width: 13, height: 13 }} />
-                          </motion.button>
-                        </motion.li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </>
-            )}
-            {tab === "liked" && (
-              realMyPosts.filter(p => p.has_liked).length === 0
-                ? <EmptyState icon={Heart} title="Nothing liked yet" sub="Like posts to see them here." />
-                : <div className="columns-2 gap-3">{realMyPosts.filter(p => p.has_liked).map((p, i) => <PostThumbnail key={p.id} post={p} index={i} />)}</div>
-            )}
-          </motion.div>
-        </AnimatePresence>
+      {/* ── Socia Profile Tabs (Spotlight / Motion / Gallery / Moments / Milestones) ── */}
+      <div className="mt-4">
+        <ProfileTabs
+          userId={user!.id}
+          viewerId={user?.id}
+          isEditing={isEditing}
+          userProfile={{
+            created_at:          (user as any)?.created_at,
+            is_verified:         user?.isVerified,
+            is_owner:            user?.isOwner,
+            subscription_status: (user as any)?.subscription_status,
+            name:                user?.name,
+            followers:           liveFollowers ?? user?.followers ?? 0,
+          }}
+          supporterTier={supporterTier}
+        />
       </div>
 
       {/* Hidden file inputs */}

@@ -291,8 +291,9 @@ router.post("/posts", requireAuth as any, async (req, res) => {
     const svc  = db();
     const { caption, type = "photo", media = [] } = req.body ?? {};
 
-    if (!media || media.length === 0) {
-      res.status(400).json({ error: "At least one media item is required" });
+    const trimmedCaption = caption?.trim() ?? null;
+    if ((!media || media.length === 0) && !trimmedCaption) {
+      res.status(400).json({ error: "A caption or at least one media item is required" });
       return;
     }
 

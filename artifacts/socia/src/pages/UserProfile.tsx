@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { ArrowLeft, MessageCircle, UserPlus, UserCheck, Facebook, Instagram, Music2, Grid3x3, Star } from "lucide-react";
+import { ArrowLeft, MessageCircle, UserPlus, UserCheck, Facebook, Instagram, Music2, Star } from "lucide-react";
 import SendStarsModal from "@/components/stars/SendStarsModal";
 import { supabase } from "@/lib/supabase";
 import type { DbUser } from "@/lib/supabase";
@@ -17,8 +17,9 @@ import {
 } from "@/components/profile/FoundingSupporterBadge";
 import { usePresenceStatus } from "@/lib/usePresence";
 import { FounderHero, VerifiedFounderBadge } from "@/components/profile/FounderHero";
-import { PostThumbnail } from "@/components/feed/PostThumbnail";
 import { fetchUserPosts, type SocialPost } from "@/lib/postsClient";
+import { ProfileTabs } from "@/components/profile/ProfileTabs";
+import { MutualConnections } from "@/components/profile/MutualConnections";
 
 function compact(n: number) {
   if (n < 1000) return String(n);
@@ -323,40 +324,22 @@ export default function UserProfile() {
               <StatBox label="Following" value={profile.following ?? 0} onClick={() => navigate(`/following/${userId}`)} />
             </div>
 
-            {/* Creations grid */}
-            <div className="mt-8 px-1">
-              {userPosts.length === 0 ? (
-                <div className="flex flex-col items-center gap-3 py-10 text-center">
-                  <div className="text-3xl">👑</div>
-                  <p className="text-sm font-semibold text-white">No creations yet</p>
-                  <p className="text-xs text-white/40">Send a message instead!</p>
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => navigate(`/messages/${userId}`)}
-                    className="mt-2 flex items-center gap-2 rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_4px_18px_-4px_rgba(236,72,153,0.45)]"
-                  >
-                    <MessageCircle className="h-4 w-4" /> Start a conversation
-                  </motion.button>
-                </div>
-              ) : (
-                <>
-                  <div className="mb-3 flex items-center gap-2 text-white/40">
-                    <Grid3x3 className="h-3.5 w-3.5" />
-                    <span className="text-[10.5px] font-semibold uppercase tracking-wider">Creations</span>
-                  </div>
-                  <div className="columns-2 gap-3">
-                    {userPosts.map((p, i) => <PostThumbnail key={p.id} post={p} index={i} />)}
-                  </div>
-                  {hasMorePosts && (
-                    <div ref={upSentinelRef} className="flex justify-center py-6">
-                      {loadingMorePosts && <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-purple-400" />}
-                    </div>
-                  )}
-                  {!hasMorePosts && userPosts.length >= UP_PAGE && (
-                    <p className="py-4 text-center text-[10px] text-white/25">All {userPosts.length} creations loaded</p>
-                  )}
-                </>
-              )}
+            {/* Socia Profile Tabs — owner layout */}
+            <div className="mt-6 -mx-6">
+              <MutualConnections profileUserId={userId} viewerId={sessionUid} />
+              <ProfileTabs
+                userId={userId}
+                viewerId={sessionUid}
+                userProfile={{
+                  created_at:          (profile as any)?.created_at,
+                  is_verified:         profile?.is_verified,
+                  is_owner:            profile?.is_owner,
+                  subscription_status: (profile as any)?.subscription_status,
+                  name:                profile?.name ?? undefined,
+                  followers:           profile?.followers ?? 0,
+                }}
+                supporterTier={supporterTier}
+              />
             </div>
           </div>
         </>
@@ -461,40 +444,22 @@ export default function UserProfile() {
               <StatBox label="Following" value={profile.following ?? 0} onClick={() => navigate(`/following/${userId}`)} />
             </div>
 
-            {/* Creations grid */}
-            <div className="mt-8">
-              {userPosts.length === 0 ? (
-                <div className="flex flex-col items-center gap-3 py-12 text-center">
-                  <div className="text-3xl">🎨</div>
-                  <p className="text-sm font-semibold text-white">No creations yet</p>
-                  <p className="text-xs text-white/40">Send them a message instead!</p>
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => navigate(`/messages/${userId}`)}
-                    className="mt-2 flex items-center gap-2 rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_4px_18px_-4px_rgba(236,72,153,0.45)]"
-                  >
-                    <MessageCircle className="h-4 w-4" /> Start a conversation
-                  </motion.button>
-                </div>
-              ) : (
-                <>
-                  <div className="mb-3 flex items-center gap-2 text-white/40">
-                    <Grid3x3 className="h-3.5 w-3.5" />
-                    <span className="text-[10.5px] font-semibold uppercase tracking-wider">Creations</span>
-                  </div>
-                  <div className="columns-2 gap-3">
-                    {userPosts.map((p, i) => <PostThumbnail key={p.id} post={p} index={i} />)}
-                  </div>
-                  {hasMorePosts && (
-                    <div ref={upSentinelRef} className="flex justify-center py-6">
-                      {loadingMorePosts && <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-purple-400" />}
-                    </div>
-                  )}
-                  {!hasMorePosts && userPosts.length >= UP_PAGE && (
-                    <p className="py-4 text-center text-[10px] text-white/25">All {userPosts.length} creations loaded</p>
-                  )}
-                </>
-              )}
+            {/* Socia Profile Tabs — standard layout */}
+            <div className="mt-6 -mx-4">
+              <MutualConnections profileUserId={userId} viewerId={sessionUid} />
+              <ProfileTabs
+                userId={userId}
+                viewerId={sessionUid}
+                userProfile={{
+                  created_at:          (profile as any)?.created_at,
+                  is_verified:         profile?.is_verified,
+                  is_owner:            profile?.is_owner,
+                  subscription_status: (profile as any)?.subscription_status,
+                  name:                profile?.name ?? undefined,
+                  followers:           profile?.followers ?? 0,
+                }}
+                supporterTier={supporterTier}
+              />
             </div>
           </div>
         </>

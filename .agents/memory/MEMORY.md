@@ -21,3 +21,4 @@
 - [Social upload & owner gates](social-upload-owner-gates.md) — ComingSoonGuard + CreateHub both require is_owner OR isAdmin; BottomNav center + button; migration 42 is the social schema source of truth.
 - [Alert channel config](alert-channel-config.md) — alert_settings table (migration 42) lets owner save email/phone/webhook per-user; SystemStatusCenter has expandable Configure panel; VerifiedFounderBadge is now blue (Twitter style), KingBadge removed.
 - [Live Streaming Foundation](live-streaming-foundation.md) — migration 48; JWT from supabase.auth.getSession() (not store); RealtimeChannel type breaks channel circular ref; Phase 1 video = placeholder, stream key ready for CDN.
+- [Profile tab system](profile-tab-system.md) — ProfileTabs (5 tabs) replaces old Creations/Saved/Liked; SupporterTier is `1|2|3|4` not string; text posts use type='photo' with empty media array; filter client-side.
