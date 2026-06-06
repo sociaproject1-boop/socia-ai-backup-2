@@ -74,6 +74,7 @@ export default function Home() {
     loadMore,
     handleLike,
     handleSave,
+    updateCommentCount,
     removePost,
   } = useFeed({ mode: feedTab, viewerId: me?.id });
 
@@ -113,11 +114,6 @@ export default function Home() {
     setViewerIdx(idx >= 0 ? idx : 0);
   }, [posts]);
 
-  /* ── Navigate to post detail / comment ──────────────────────────────── */
-  const handleComment = useCallback((postId: string) => {
-    navigate(`/post/${postId}`);
-  }, [navigate]);
-
   const handlePromptTap = (p: string) => {
     setActivePrompt(p);
     navigate("/create/prompt-image");
@@ -147,7 +143,6 @@ export default function Home() {
             <span className="relative">{t === "for-you" ? "For You" : "Following"}</span>
           </motion.button>
         ))}
-
       </div>
 
       {/* ── New posts banner ──────────────────────────────────────────── */}
@@ -258,9 +253,9 @@ export default function Home() {
                 post={post}
                 onLike={handleLike}
                 onSave={handleSave}
-                onComment={handleComment}
                 onDelete={handleDelete}
                 onOpenViewer={handleOpenViewer}
+                onCommentCountChange={updateCommentCount}
               />
             ))}
           </div>
@@ -284,9 +279,7 @@ export default function Home() {
     </div>
 
     {/* ── Immersive fullscreen viewer — rendered into document.body via
-         portal to escape AppShell's GPU transform stacking context, which
-         would otherwise confine `fixed inset-0` to the page content area
-         and prevent covering the TopBar and BottomNav. ─────────────────── */}
+         portal to escape AppShell's GPU transform stacking context ────── */}
     {createPortal(
       <AnimatePresence>
         {viewerIdx !== null && (
@@ -296,7 +289,7 @@ export default function Home() {
             onClose={() => setViewerIdx(null)}
             onLike={handleLike}
             onSave={handleSave}
-            onComment={(postId) => { setViewerIdx(null); navigate(`/post/${postId}`); }}
+            onCommentCountChange={updateCommentCount}
           />
         )}
       </AnimatePresence>,

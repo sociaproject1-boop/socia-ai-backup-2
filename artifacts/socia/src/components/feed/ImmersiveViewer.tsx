@@ -9,7 +9,8 @@
  *  - Right action bar: Avatar → Like → Comment → Save → Share (TikTok order)
  *  - Bottom-left: author + badge + caption + view count
  *  - Adjacent media preloaded via hidden <video preload="auto">
- *  - Zero X button, zero speaker button, zero scroll indicators
+ *  - Comments: opens TikTok-style bottom sheet (does NOT close viewer or navigate)
+ *  - No dot indicators, no page counter — clean TikTok-style
  */
 import {
   useState, useRef, useCallback, useEffect, memo,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import type { SocialPost } from "@/lib/postsClient";
+import { CommentsSheet } from "./CommentsSheet";
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 function fmtCount(n: number): string {
@@ -49,12 +51,12 @@ const slideVariants = {
 
 /* ── Props ───────────────────────────────────────────────────────────────── */
 export interface ImmersiveViewerProps {
-  posts:     SocialPost[];
+  posts:      SocialPost[];
   startIndex: number;
-  onClose:   () => void;
-  onLike:    (postId: string) => void;
-  onSave:    (postId: string) => void;
-  onComment: (postId: string) => void;
+  onClose:    () => void;
+  onLike:     (postId: string) => void;
+  onSave:     (postId: string) => void;
+  onCommentCountChange?: (postId: string, delta: number) => void;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -82,10 +84,8 @@ const ImmersiveVideo = memo(function ImmersiveVideo({
     v.currentTime = 0;
 
     const tryPlay = () => {
-      /* Attempt with audio first */
       v.muted = false;
       return v.play().catch(() => {
-        /* Browser blocked unmuted autoplay — try muted (silent fallback) */
         v.muted = true;
         return v.play().catch(() => {});
       });
@@ -95,7 +95,6 @@ const ImmersiveVideo = memo(function ImmersiveVideo({
 
     return () => {
       v.pause();
-      /* Release video resource to save memory when not visible */
       v.removeAttribute("src");
       v.load();
     };
@@ -104,11 +103,8 @@ const ImmersiveVideo = memo(function ImmersiveVideo({
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (v.paused) {
-      v.play().catch(() => {});
-    } else {
-      v.pause();
-    }
+    if (v.paused) v.play().catch(() => {});
+    else          v.pause();
   }, []);
 
   return (
@@ -122,11 +118,10 @@ const ImmersiveVideo = memo(function ImmersiveVideo({
         loop
         playsInline
         preload="auto"
-        /* No controls — fully custom UI */
         style={{
           width: "100%",
           height: "100%",
-          objectFit: "contain",    /* ← NEVER stretches; letterboxes/pillarboxes as needed */
+          objectFit: "contain",
           display: "block",
           background: "black",
         }}
@@ -143,7 +138,6 @@ const ImmersiveVideo = memo(function ImmersiveVideo({
         </div>
       )}
 
-      {/* Paused indicator — flashes briefly on tap */}
       <AnimatePresence>
         {!playing && !buffering && (
           <motion.div
@@ -166,7 +160,7 @@ const ImmersiveVideo = memo(function ImmersiveVideo({
 
 /* ─────────────────────────────────────────────────────────────────────────
    ImmersiveImages — swipe left/right through multi-image posts.
-   object-contain preserves every uploaded aspect ratio.
+   No dot indicators (TikTok-style — clean UI).
 ───────────────────────────────────────────────────────────────────────── */
 const ImmersiveImages = memo(function ImmersiveImages({
   media,
@@ -228,34 +222,14 @@ const ImmersiveImages = memo(function ImmersiveImages({
             maxHeight: "100%",
             width: "auto",
             height: "auto",
-            objectFit: "contain",   /* ← Never stretches */
+            objectFit: "contain",
             display: "block",
-            imageRendering: "auto", /* ← Browser chooses highest quality interpolation */
+            imageRendering: "auto",
           }}
         />
       </AnimatePresence>
 
-      {/* Frame progress dots */}
-      {(media?.length ?? 0) > 1 && (
-        <div
-          className="absolute left-1/2 -translate-x-1/2 flex gap-1.5 z-20"
-          style={{ top: "env(safe-area-inset-top, 12px)", marginTop: 12 }}
-        >
-          {media!.map((_, i) => (
-            <div
-              key={i}
-              className="rounded-full transition-all duration-200"
-              style={{
-                width: i === idx ? 18 : 6,
-                height: 3,
-                background: i === idx ? "white" : "rgba(255,255,255,0.4)",
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Edge tap zones for non-touch */}
+      {/* Edge tap zones for non-touch — no visual indicators */}
       {idx > 0 && (
         <button
           aria-label="Previous image"
@@ -320,12 +294,15 @@ export function ImmersiveViewer({
   onClose,
   onLike,
   onSave,
-  onComment,
+  onCommentCountChange,
 }: ImmersiveViewerProps) {
   const [, navigate]  = useLocation();
   const [postIdx, setPostIdx]       = useState(startIndex);
-  const [swipeDir, setSwipeDir]     = useState(1);   /* 1=forward, -1=backward */
+  const [swipeDir, setSwipeDir]     = useState(1);
   const [heartBurst, setHeartBurst] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  /* Local comment count state so the button updates without closing viewer */
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
 
   const touchStartY   = useRef<number | null>(null);
   const touchStartX   = useRef<number | null>(null);
@@ -334,21 +311,41 @@ export function ImmersiveViewer({
   const post   = posts[postIdx];
   const author = post?.author;
 
-  /* Escape key / hardware back → close */
+  /* Derive comment count: prefer local delta over post.comment_count */
+  const commentCount = (post?.comment_count ?? 0) + (commentCounts[post?.id] ?? 0);
+
+  /* Handle comment count delta from CommentsSheet */
+  const handleCommentCountChange = useCallback((delta: number) => {
+    if (!post) return;
+    setCommentCounts((prev) => ({
+      ...prev,
+      [post.id]: (prev[post.id] ?? 0) + delta,
+    }));
+    onCommentCountChange?.(post.id, delta);
+  }, [post, onCommentCountChange]);
+
+  /* Escape key / hardware back → close (if comments not open) */
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (showComments) setShowComments(false);
+        else onClose();
+      }
+    };
     window.addEventListener("keydown", onKey);
 
-    /* Push a history entry so the hardware back button fires popstate */
     window.history.pushState({ immersiveViewer: true }, "");
-    const onPop = () => onClose();
+    const onPop = () => {
+      if (showComments) setShowComments(false);
+      else onClose();
+    };
     window.addEventListener("popstate", onPop);
 
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("popstate", onPop);
     };
-  }, [onClose]);
+  }, [onClose, showComments]);
 
   /* Lock body scroll while open */
   useEffect(() => {
@@ -360,6 +357,7 @@ export function ImmersiveViewer({
   /* Double-tap to like */
   const lastTap = useRef(0);
   const handleTap = useCallback(() => {
+    if (showComments) return;
     const now = Date.now();
     if (now - lastTap.current < 300) {
       if (!post?.has_liked) {
@@ -371,27 +369,26 @@ export function ImmersiveViewer({
     } else {
       lastTap.current = now;
     }
-  }, [post, onLike]);
+  }, [post, onLike, showComments]);
 
-  /* Vertical swipe navigation */
+  /* Vertical swipe navigation — disabled when comments sheet is open */
   const onTouchStart = (e: React.TouchEvent) => {
+    if (showComments) return;
     touchStartY.current = e.touches[0].clientY;
     touchStartX.current = e.touches[0].clientX;
     swipeCaptured.current = false;
   };
 
   const onTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartY.current === null || swipeCaptured.current) return;
+    if (showComments || touchStartY.current === null || swipeCaptured.current) return;
     const dy = e.changedTouches[0].clientY - touchStartY.current;
     const dx = Math.abs(e.changedTouches[0].clientX - (touchStartX.current ?? 0));
     if (Math.abs(dy) > 72 && Math.abs(dy) > dx * 1.2) {
       if (dy > 0) {
-        /* Swipe down → previous / close */
         setSwipeDir(-1);
         if (postIdx > 0) setPostIdx((i) => i - 1);
         else onClose();
       } else {
-        /* Swipe up → next */
         setSwipeDir(1);
         if (postIdx < posts.length - 1) setPostIdx((i) => i + 1);
       }
@@ -407,6 +404,7 @@ export function ImmersiveViewer({
   const safeBottom = "env(safe-area-inset-bottom, 0px)";
 
   return (
+    <>
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -531,16 +529,19 @@ export function ImmersiveViewer({
           </span>
         </motion.button>
 
-        {/* Comment */}
+        {/* Comment — opens sheet, does NOT navigate */}
         <motion.button
           whileTap={{ scale: 0.78 }}
-          onClick={() => { onClose(); onComment(post.id); }}
+          onClick={() => setShowComments(true)}
           className="flex flex-col items-center gap-1"
           aria-label="Comment"
         >
-          <MessageCircle className="h-7 w-7 text-white drop-shadow-lg" />
+          <MessageCircle
+            className="h-7 w-7 drop-shadow-lg"
+            style={{ color: showComments ? "var(--accent-primary)" : "white" }}
+          />
           <span className="text-[11px] font-semibold text-white drop-shadow leading-none">
-            {fmtCount(post.comment_count ?? 0)}
+            {fmtCount(commentCount)}
           </span>
         </motion.button>
 
@@ -664,5 +665,16 @@ export function ImmersiveViewer({
         )}
       </AnimatePresence>
     </motion.div>
+
+    {/* ── Comments sheet — renders on top of viewer, viewer stays open ── */}
+    {showComments && (
+      <CommentsSheet
+        postId={post.id}
+        initialCount={post.comment_count ?? 0}
+        onClose={() => setShowComments(false)}
+        onCountChange={handleCommentCountChange}
+      />
+    )}
+    </>
   );
 }

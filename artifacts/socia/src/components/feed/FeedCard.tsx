@@ -4,6 +4,9 @@
  * Shows all social metadata: author, verified badge, timestamp, media,
  * caption, like/save/comment counts. Backend-connected interactions.
  *
+ * Phase 2: removed dot indicators and frame counter badge (TikTok-style).
+ * Phase 4: comments open a bottom sheet instead of navigating.
+ *
  * Used in Home.tsx. Profile grids use PostThumbnail.tsx instead.
  */
 import { useState, useRef, useCallback } from "react";
@@ -13,6 +16,7 @@ import {
   Heart, MessageCircle, Bookmark, Eye, MoreHorizontal, BadgeCheck, Flag,
 } from "lucide-react";
 import { VideoPostPlayer } from "./VideoPostPlayer";
+import { CommentsSheet } from "./CommentsSheet";
 import { reportPost } from "@/lib/postsClient";
 import type { SocialPost } from "@/lib/postsClient";
 import { useAppStore } from "@/lib/store";
@@ -25,8 +29,9 @@ interface Props {
   post: SocialPost;
   onLike: (postId: string) => void;
   onSave: (postId: string) => void;
-  onComment: (postId: string) => void;
+  onComment?: (postId: string) => void;
   onDelete?: (postId: string) => void;
+  onCommentCountChange?: (postId: string, delta: number) => void;
   /** If provided, single-tap on media opens the immersive viewer instead of navigating */
   onOpenViewer?: (post: SocialPost) => void;
 }
@@ -46,7 +51,7 @@ function fmtCount(n: number): string {
   return String(n);
 }
 
-export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenViewer }: Props) {
+export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenViewer, onCommentCountChange }: Props) {
   const [, navigate]   = useLocation();
   const me             = useAppStore((s) => s.user);
   const followedIds    = useAppStore((s) => s.followedUserIds);
@@ -57,6 +62,7 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
   const [showMenu,      setShowMenu]      = useState(false);
   const [followWorking, setFollowWorking] = useState(false);
   const [heartBurst,    setHeartBurst]    = useState(false);
+  const [showComments,  setShowComments]  = useState(false);
 
   const lastTap      = useRef(0);
   const touchStartX  = useRef<number | null>(null);
@@ -112,6 +118,14 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
     }
   }, [post, onLike, onOpenViewer, navigate]);
 
+  /* ── Open comments sheet ─────────────────────────────────────────────── */
+  const handleCommentClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowComments(true);
+    /* Also call external callback if provided (e.g. ImmersiveViewer) */
+    onComment?.(post.id);
+  }, [onComment, post.id]);
+
   /* ── Follow / unfollow ──────────────────────────────────────────────── */
   const handleFollow = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -137,6 +151,7 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
   }, [post.id]);
 
   return (
+    <>
     <div className="border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
       {/* ── Header ───────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 px-4 py-3">
@@ -285,23 +300,9 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
             </div>
           )}
 
+          {/* Multi-media: invisible edge-tap zones only (no dots, no counter) */}
           {hasMulti && (
             <>
-              {/* Dot indicators */}
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
-                {media.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={(e) => { e.stopPropagation(); setMediaIndex(i); }}
-                    className="h-1.5 rounded-full transition-all"
-                    style={{
-                      width: i === mediaIndex ? 16 : 6,
-                      background: i === mediaIndex ? "white" : "rgba(255,255,255,0.45)",
-                    }}
-                  />
-                ))}
-              </div>
-              {/* Invisible edge-tap zones (fallback for non-touch) */}
               {mediaIndex > 0 && (
                 <button
                   aria-label="Previous"
@@ -316,11 +317,6 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
                   className="absolute right-0 top-0 h-full w-1/4 z-10 opacity-0"
                 />
               )}
-              {/* Frame counter badge */}
-              <div className="absolute top-3 right-3 z-10 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
-                style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}>
-                {mediaIndex + 1}/{media.length}
-              </div>
             </>
           )}
 
@@ -359,7 +355,7 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
 
         <motion.button
           whileTap={{ scale: 0.82 }}
-          onClick={() => onComment(post.id)}
+          onClick={handleCommentClick}
           className="flex items-center gap-1.5 rounded-full px-3 py-2"
         >
           <MessageCircle className="h-5 w-5" style={{ color: "rgba(255,255,255,0.7)" }} />
@@ -414,5 +410,16 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
         </div>
       )}
     </div>
+
+    {/* ── TikTok-style comments bottom sheet ───────────────────────── */}
+    {showComments && (
+      <CommentsSheet
+        postId={post.id}
+        initialCount={post.comment_count ?? 0}
+        onClose={() => setShowComments(false)}
+        onCountChange={(delta) => onCommentCountChange?.(post.id, delta)}
+      />
+    )}
+    </>
   );
 }

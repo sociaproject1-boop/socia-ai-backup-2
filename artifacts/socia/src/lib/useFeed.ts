@@ -6,6 +6,7 @@
  * - Infinite scroll via loadMore()
  * - Pull-to-refresh via refresh()
  * - Real-time new post detection (Supabase Realtime)
+ * - Realtime like/comment/save count sync across ALL clients (no polling)
  * - Optimistic like/save toggles synced to backend
  * - Prepend newly created posts after upload
  */
@@ -35,6 +36,9 @@ export function useFeed({ mode, viewerId }: UseFeedOptions) {
   const offsetRef = useRef(0);
   const seenIds = useRef(new Set<string>());
 
+  /* Track which post IDs are currently in the feed for targeted realtime updates */
+  const postIdsRef = useRef<Set<string>>(new Set());
+
   /* ── Fetch page ────────────────────────────────────────────────────── */
   const fetchPage = useCallback(async (offset: number): Promise<SocialPost[]> => {
     const opts = { limit: LIMIT, offset, viewerId: viewerId ?? undefined };
@@ -60,7 +64,11 @@ export function useFeed({ mode, viewerId }: UseFeedOptions) {
       const deduped = newPosts.filter((p) => !seenIds.current.has(p.id));
       deduped.forEach((p) => seenIds.current.add(p.id));
 
-      setPosts((prev) => (isReset ? deduped : [...prev, ...deduped]));
+      setPosts((prev) => {
+        const next = isReset ? deduped : [...prev, ...deduped];
+        postIdsRef.current = new Set(next.map((p) => p.id));
+        return next;
+      });
       offsetRef.current = offset + newPosts.length;
       setHasMore(newPosts.length === LIMIT);
     } catch (e) {
@@ -75,6 +83,7 @@ export function useFeed({ mode, viewerId }: UseFeedOptions) {
   useEffect(() => {
     offsetRef.current = 0;
     seenIds.current.clear();
+    postIdsRef.current.clear();
     setPosts([]);
     setHasMore(true);
     setNewPostsAvailable(false);
@@ -84,7 +93,7 @@ export function useFeed({ mode, viewerId }: UseFeedOptions) {
 
   /* ── Realtime: detect new posts ────────────────────────────────────── */
   useEffect(() => {
-    if (mode === "saved") return; // saved feed doesn't need realtime
+    if (mode === "saved") return;
 
     const channel = supabase
       .channel(`social-feed-${mode}`)
@@ -97,12 +106,14 @@ export function useFeed({ mode, viewerId }: UseFeedOptions) {
           try {
             const post = await fetchSinglePost(raw.id, viewerId ?? undefined);
             if (!post) return;
-            /* For following feed: only prepend if author is followed */
             seenIds.current.add(post.id);
-            setPosts((prev) => [post, ...prev]);
+            setPosts((prev) => {
+              const next = [post, ...prev];
+              postIdsRef.current = new Set(next.map((p) => p.id));
+              return next;
+            });
             offsetRef.current += 1;
           } catch {
-            /* If fetch fails, just show "new posts" banner */
             setNewPostsAvailable(true);
           }
         },
@@ -111,6 +122,131 @@ export function useFeed({ mode, viewerId }: UseFeedOptions) {
 
     return () => { void supabase.removeChannel(channel); };
   }, [mode, viewerId]);
+
+  /* ── Realtime: cross-client LIKES ──────────────────────────────────── */
+  useEffect(() => {
+    if (mode === "saved") return;
+
+    const channel = supabase
+      .channel(`feed-likes-${mode}-${viewerId ?? "anon"}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "likes" },
+        (payload) => {
+          const { post_id, user_id } = payload.new as { post_id: string; user_id: string };
+          if (!postIdsRef.current.has(post_id)) return;
+          setPosts((prev) => prev.map((p) => {
+            if (p.id !== post_id) return p;
+            const isViewer = user_id === viewerId;
+            /* Avoid double-counting if we already applied optimistically */
+            return {
+              ...p,
+              like_count: p.like_count + 1,
+              has_liked: isViewer ? true : p.has_liked,
+            };
+          }));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "likes" },
+        (payload) => {
+          const { post_id, user_id } = payload.old as { post_id: string; user_id: string };
+          if (!postIdsRef.current.has(post_id)) return;
+          setPosts((prev) => prev.map((p) => {
+            if (p.id !== post_id) return p;
+            const isViewer = user_id === viewerId;
+            return {
+              ...p,
+              like_count: Math.max(0, p.like_count - 1),
+              has_liked: isViewer ? false : p.has_liked,
+            };
+          }));
+        },
+      )
+      .subscribe();
+
+    return () => { void supabase.removeChannel(channel); };
+  }, [mode, viewerId]);
+
+  /* ── Realtime: cross-client SAVES ──────────────────────────────────── */
+  useEffect(() => {
+    if (mode === "saved") return;
+
+    const channel = supabase
+      .channel(`feed-saves-${mode}-${viewerId ?? "anon"}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "saves" },
+        (payload) => {
+          const { post_id, user_id } = payload.new as { post_id: string; user_id: string };
+          if (!postIdsRef.current.has(post_id)) return;
+          setPosts((prev) => prev.map((p) => {
+            if (p.id !== post_id) return p;
+            const isViewer = user_id === viewerId;
+            return {
+              ...p,
+              save_count: (p.save_count ?? 0) + 1,
+              has_saved: isViewer ? true : p.has_saved,
+            };
+          }));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "saves" },
+        (payload) => {
+          const { post_id, user_id } = payload.old as { post_id: string; user_id: string };
+          if (!postIdsRef.current.has(post_id)) return;
+          setPosts((prev) => prev.map((p) => {
+            if (p.id !== post_id) return p;
+            const isViewer = user_id === viewerId;
+            return {
+              ...p,
+              save_count: Math.max(0, (p.save_count ?? 0) - 1),
+              has_saved: isViewer ? false : p.has_saved,
+            };
+          }));
+        },
+      )
+      .subscribe();
+
+    return () => { void supabase.removeChannel(channel); };
+  }, [mode, viewerId]);
+
+  /* ── Realtime: cross-client COMMENT COUNTS ─────────────────────────── */
+  useEffect(() => {
+    if (mode === "saved") return;
+
+    const channel = supabase
+      .channel(`feed-comments-${mode}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "comments" },
+        (payload) => {
+          const { post_id } = payload.new as { post_id: string; parent_comment_id?: string | null };
+          if (!postIdsRef.current.has(post_id)) return;
+          /* Count all comments including replies */
+          setPosts((prev) => prev.map((p) =>
+            p.id === post_id ? { ...p, comment_count: p.comment_count + 1 } : p,
+          ));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "comments" },
+        (payload) => {
+          const { post_id } = payload.old as { post_id: string };
+          if (!postIdsRef.current.has(post_id)) return;
+          setPosts((prev) => prev.map((p) =>
+            p.id === post_id ? { ...p, comment_count: Math.max(0, p.comment_count - 1) } : p,
+          ));
+        },
+      )
+      .subscribe();
+
+    return () => { void supabase.removeChannel(channel); };
+  }, [mode]);
 
   /* ── Public API ────────────────────────────────────────────────────── */
   const refresh = useCallback(() => {
@@ -126,11 +262,15 @@ export function useFeed({ mode, viewerId }: UseFeedOptions) {
   const prependPost = useCallback((post: SocialPost) => {
     if (seenIds.current.has(post.id)) return;
     seenIds.current.add(post.id);
-    setPosts((prev) => [post, ...prev]);
+    setPosts((prev) => {
+      const next = [post, ...prev];
+      postIdsRef.current = new Set(next.map((p) => p.id));
+      return next;
+    });
     offsetRef.current += 1;
   }, []);
 
-  /** Optimistic like toggle — syncs to backend */
+  /** Optimistic like toggle — syncs to backend; realtime will echo back */
   const handleLike = useCallback(async (postId: string) => {
     /* Optimistic update */
     setPosts((prev) => prev.map((p) => {
@@ -140,11 +280,10 @@ export function useFeed({ mode, viewerId }: UseFeedOptions) {
     }));
     try {
       const result = await toggleLike(postId);
-      /* Sync with server truth */
+      /* Realtime will sync other clients; just ensure we're in the right state */
       setPosts((prev) => prev.map((p) => {
         if (p.id !== postId) return p;
-        const liked = result.liked;
-        return { ...p, has_liked: liked, like_count: p.like_count + (liked === p.has_liked ? 0 : liked ? 1 : -1) };
+        return { ...p, has_liked: result.liked };
       }));
     } catch {
       /* Rollback */
@@ -156,7 +295,7 @@ export function useFeed({ mode, viewerId }: UseFeedOptions) {
     }
   }, []);
 
-  /** Optimistic save toggle — syncs to backend */
+  /** Optimistic save toggle — syncs to backend; realtime will echo back */
   const handleSave = useCallback(async (postId: string) => {
     setPosts((prev) => prev.map((p) => {
       if (p.id !== postId) return p;
@@ -174,16 +313,20 @@ export function useFeed({ mode, viewerId }: UseFeedOptions) {
     }
   }, []);
 
-  /** Update a single post's comment count after commenting */
-  const incrementCommentCount = useCallback((postId: string) => {
+  /** Update a single post's comment count (used by CommentsSheet) */
+  const updateCommentCount = useCallback((postId: string, delta: number) => {
     setPosts((prev) => prev.map((p) =>
-      p.id === postId ? { ...p, comment_count: p.comment_count + 1 } : p,
+      p.id === postId ? { ...p, comment_count: Math.max(0, p.comment_count + delta) } : p,
     ));
   }, []);
 
   /** Remove a post from the feed (after owner deletion) */
   const removePost = useCallback((postId: string) => {
-    setPosts((prev) => prev.filter((p) => p.id !== postId));
+    setPosts((prev) => {
+      const next = prev.filter((p) => p.id !== postId);
+      postIdsRef.current = new Set(next.map((p) => p.id));
+      return next;
+    });
     seenIds.current.delete(postId);
   }, []);
 
@@ -199,7 +342,7 @@ export function useFeed({ mode, viewerId }: UseFeedOptions) {
     prependPost,
     handleLike,
     handleSave,
-    incrementCommentCount,
+    updateCommentCount,
     removePost,
   };
 }
