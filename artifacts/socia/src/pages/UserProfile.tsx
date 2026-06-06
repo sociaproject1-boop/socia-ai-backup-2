@@ -358,29 +358,52 @@ export default function UserProfile() {
         </>
       ) : (
         /* ══════════════════════════════════════════════════════════
-           STANDARD USER LAYOUT
+           STANDARD USER LAYOUT — Facebook-style
         ══════════════════════════════════════════════════════════ */
         <>
-          {/* Header bar */}
-          <div className="flex items-center gap-3 border-b border-white/[0.04] bg-[#000000] px-4"
-            style={{ paddingTop: `calc(env(safe-area-inset-top,0px) + 12px)`, paddingBottom: 12 }}>
-            <button
-              onClick={() => history.length > 1 ? history.back() : navigate("/")}
-              className="card-premium grid h-9 w-9 place-items-center rounded-full text-white"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-            <span className="font-semibold text-white truncate">{profile.name || profile.username}</span>
+          {/* ── Cover photo section ───────────────────────────────── */}
+          <div className="relative overflow-hidden" style={{ height: 200 }}>
+            {profile.cover_photo_url ? (
+              <img
+                src={profile.cover_photo_url}
+                alt="cover"
+                className="absolute inset-0 w-full h-full object-cover object-center"
+                style={{ display: "block" }}
+              />
+            ) : (
+              <div
+                className="absolute inset-0"
+                style={{ background: "linear-gradient(160deg, #0d0b1a 0%, #1a0e2e 45%, #0a0c18 100%)" }}
+              />
+            )}
+
+            {/* Back button overlaid on cover */}
+            <div className="absolute top-0 left-0 z-20 px-4"
+              style={{ paddingTop: `calc(env(safe-area-inset-top,0px) + 12px)` }}>
+              <button
+                onClick={() => history.length > 1 ? history.back() : navigate("/")}
+                className="grid h-9 w-9 place-items-center rounded-full text-white"
+                style={{ background: "rgba(0,0,0,0.65)", border: "1px solid rgba(255,255,255,0.15)" }}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Bottom gradient */}
+            <div className="absolute bottom-0 left-0 right-0 pointer-events-none"
+              style={{ height: 64, background: "linear-gradient(to bottom, transparent, rgba(0,0,0,0.6))" }} />
           </div>
 
-          <div className="px-5 pt-6 pb-8">
-            {/* Avatar + actions */}
-            <div className="flex items-start justify-between">
+          {/* ── Avatar + identity (overlapping cover by 44px) ────── */}
+          <div className="px-4 pb-8" style={{ marginTop: -44 }}>
+
+            {/* Avatar row */}
+            <div className="flex items-end justify-between mb-3">
               <div className="relative">
-                <div className="h-20 w-20 overflow-hidden rounded-full"
-                  style={{ border: "2.5px solid var(--accent-primary)", boxShadow: "0 6px 24px -6px var(--accent-glow)" }}>
+                <div className="h-[88px] w-[88px] overflow-hidden rounded-full"
+                  style={{ border: "3px solid #000", boxShadow: "0 2px 16px rgba(0,0,0,0.6)" }}>
                   {avatarSrc
-                    ? <img src={avatarSrc} alt={profile.name} loading="lazy" className="h-full w-full object-cover" />
+                    ? <img src={avatarSrc} alt={profile.name ?? ""} loading="lazy" className="h-full w-full object-cover" />
                     : <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-2xl font-bold text-white">{initials}</div>
                   }
                 </div>
@@ -388,16 +411,18 @@ export default function UserProfile() {
                   <OnlineDot status={presenceStatus} size={14} />
                 </div>
               </div>
-              <div className="relative z-10 pt-1"><ActionButtons /></div>
+              <div className="relative z-10"><ActionButtons /></div>
             </div>
 
-            {/* Name / username / bio / badges */}
-            <div className="mt-4">
+            {/* Name / username / bio — no badges for standard users */}
+            <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="font-display text-[22px] font-bold leading-tight text-white">
                   {profile.name || profile.username || "Unknown"}
                 </h2>
-                <NameBadges isOwner={profile.is_owner} isVerified={profile.is_verified} size="md" />
+                {profile.is_owner && (
+                  <NameBadges isOwner={profile.is_owner} isVerified={profile.is_verified} size="md" />
+                )}
               </div>
               {profile.username && (
                 <p className="mt-0.5 flex items-center gap-1.5 text-sm text-white/50">

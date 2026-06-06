@@ -300,7 +300,7 @@ export function FounderHero({
 
 
   return (
-    <div className="relative w-full overflow-hidden select-none" style={{ height: 310 }}>
+    <div className="relative w-full overflow-hidden select-none" style={{ height: 350 }}>
 
       {/* ── Layer 1a: Cover photo (owner-uploaded, overrides video) ── */}
       {coverPhotoUrl ? (

@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Settings, Heart, Bookmark, Grid3x3, Copy, ArrowUpRight, Camera,
-  Check, X, Facebook, Instagram, Music2, Shield, ChevronRight, ImagePlus, Trash2,
+  Check, X, Facebook, Instagram, Music2, Shield, ChevronRight,
 } from "lucide-react";
 import { PostThumbnail } from "@/components/feed/PostThumbnail";
 import { supabase, uploadAvatar, upsertProfile, isSupabaseReady } from "@/lib/supabase";
@@ -204,7 +204,7 @@ export default function Profile() {
 
   /* ── Load cover photo from Supabase on mount ────────────────────────── */
   useEffect(() => {
-    if (!user?.id || !isAdminProfile) return;
+    if (!user?.id) return;
     (async () => {
       try {
         const { data } = await supabase
@@ -464,32 +464,6 @@ export default function Profile() {
               )}
             </div>
 
-            {/* Cover photo controls — top-left when NOT editing (upload / delete) */}
-            {!isEditing && isAdminProfile && (
-              <div className="absolute top-0 left-3 flex gap-2 z-30"
-                style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 10px)` }}>
-                <motion.button whileTap={{ scale: 0.88 }}
-                  onClick={() => coverFileRef.current?.click()}
-                  disabled={coverUploading}
-                  title="Change cover photo"
-                  className="grid h-9 w-9 place-items-center rounded-full text-white disabled:opacity-50"
-                  style={{ background: "rgba(0,0,0,0.65)", border: "1px solid rgba(255,255,255,0.15)" }}>
-                  {coverUploading
-                    ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    : <ImagePlus style={{ width: 15, height: 15 }} />}
-                </motion.button>
-                {coverPhotoUrl && (
-                  <motion.button whileTap={{ scale: 0.88 }}
-                    onClick={deleteCoverPhoto}
-                    title="Remove cover photo"
-                    className="grid h-9 w-9 place-items-center rounded-full text-white"
-                    style={{ background: "rgba(180,20,20,0.75)", border: "1px solid rgba(255,100,100,0.3)" }}>
-                    <Trash2 style={{ width: 14, height: 14 }} />
-                  </motion.button>
-                )}
-              </div>
-            )}
-
             {/* Upload errors */}
             {(uploadError || coverError) && (
               <p className="absolute bottom-2 left-0 right-0 text-center text-[11px] text-red-400 font-medium">
@@ -548,6 +522,16 @@ export default function Profile() {
                 <SocialInput icon={Facebook}  value={editFb} onChange={setEditFb} placeholder="Facebook URL or username" />
                 <SocialInput icon={Instagram} value={editIg} onChange={setEditIg} placeholder="Instagram handle" />
                 <SocialInput icon={Music2}    value={editTt} onChange={setEditTt} placeholder="TikTok handle" />
+                {coverPhotoUrl && (
+                  <motion.button
+                    type="button" whileTap={{ scale: 0.95 }}
+                    onClick={deleteCoverPhoto}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-[14px] py-2.5 text-[12px] font-semibold text-red-400"
+                    style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.18)" }}
+                  >
+                    <X style={{ width: 12, height: 12 }} /> Remove Cover Photo
+                  </motion.button>
+                )}
               </div>
             )}
 
@@ -622,134 +606,187 @@ export default function Profile() {
         </>
       ) : (
         /* ══════════════════════════════════════════════════════════
-           STANDARD USER LAYOUT
+           STANDARD USER LAYOUT — Facebook-style cover
         ══════════════════════════════════════════════════════════ */
-        <div className="px-5 pt-5 pb-4">
-          <div className="flex items-start justify-between">
-            {/* Avatar */}
-            <div className="relative">
-              <motion.div
-                className="h-20 w-20 overflow-hidden rounded-full"
-                style={{ boxShadow: "0 0 0 1.5px rgba(255,255,255,0.18)" }}
-              >
-                {showAvatar ? (
-                  <img src={avatarSrc!} alt={user.name}
-                    className={"h-full w-full object-cover " + (uploading ? "opacity-50" : "")}
-                    onError={() => setAvatarBroken(true)} />
-                ) : (
-                  <div className={"h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-2xl font-bold text-white " + (uploading ? "opacity-50" : "")}>
-                    {uploading ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : initials}
-                  </div>
-                )}
-              </motion.div>
-              {isEditing && (
-                <>
-                  <motion.button
-                    initial={{ scale: 0 }} animate={{ scale: 1 }} whileTap={{ scale: 0.88 }}
-                    onClick={() => fileRef.current?.click()} disabled={uploading}
-                    className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full text-white"
-                    style={{ background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))", border: "2px solid hsl(var(--background))" }}
-                  >
-                    {uploading ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : <Camera style={{ width: 13, height: 13 }} />}
-                  </motion.button>
-                  {uploadError && <p className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-56 text-center text-[11px] text-red-400">{uploadError}</p>}
-                </>
-              )}
-            </div>
+        <>
+          {/* ── Cover photo section ───────────────────────────────── */}
+          <div className="relative overflow-hidden" style={{ height: 200 }}>
+            {coverPhotoUrl ? (
+              <img
+                src={coverPhotoUrl}
+                alt="cover"
+                className="absolute inset-0 w-full h-full object-cover object-center"
+                style={{ display: "block" }}
+              />
+            ) : (
+              <div
+                className="absolute inset-0"
+                style={{ background: "linear-gradient(160deg, #0d0b1a 0%, #1a0e2e 45%, #0a0c18 100%)" }}
+              />
+            )}
 
-            {/* Top-right buttons */}
-            <div className="flex gap-2">
+            {/* Top-right: settings / save / cancel */}
+            <div className="absolute top-0 right-3 flex gap-2 z-10"
+              style={{ paddingTop: `calc(env(safe-area-inset-top,0px) + 10px)` }}>
               {isEditing ? (
                 <>
                   <motion.button whileTap={{ scale: 0.88 }} onClick={cancelEdit}
-                    className="app-surface grid h-9 w-9 place-items-center rounded-full app-text">
-                    <X style={{ width: 16, height: 16 }} />
+                    className="grid h-9 w-9 place-items-center rounded-full text-white"
+                    style={{ background: "rgba(0,0,0,0.65)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                    <X style={{ width: 15, height: 15 }} />
                   </motion.button>
                   <motion.button whileTap={{ scale: 0.88 }} onClick={saveProfile}
                     className="grid h-9 w-9 place-items-center rounded-full text-white"
                     style={{ background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))" }}>
-                    <Check style={{ width: 16, height: 16 }} />
+                    <Check style={{ width: 15, height: 15 }} />
                   </motion.button>
                 </>
               ) : (
                 <motion.button whileTap={{ scale: 0.88 }} onClick={() => navigate("/profile/settings")}
-                  className="app-surface grid h-9 w-9 place-items-center rounded-full app-text">
-                  <Settings style={{ width: 16, height: 16 }} />
+                  className="grid h-9 w-9 place-items-center rounded-full text-white"
+                  style={{ background: "rgba(0,0,0,0.65)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                  <Settings style={{ width: 15, height: 15 }} />
                 </motion.button>
               )}
             </div>
+
+            {/* Edit cover button — bottom-right, only in edit mode */}
+            {isEditing && (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => coverFileRef.current?.click()}
+                disabled={coverUploading}
+                className="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50"
+                style={{ background: "rgba(0,0,0,0.72)", border: "1px solid rgba(255,255,255,0.2)" }}
+              >
+                {coverUploading
+                  ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  : <Camera style={{ width: 12, height: 12 }} />
+                }
+                {coverPhotoUrl ? "Change cover" : "Add cover"}
+              </motion.button>
+            )}
+
+            {/* Bottom gradient */}
+            <div className="absolute bottom-0 left-0 right-0 pointer-events-none"
+              style={{ height: 64, background: "linear-gradient(to bottom, transparent, rgba(0,0,0,0.6))" }} />
           </div>
 
-          {/* Name / handle / bio */}
-          <div className="mt-4">
-            {isEditing ? (
-              <div className="space-y-2">
-                <input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Display name"
-                  className="app-input w-full rounded-[14px] px-4 py-2.5 text-[17px] font-bold focus:outline-none" />
-                <div className="app-input flex items-center rounded-[14px] overflow-hidden">
-                  <span className="pl-4 text-sm app-text-muted">@</span>
-                  <input value={editHandle} onChange={(e) => setEditHandle(e.target.value.replace(/^@/, ""))}
-                    placeholder="username" className="flex-1 bg-transparent px-2 py-2.5 text-sm app-text focus:outline-none" />
+          {/* ── Avatar + identity (overlapping cover by 44px) ────── */}
+          <div className="px-4 pb-4" style={{ marginTop: -44 }}>
+
+            {/* Avatar row — avatar overlaps cover */}
+            <div className="flex items-end justify-between">
+              <div className="relative">
+                <div className="h-[88px] w-[88px] overflow-hidden rounded-full"
+                  style={{ border: "3px solid #000", boxShadow: "0 2px 16px rgba(0,0,0,0.6)" }}>
+                  {showAvatar ? (
+                    <img src={avatarSrc!} alt={user.name}
+                      className={"h-full w-full object-cover " + (uploading ? "opacity-50" : "")}
+                      onError={() => setAvatarBroken(true)} />
+                  ) : (
+                    <div className={"h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-2xl font-bold text-white " + (uploading ? "opacity-50" : "")}>
+                      {uploading ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : initials}
+                    </div>
+                  )}
                 </div>
-                <textarea value={editBio} onChange={(e) => setEditBio(e.target.value.slice(0, 280))}
-                  placeholder="Bio" rows={3} className="app-input w-full rounded-[14px] px-4 py-2.5 text-[13px] app-text focus:outline-none resize-none" />
-                <SocialInput icon={Facebook}  value={editFb} onChange={setEditFb} placeholder="Facebook URL or username" />
-                <SocialInput icon={Instagram} value={editIg} onChange={setEditIg} placeholder="Instagram handle" />
-                <SocialInput icon={Music2}    value={editTt} onChange={setEditTt} placeholder="TikTok handle" />
-              </div>
-            ) : (
-              <>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="font-display text-[24px] font-bold leading-tight app-text">{user.name}</h2>
-                  <NameBadges isOwner={user.isOwner} isVerified={user.isVerified} size="md" />
-                </div>
-                <p className="mt-0.5 flex items-center gap-1.5 text-sm app-text-muted">
-                  <OnlineDot status={presenceStatus} size={8} />
-                  @{user.handle}
-                </p>
-                {user.bio && (
-                  <p className="mt-2.5 text-[13px] leading-relaxed app-text-muted max-w-sm whitespace-pre-line">{user.bio}</p>
+                {isEditing && (
+                  <motion.button
+                    initial={{ scale: 0 }} animate={{ scale: 1 }} whileTap={{ scale: 0.88 }}
+                    onClick={() => fileRef.current?.click()} disabled={uploading}
+                    className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full text-white"
+                    style={{ background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))", border: "2px solid #000" }}
+                  >
+                    {uploading ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" /> : <Camera style={{ width: 13, height: 13 }} />}
+                  </motion.button>
                 )}
-                <SocialLinkRow facebook={user.social?.facebook} instagram={user.social?.instagram} tiktok={user.social?.tiktok} />
-              </>
+                {uploadError && <p className="absolute top-[90px] left-0 w-48 text-[10px] text-red-400">{uploadError}</p>}
+              </div>
+
+              {/* Remove cover (edit mode only, when cover exists) */}
+              {isEditing && coverPhotoUrl && (
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={deleteCoverPhoto}
+                  className="flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[10px] font-semibold text-red-400 mb-1"
+                  style={{ background: "rgba(239,68,68,0.10)", border: "1px solid rgba(239,68,68,0.22)" }}
+                >
+                  <X style={{ width: 10, height: 10 }} /> Remove cover
+                </motion.button>
+              )}
+            </div>
+
+            {/* Name / handle / bio */}
+            <div className="mt-4">
+              {isEditing ? (
+                <div className="space-y-2">
+                  <input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Display name"
+                    className="app-input w-full rounded-[14px] px-4 py-2.5 text-[17px] font-bold focus:outline-none" />
+                  <div className="app-input flex items-center rounded-[14px] overflow-hidden">
+                    <span className="pl-4 text-sm app-text-muted">@</span>
+                    <input value={editHandle} onChange={(e) => setEditHandle(e.target.value.replace(/^@/, ""))}
+                      placeholder="username" className="flex-1 bg-transparent px-2 py-2.5 text-sm app-text focus:outline-none" />
+                  </div>
+                  <textarea value={editBio} onChange={(e) => setEditBio(e.target.value.slice(0, 280))}
+                    placeholder="Bio" rows={3} className="app-input w-full rounded-[14px] px-4 py-2.5 text-[13px] app-text focus:outline-none resize-none" />
+                  <SocialInput icon={Facebook}  value={editFb} onChange={setEditFb} placeholder="Facebook URL or username" />
+                  <SocialInput icon={Instagram} value={editIg} onChange={setEditIg} placeholder="Instagram handle" />
+                  <SocialInput icon={Music2}    value={editTt} onChange={setEditTt} placeholder="TikTok handle" />
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="font-display text-[24px] font-bold leading-tight app-text">{user.name}</h2>
+                    {user.isOwner && <NameBadges isOwner={user.isOwner} isVerified={user.isVerified} size="md" />}
+                  </div>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-sm app-text-muted">
+                    <OnlineDot status={presenceStatus} size={8} />
+                    @{user.handle}
+                  </p>
+                  {user.bio && (
+                    <p className="mt-2.5 text-[13px] leading-relaxed app-text-muted max-w-sm whitespace-pre-line">{user.bio}</p>
+                  )}
+                  <SocialLinkRow facebook={user.social?.facebook} instagram={user.social?.instagram} tiktok={user.social?.tiktok} />
+                </>
+              )}
+            </div>
+
+            <div className="mt-4 flex items-center overflow-hidden rounded-[18px] app-card">
+              <StatBtn label="Creations" value={liveCreationsCount ?? realMyPosts.length} />
+              <div className="my-3 w-px self-stretch" style={{ background: "var(--s-border-a)" }} />
+              <StatBtn label="Followers" value={liveFollowers ?? user.followers} onClick={isEditing ? undefined : () => navigate(`/followers/${user.id}`)} />
+              <div className="my-3 w-px self-stretch" style={{ background: "var(--s-border-a)" }} />
+              <StatBtn label="Following" value={liveFollowing ?? user.following} onClick={isEditing ? undefined : () => navigate(`/following/${user.id}`)} />
+            </div>
+
+            {!isEditing && (
+              <div className="mt-3 flex gap-2">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => {
+                    setEditName(user.name); setEditHandle(user.handle); setEditBio(user.bio ?? "");
+                    setEditFb(user.social?.facebook ?? ""); setEditIg(user.social?.instagram ?? "");
+                    setEditTt(user.social?.tiktok   ?? ""); setIsEditing(true);
+                  }}
+                  className="flex-1 rounded-[14px] py-2.5 text-[13px] font-semibold tracking-wide app-surface app-text"
+                >
+                  Edit Profile
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => navigate("/creator/dashboard")}
+                  className="flex items-center gap-1.5 rounded-[14px] px-4 py-2.5 text-[13px] font-semibold"
+                  style={{ background: "linear-gradient(135deg,rgba(168,85,247,0.15),rgba(236,72,153,0.15))", border: "1px solid rgba(168,85,247,0.3)", color: "#a855f7" }}
+                >
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5">
+                    <path d="M2 12h12M2 8l4-4 3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Studio
+                </motion.button>
+              </div>
             )}
           </div>
-
-          <div className="mt-4 flex items-center overflow-hidden rounded-[18px] app-card">
-            <StatBtn label="Creations" value={liveCreationsCount ?? realMyPosts.length} />
-            <div className="my-3 w-px self-stretch" style={{ background: "var(--s-border-a)" }} />
-            <StatBtn label="Followers" value={liveFollowers ?? user.followers} onClick={isEditing ? undefined : () => navigate(`/followers/${user.id}`)} />
-            <div className="my-3 w-px self-stretch" style={{ background: "var(--s-border-a)" }} />
-            <StatBtn label="Following" value={liveFollowing ?? user.following} onClick={isEditing ? undefined : () => navigate(`/following/${user.id}`)} />
-          </div>
-
-          {!isEditing && (
-            <div className="mt-3 flex gap-2">
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={() => {
-                  setEditName(user.name); setEditHandle(user.handle); setEditBio(user.bio ?? "");
-                  setEditFb(user.social?.facebook ?? ""); setEditIg(user.social?.instagram ?? "");
-                  setEditTt(user.social?.tiktok   ?? ""); setIsEditing(true);
-                }}
-                className="flex-1 rounded-[14px] py-2.5 text-[13px] font-semibold tracking-wide app-surface app-text"
-              >
-                Edit Profile
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={() => navigate("/creator/dashboard")}
-                className="flex items-center gap-1.5 rounded-[14px] px-4 py-2.5 text-[13px] font-semibold"
-                style={{ background: "linear-gradient(135deg,rgba(168,85,247,0.15),rgba(236,72,153,0.15))", border: "1px solid rgba(168,85,247,0.3)", color: "#a855f7" }}
-              >
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5">
-                  <path d="M2 12h12M2 8l4-4 3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Studio
-              </motion.button>
-            </div>
-          )}
-        </div>
+        </>
       )}
 
       {/* ── Tabs — locked while editing ───────────────────────────────── */}
