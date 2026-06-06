@@ -2,13 +2,13 @@
  * ImmersiveViewer.tsx — TikTok/Reels-style fullscreen media viewer.
  *
  * Features:
- *  - 9:16 portrait fullscreen overlay (covers entire viewport)
+ *  - True fullscreen via React portal (escapes AppShell stacking context)
  *  - Videos: auto-play, tap to pause/resume, NO browser controls, custom mute
  *  - Images: swipe left/right with momentum, smooth AnimatePresence transitions
  *  - Swipe up → next post in feed, swipe down → prev post (or close)
- *  - Right-side vertical action bar: Like, Comment, Save, Share
- *  - Bottom overlay: author, caption, view count
- *  - Keyboard/back gesture closes the viewer
+ *  - Right-side TikTok action bar: Avatar, Like, Comment, Save, Share
+ *  - Bottom-left overlay: author, caption, view count
+ *  - No scroll indicators, no browser chrome feel
  */
 import {
   useState, useRef, useCallback, useEffect,
@@ -16,7 +16,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Heart, MessageCircle, Bookmark, Share2, Volume2, VolumeX,
-  Eye, ChevronLeft, ChevronRight, Play, Pause, BadgeCheck,
+  Eye, ChevronLeft, ChevronRight, Play, BadgeCheck,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import type { SocialPost } from "@/lib/postsClient";
@@ -42,13 +42,16 @@ export interface ImmersiveViewerProps {
 function ImmersiveVideo({
   url,
   active,
+  onMuteToggle,
+  muted,
 }: {
-  url:    string;
-  active: boolean;
+  url:          string;
+  active:       boolean;
+  muted:        boolean;
+  onMuteToggle: () => void;
 }) {
-  const videoRef  = useRef<HTMLVideoElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [muted,   setMuted]   = useState(true);
+  const videoRef    = useRef<HTMLVideoElement>(null);
+  const [playing,   setPlaying]   = useState(false);
   const [buffering, setBuffering] = useState(false);
 
   /* Play/pause when active changes */
@@ -56,8 +59,7 @@ function ImmersiveVideo({
     const v = videoRef.current;
     if (!v) return;
     if (active) {
-      v.muted = true;
-      setMuted(true);
+      v.muted = muted;
       v.currentTime = 0;
       v.play().then(() => setPlaying(true)).catch(() => {});
     } else {
@@ -66,20 +68,18 @@ function ImmersiveVideo({
     }
   }, [active, url]);
 
+  /* Keep video muted prop in sync */
+  useEffect(() => {
+    const v = videoRef.current;
+    if (v) v.muted = muted;
+  }, [muted]);
+
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
     if (playing) { v.pause(); setPlaying(false); }
     else { v.play().then(() => setPlaying(true)).catch(() => {}); }
   }, [playing]);
-
-  const toggleMute = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    e.stopPropagation();
-    const v = videoRef.current;
-    if (!v) return;
-    v.muted = !v.muted;
-    setMuted(v.muted);
-  }, []);
 
   return (
     <div className="absolute inset-0" onClick={togglePlay}>
@@ -88,7 +88,7 @@ function ImmersiveVideo({
         src={url}
         loop
         playsInline
-        muted
+        muted={muted}
         preload="auto"
         onWaiting={() => setBuffering(true)}
         onCanPlay={() => setBuffering(false)}
@@ -105,7 +105,7 @@ function ImmersiveVideo({
         </div>
       )}
 
-      {/* Play/Pause indicator (flash on tap) */}
+      {/* Play indicator (flash on tap) */}
       <AnimatePresence>
         {!playing && !buffering && (
           <motion.div
@@ -123,11 +123,13 @@ function ImmersiveVideo({
         )}
       </AnimatePresence>
 
-      {/* Mute toggle — bottom-left */}
+      {/* Mute toggle — top-left, below close button */}
       <button
-        onClick={toggleMute}
-        onTouchEnd={toggleMute}
-        className="absolute bottom-28 left-4 grid h-9 w-9 place-items-center rounded-full bg-black/50 backdrop-blur-sm z-20"
+        onClick={(e) => { e.stopPropagation(); onMuteToggle(); }}
+        onTouchEnd={(e) => { e.stopPropagation(); onMuteToggle(); }}
+        className="absolute grid place-items-center rounded-full bg-black/50 backdrop-blur-sm z-20"
+        style={{ top: 56, left: 16, width: 34, height: 34 }}
+        aria-label={muted ? "Unmute" : "Mute"}
       >
         {muted
           ? <VolumeX className="h-4 w-4 text-white" />
@@ -149,7 +151,7 @@ function ImmersiveImages({
   const [idx, setIdx] = useState(0);
   const touchX  = useRef<number | null>(null);
   const touchY  = useRef<number | null>(null);
-  const [dir, setDir] = useState(0); // -1 = left, 1 = right
+  const [dir, setDir] = useState(0);
 
   const goTo = useCallback((next: number) => {
     setDir(next > idx ? -1 : 1);
@@ -164,9 +166,8 @@ function ImmersiveImages({
     if (touchX.current === null || !media?.length) return;
     const dx = e.changedTouches[0].clientX - touchX.current;
     const dy = Math.abs(e.changedTouches[0].clientY - (touchY.current ?? 0));
-    /* Only capture horizontal swipes that aren't vertical scrolls */
     if (Math.abs(dx) > 50 && Math.abs(dx) > dy * 1.5) {
-      onSwipeCapture(true); /* tell parent this was a horizontal swipe */
+      onSwipeCapture(true);
       if (dx < 0 && idx < media.length - 1) goTo(idx + 1);
       if (dx > 0 && idx > 0)               goTo(idx - 1);
     } else {
@@ -198,9 +199,9 @@ function ImmersiveImages({
         />
       </AnimatePresence>
 
-      {/* Frame dots */}
+      {/* Frame dots — top-center, clear of everything */}
       {(media?.length ?? 0) > 1 && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
           {media!.map((_, i) => (
             <div key={i} className="h-1 rounded-full transition-all duration-200"
               style={{ width: i === idx ? 16 : 6, background: i === idx ? "white" : "rgba(255,255,255,0.4)" }} />
@@ -208,7 +209,7 @@ function ImmersiveImages({
         </div>
       )}
 
-      {/* Edge tap zones for non-touch */}
+      {/* Edge tap zones */}
       {idx > 0 && (
         <button
           aria-label="Previous"
@@ -240,16 +241,17 @@ export function ImmersiveViewer({
   onSave,
   onComment,
 }: ImmersiveViewerProps) {
-  const [, navigate] = useLocation();
-  const [postIdx, setPostIdx] = useState(startIndex);
+  const [, navigate]  = useLocation();
+  const [postIdx, setPostIdx]     = useState(startIndex);
   const [heartBurst, setHeartBurst] = useState(false);
+  const [muted, setMuted]           = useState(true);
 
-  /* Gesture tracking for swipe-up/down between posts */
   const touchStartY   = useRef<number | null>(null);
   const touchStartX   = useRef<number | null>(null);
-  const swipeCaptured = useRef(false); /* set true by ImmersiveImages when it handles an H-swipe */
+  const swipeCaptured = useRef(false);
 
-  const post = posts[postIdx];
+  const post   = posts[postIdx];
+  const author = post?.author;
 
   /* Keyboard close */
   useEffect(() => {
@@ -258,7 +260,7 @@ export function ImmersiveViewer({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  /* Lock body scroll while open */
+  /* Lock body scroll */
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -281,24 +283,21 @@ export function ImmersiveViewer({
     }
   }, [post, onLike]);
 
-  /* Vertical swipe handlers (post navigation) */
+  /* Vertical swipe between posts */
   const onTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
     touchStartX.current = e.touches[0].clientX;
     swipeCaptured.current = false;
   };
-
   const onTouchEnd = (e: React.TouchEvent) => {
     if (touchStartY.current === null || swipeCaptured.current) return;
     const dy = e.changedTouches[0].clientY - touchStartY.current;
     const dx = Math.abs(e.changedTouches[0].clientX - (touchStartX.current ?? 0));
     if (Math.abs(dy) > 80 && Math.abs(dy) > dx) {
       if (dy > 0) {
-        /* Swipe down → prev post or close */
         if (postIdx > 0) setPostIdx((i) => i - 1);
         else onClose();
       } else {
-        /* Swipe up → next post */
         if (postIdx < posts.length - 1) setPostIdx((i) => i + 1);
       }
     }
@@ -308,9 +307,11 @@ export function ImmersiveViewer({
 
   if (!post) { onClose(); return null; }
 
-  const firstMedia  = post.media?.[0];
-  const isVideo     = firstMedia?.type === "video";
-  const author      = post.author;
+  const firstMedia = post.media?.[0];
+  const isVideo    = firstMedia?.type === "video";
+
+  /* Bottom safe inset as inline style value */
+  const safeBottom = "env(safe-area-inset-bottom, 0px)";
 
   return (
     <motion.div
@@ -318,8 +319,8 @@ export function ImmersiveViewer({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.18 }}
-      className="fixed inset-0 z-[9999] bg-black"
-      style={{ touchAction: "none" }}
+      className="fixed inset-0 bg-black"
+      style={{ zIndex: 99999, touchAction: "none", overflow: "hidden" }}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       onClick={handleTap}
@@ -336,7 +337,12 @@ export function ImmersiveViewer({
           transition={{ duration: 0.2, ease: "easeOut" }}
         >
           {isVideo ? (
-            <ImmersiveVideo url={firstMedia!.url} active={true} />
+            <ImmersiveVideo
+              url={firstMedia!.url}
+              active={true}
+              muted={muted}
+              onMuteToggle={() => setMuted((m) => !m)}
+            />
           ) : (
             <ImmersiveImages
               media={post.media}
@@ -347,45 +353,73 @@ export function ImmersiveViewer({
       </AnimatePresence>
 
       {/* ── Gradient overlays ─────────────────────────────────────────── */}
-      {/* Top gradient (for close button readability) */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-40 z-10"
-        style={{ background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)" }} />
-      {/* Bottom gradient (for overlay readability) */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-80 z-10"
-        style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)" }} />
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 z-10"
+        style={{ height: 120, background: "linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 100%)" }}
+      />
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-10"
+        style={{ height: 320, background: "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)" }}
+      />
 
       {/* ── Close button ──────────────────────────────────────────────── */}
       <button
         onClick={(e) => { e.stopPropagation(); onClose(); }}
-        className="absolute top-0 left-0 z-30 grid h-12 w-12 place-items-center text-white"
-        style={{ paddingTop: "env(safe-area-inset-top, 16px)", paddingLeft: 16 }}
+        className="absolute z-30 grid place-items-center text-white"
+        style={{ top: "env(safe-area-inset-top, 12px)", left: 12, width: 44, height: 44 }}
         aria-label="Close"
       >
         <X className="h-6 w-6 drop-shadow-md" />
       </button>
 
-      {/* ── Right action bar ──────────────────────────────────────────── */}
+      {/* ── Right action bar — TikTok style ───────────────────────────── */}
       <div
-        className="absolute right-4 bottom-24 z-30 flex flex-col items-center gap-6"
+        className="absolute right-3 z-30 flex flex-col items-center gap-5"
+        style={{ bottom: `calc(${safeBottom} + 88px)` }}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Profile avatar */}
+        <button
+          className="relative flex-shrink-0"
+          onClick={() => { onClose(); navigate(`/profile/${author?.id}`); }}
+          aria-label="View profile"
+        >
+          {author?.avatar_url ? (
+            <img
+              src={author.avatar_url}
+              alt=""
+              className="rounded-full object-cover"
+              style={{ width: 44, height: 44, border: "1.5px solid rgba(255,255,255,0.45)" }}
+            />
+          ) : (
+            <div
+              className="rounded-full grid place-items-center text-sm font-bold text-white"
+              style={{
+                width: 44, height: 44,
+                background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))",
+              }}
+            >
+              {(author?.name || "?").charAt(0).toUpperCase()}
+            </div>
+          )}
+        </button>
+
         {/* Like */}
         <motion.button
           whileTap={{ scale: 0.8 }}
           onClick={() => onLike(post.id)}
           className="flex flex-col items-center gap-1"
+          aria-label="Like"
         >
-          <div className="grid h-12 w-12 place-items-center">
-            <Heart
-              className="h-7 w-7 drop-shadow-lg transition-transform"
-              style={{
-                fill: post.has_liked ? "#f43f5e" : "transparent",
-                color: post.has_liked ? "#f43f5e" : "white",
-                filter: post.has_liked ? "drop-shadow(0 0 6px #f43f5e80)" : undefined,
-              }}
-            />
-          </div>
-          <span className="text-[11px] font-bold text-white drop-shadow">
+          <Heart
+            className="h-7 w-7 drop-shadow-lg transition-all"
+            style={{
+              fill: post.has_liked ? "#f43f5e" : "transparent",
+              color: post.has_liked ? "#f43f5e" : "white",
+              filter: post.has_liked ? "drop-shadow(0 0 8px #f43f5e80)" : undefined,
+            }}
+          />
+          <span className="text-[11px] font-semibold text-white drop-shadow leading-none">
             {fmtCount(post.like_count ?? 0)}
           </span>
         </motion.button>
@@ -395,11 +429,10 @@ export function ImmersiveViewer({
           whileTap={{ scale: 0.8 }}
           onClick={() => { onClose(); onComment(post.id); }}
           className="flex flex-col items-center gap-1"
+          aria-label="Comment"
         >
-          <div className="grid h-12 w-12 place-items-center">
-            <MessageCircle className="h-7 w-7 text-white drop-shadow-lg" />
-          </div>
-          <span className="text-[11px] font-bold text-white drop-shadow">
+          <MessageCircle className="h-7 w-7 text-white drop-shadow-lg" />
+          <span className="text-[11px] font-semibold text-white drop-shadow leading-none">
             {fmtCount(post.comment_count ?? 0)}
           </span>
         </motion.button>
@@ -409,18 +442,17 @@ export function ImmersiveViewer({
           whileTap={{ scale: 0.8 }}
           onClick={() => onSave(post.id)}
           className="flex flex-col items-center gap-1"
+          aria-label={post.has_saved ? "Unsave" : "Save"}
         >
-          <div className="grid h-12 w-12 place-items-center">
-            <Bookmark
-              className="h-7 w-7 drop-shadow-lg transition-colors"
-              style={{
-                fill: post.has_saved ? "#a855f7" : "transparent",
-                color: post.has_saved ? "#a855f7" : "white",
-                filter: post.has_saved ? "drop-shadow(0 0 6px #a855f780)" : undefined,
-              }}
-            />
-          </div>
-          <span className="text-[11px] font-bold text-white drop-shadow">
+          <Bookmark
+            className="h-7 w-7 drop-shadow-lg transition-all"
+            style={{
+              fill: post.has_saved ? "#a855f7" : "transparent",
+              color: post.has_saved ? "#a855f7" : "white",
+              filter: post.has_saved ? "drop-shadow(0 0 8px #a855f780)" : undefined,
+            }}
+          />
+          <span className="text-[11px] font-semibold text-white drop-shadow leading-none">
             {post.has_saved ? "Saved" : "Save"}
           </span>
         </motion.button>
@@ -430,47 +462,58 @@ export function ImmersiveViewer({
           whileTap={{ scale: 0.8 }}
           onClick={() => {
             if (navigator.share) {
-              navigator.share({ title: post.caption ?? "Check this out on Socia", url: window.location.origin + `/post/${post.id}` }).catch(() => {});
+              navigator.share({
+                title: post.caption ?? "Check this out on Socia",
+                url: `${window.location.origin}/post/${post.id}`,
+              }).catch(() => {});
             }
           }}
           className="flex flex-col items-center gap-1"
+          aria-label="Share"
         >
-          <div className="grid h-12 w-12 place-items-center">
-            <Share2 className="h-6 w-6 text-white drop-shadow-lg" />
-          </div>
-          <span className="text-[11px] font-bold text-white drop-shadow">Share</span>
+          <Share2 className="h-6 w-6 text-white drop-shadow-lg" />
+          <span className="text-[11px] font-semibold text-white drop-shadow leading-none">Share</span>
         </motion.button>
       </div>
 
-      {/* ── Bottom overlay — author + caption + view count ────────────── */}
+      {/* ── Bottom-left overlay — author + caption ─────────────────────── */}
       <div
-        className="absolute inset-x-0 bottom-0 z-20 px-4 pb-8 pr-20"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 28px)" }}
+        className="absolute left-0 z-20 flex flex-col gap-2"
+        style={{
+          bottom: 0,
+          right: 80,
+          paddingLeft: 16,
+          paddingRight: 12,
+          paddingBottom: `calc(${safeBottom} + 24px)`,
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Author row */}
-        <div className="flex items-center gap-2.5 mb-3">
+        <div className="flex items-center gap-2.5">
           {author?.avatar_url ? (
             <img
               src={author.avatar_url}
               alt=""
-              className="h-10 w-10 rounded-full object-cover cursor-pointer"
-              style={{ border: "1.5px solid rgba(255,255,255,0.35)" }}
+              className="rounded-full object-cover flex-shrink-0 cursor-pointer"
+              style={{ width: 38, height: 38, border: "1.5px solid rgba(255,255,255,0.35)" }}
               onClick={() => { onClose(); navigate(`/profile/${author.id}`); }}
             />
           ) : (
             <div
-              className="h-10 w-10 rounded-full grid place-items-center text-sm font-bold text-white cursor-pointer"
-              style={{ background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))" }}
+              className="rounded-full grid place-items-center text-sm font-bold text-white flex-shrink-0 cursor-pointer"
+              style={{
+                width: 38, height: 38,
+                background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))",
+              }}
               onClick={() => { onClose(); navigate(`/profile/${author?.id}`); }}
             >
               {(author?.name || "?").charAt(0).toUpperCase()}
             </div>
           )}
-          <div>
-            <div className="flex items-center gap-1">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1 flex-wrap">
               <span
-                className="text-[14px] font-bold text-white cursor-pointer"
+                className="text-[14px] font-bold text-white cursor-pointer leading-tight"
                 onClick={() => { onClose(); navigate(`/profile/${author?.id}`); }}
               >
                 {author?.name || author?.username || "Creator"}
@@ -479,24 +522,22 @@ export function ImmersiveViewer({
                 (author?.is_verified &&
                   (author?.subscription_status === "active" ||
                    author?.subscription_status === "owner"))) && (
-                <BadgeCheck className="h-4 w-4" style={{ color: "var(--accent-primary)" }} />
+                <BadgeCheck className="h-4 w-4 flex-shrink-0" style={{ color: "var(--accent-primary)" }} />
               )}
             </div>
             {author?.username && (
-              <p className="text-[11px] text-white/60">@{author.username}</p>
+              <p className="text-[11px] text-white/60 leading-tight">@{author.username}</p>
             )}
           </div>
         </div>
 
         {/* Caption */}
-        {post.caption && (
-          <CaptionText caption={post.caption} />
-        )}
+        {post.caption && <CaptionText caption={post.caption} />}
 
         {/* View count */}
-        <div className="flex items-center gap-1.5 mt-2">
-          <Eye className="h-3.5 w-3.5 text-white/50" />
-          <span className="text-[11px] text-white/50">{fmtCount(post.view_count ?? 0)} views</span>
+        <div className="flex items-center gap-1.5">
+          <Eye className="h-3.5 w-3.5 text-white/45 flex-shrink-0" />
+          <span className="text-[11px] text-white/45">{fmtCount(post.view_count ?? 0)} views</span>
         </div>
       </div>
 
@@ -515,30 +556,14 @@ export function ImmersiveViewer({
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* ── Post nav indicator (swipe hint) ───────────────────────────── */}
-      {posts.length > 1 && (
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-1 items-center">
-          {posts.map((_, i) => (
-            <div key={i}
-              className="rounded-full transition-all duration-200"
-              style={{
-                width: 3,
-                height: i === postIdx ? 20 : 5,
-                background: i === postIdx ? "white" : "rgba(255,255,255,0.3)",
-              }}
-            />
-          ))}
-        </div>
-      )}
     </motion.div>
   );
 }
 
-/* ── Caption with expand ─────────────────────────────────────────────────── */
+/* ── Caption with "see more" expand ─────────────────────────────────────── */
 function CaptionText({ caption }: { caption: string }) {
   const [expanded, setExpanded] = useState(false);
-  const isLong = caption.length > 100;
+  const isLong = caption.length > 90;
 
   return (
     <div>
@@ -554,8 +579,11 @@ function CaptionText({ caption }: { caption: string }) {
         {caption}
       </p>
       {isLong && !expanded && (
-        <button onClick={() => setExpanded(true)} className="text-[12px] text-white/50 mt-0.5">
-          more
+        <button
+          onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
+          className="text-[12px] text-white/55 mt-0.5"
+        >
+          see more
         </button>
       )}
     </div>

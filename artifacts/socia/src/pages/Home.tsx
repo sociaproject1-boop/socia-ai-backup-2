@@ -9,6 +9,7 @@
  * 5. Compact SupportSociaCard (after posts, not blocking feed)
  */
 import { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Flame, Sparkles, ArrowUp, WifiOff } from "lucide-react";
@@ -282,19 +283,25 @@ export default function Home() {
       )}
     </div>
 
-    {/* ── Immersive fullscreen viewer overlay ───────────────────────── */}
-    <AnimatePresence>
-      {viewerIdx !== null && (
-        <ImmersiveViewer
-          posts={posts}
-          startIndex={viewerIdx}
-          onClose={() => setViewerIdx(null)}
-          onLike={handleLike}
-          onSave={handleSave}
-          onComment={(postId) => { setViewerIdx(null); navigate(`/post/${postId}`); }}
-        />
-      )}
-    </AnimatePresence>
+    {/* ── Immersive fullscreen viewer — rendered into document.body via
+         portal to escape AppShell's GPU transform stacking context, which
+         would otherwise confine `fixed inset-0` to the page content area
+         and prevent covering the TopBar and BottomNav. ─────────────────── */}
+    {createPortal(
+      <AnimatePresence>
+        {viewerIdx !== null && (
+          <ImmersiveViewer
+            posts={posts}
+            startIndex={viewerIdx}
+            onClose={() => setViewerIdx(null)}
+            onLike={handleLike}
+            onSave={handleSave}
+            onComment={(postId) => { setViewerIdx(null); navigate(`/post/${postId}`); }}
+          />
+        )}
+      </AnimatePresence>,
+      document.body
+    )}
     </>
   );
 }
