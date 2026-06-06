@@ -1,13 +1,11 @@
 /**
- * SupportHub.tsx — Dedicated support and monetization hub.
- * Contains all community funding, creator monetization previews,
- * affiliate, seller marketplace, and analytics info.
- * Replaces those sections on the homepage — accessed via the
- * compact SupportSociaCard widget on the feed.
+ * SupportHub.tsx — Founding Supporter Program hub.
+ * Contains community funding, creator monetization previews,
+ * affiliate, seller marketplace, and creator economy roadmap.
  */
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, BadgeCheck } from "lucide-react";
 import { CommunityFunding } from "@/components/home/CommunityFunding";
 
 export default function SupportHub() {
@@ -27,9 +25,17 @@ export default function SupportHub() {
         >
           <ArrowLeft className="h-4 w-4 app-text" />
         </motion.button>
-        <div>
-          <h1 className="text-base font-bold app-text leading-tight">Support Hub</h1>
-          <p className="text-[10.5px] app-text-muted">Help build the Socia creator economy</p>
+        <div className="flex items-center gap-2">
+          <div
+            className="grid h-7 w-7 place-items-center rounded-lg"
+            style={{ background: "linear-gradient(135deg,#a855f7,#3b82f6,#ec4899)" }}
+          >
+            <BadgeCheck className="h-3.5 w-3.5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-base font-bold app-text leading-tight">Founding Supporter</h1>
+            <p className="text-[10.5px] app-text-muted">Help build the future of creator monetization</p>
+          </div>
         </div>
       </div>
 

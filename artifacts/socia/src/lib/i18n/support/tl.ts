@@ -1,8 +1,8 @@
 import type { SupportCopy } from "./types";
 
 const tl: SupportCopy = {
-  title:              "Suportahan ang Socia",
-  subtitle:           "Tumulong magpatayo ng creator infrastructure. Secure contribution sa PayMongo.",
+  title:              "Founding Supporter",
+  subtitle:           "Tumulong sa pagbuo ng kinabukasan ng creator monetization.",
   sectionAmount:      "Pumili ng halagang nais ibigay",
   sectionMethod:      "Paraan ng pagbabayad",
   customAmountLabel:  "Sariling halaga",
@@ -28,14 +28,14 @@ const tl: SupportCopy = {
   statusExpired:      "Nag-expire",
   trustLine:          "Powered by PayMongo · Encrypted at secure ang checkout",
   recentSupporters:   "Mga kamakailang supporter",
-  noRecentSupporters: "Maging una sa pagsuporta sa Socia ngayon.",
+  noRecentSupporters: "Maging unang Founding Supporter ngayon.",
   minAmountError:     "Minimum contribution ay ₱50.",
   trustPoints: [
     "100% napupunta sa creator infrastructure",
     "Agad na nakukumpirma matapos ang bayad",
     "Pwedeng i-cancel bago magbayad",
   ],
-  thanksTitle:        "Salamat sa pagsuporta sa Socia",
+  thanksTitle:        "Maligayang pagdating, Founding Supporter",
   thanksBody:         "Kumpirmado na ang iyong contribution at kasama na sa community goal. Bawat supporter ay tumutulong magpatayo ng creator economy para sa lahat.",
   thanksCta:          "Balik sa Socia",
   raisedLabel:        "Naipon",
@@ -43,7 +43,7 @@ const tl: SupportCopy = {
   supportersLabel:    "Mga supporter",
   remainingSuffix:    "natitira",
   fundedSuffix:       "naipon",
-  triggerCta:         "Suportahan ang Socia",
+  triggerCta:         "Maging Founding Supporter",
 };
 
 export default tl;

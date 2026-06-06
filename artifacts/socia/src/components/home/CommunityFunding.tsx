@@ -28,6 +28,7 @@ import { useLocation } from "wouter";
 import {
   Heart, X, Sparkles, ChevronRight, Loader2, ShieldCheck, Lock,
   ShoppingBag, Users, Star, Zap, Globe, Shield, BarChart3, CreditCard,
+  CheckCircle2, BadgeCheck, Rocket, Coins, Gift, TrendingUp,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import {
@@ -159,6 +160,24 @@ const PHASE_LABELS: Record<number, string> = {
   4: "Public Rollout",
 };
 
+const FOUNDER_BENEFITS = [
+  { icon: BadgeCheck, label: "Founding Supporter Badge",        desc: "Exclusive profile badge marking you as a day-one builder." },
+  { icon: Zap,        label: "Early Access Features",           desc: "Try new creator tools before anyone else." },
+  { icon: Star,       label: "Exclusive Profile Effects",       desc: "Unlock premium visual identity perks on your profile." },
+  { icon: TrendingUp, label: "Priority Feature Voting",         desc: "Your voice shapes which creator tools ship first." },
+  { icon: Rocket,     label: "Access to Experimental Features", desc: "Beta-only tools — exclusive to founding supporters." },
+  { icon: Heart,      label: "Support Future Development",      desc: "Directly fund the creator economy infrastructure." },
+];
+
+const CREATOR_ECONOMY_ROADMAP = [
+  { icon: Coins,       label: "Creator Tipping",        desc: "Let fans send tips directly to your creator account.", phase: "Phase 2" },
+  { icon: Users,       label: "Creator Subscriptions",  desc: "Monthly supporter plans for exclusive content access.", phase: "Phase 2" },
+  { icon: Gift,        label: "Creator Memberships",    desc: "Tiered membership programs with exclusive perks.", phase: "Phase 3" },
+  { icon: Star,        label: "Creator Rewards",        desc: "Earn stars and milestone rewards for growth.", phase: "Phase 3" },
+  { icon: ShoppingBag, label: "Creator Marketplace",    desc: "Sell digital products, presets, and exclusive content.", phase: "Phase 4" },
+  { icon: TrendingUp,  label: "Revenue Sharing",        desc: "Earn a share of platform ad revenue based on reach.", phase: "Phase 4" },
+];
+
 /* ── RAF-based counter animation ─────────────────────────────────────
  * Writes directly to a DOM element ref — React never reconciles
  * children on a childless <span ref={...} />, so the virtual DOM
@@ -251,21 +270,22 @@ export function CommunityFunding() {
   return (
     <section className="mb-6">
       <div className="mb-4 flex items-center gap-2 px-0.5">
-        <Heart style={{ width: 13, height: 13, color: "var(--accent-primary)" }} />
+        <BadgeCheck style={{ width: 13, height: 13, color: "var(--accent-primary)" }} />
         <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.09em] app-text-muted">
-          Community Support
+          Founding Supporter Program
         </h3>
       </div>
 
-      {/* ── Funding progress card ──────────────────────────────────── */}
+      {/* ── Founding Supporter progress card ──────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-[22px] p-5 mb-4"
+        className="relative overflow-hidden rounded-[24px] p-5 mb-4"
         style={{
-          background: "linear-gradient(135deg, #0d0d1a 0%, #13102a 60%, #0d0d1a 100%)",
-          border: "1px solid rgba(168,85,247,0.2)",
-          boxShadow: "0 8px 32px -8px rgba(168,85,247,0.25)",
+          background: "linear-gradient(145deg, #0a0818 0%, #120d2a 35%, #0d1020 65%, #0a0818 100%)",
+          border: "1px solid rgba(168,85,247,0.30)",
+          boxShadow:
+            "0 0 0 1px rgba(168,85,247,0.06) inset, 0 12px 40px -12px rgba(168,85,247,0.35), 0 4px 16px -4px rgba(59,130,246,0.15)",
         }}
       >
         {/* Ambient glow orbs — pointer-events:none, GPU-safe */}
@@ -291,21 +311,30 @@ export function CommunityFunding() {
         </AnimatePresence>
 
         <div className="mb-4 relative">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="grid h-7 w-7 place-items-center rounded-xl"
-                 style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
-              <Sparkles className="h-3.5 w-3.5 text-white" />
+          {/* Premium header row */}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="grid h-7 w-7 place-items-center rounded-xl"
+                   style={{ background: "linear-gradient(135deg,#a855f7,#3b82f6,#ec4899)" }}>
+                <BadgeCheck className="h-3.5 w-3.5 text-white" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-purple-400">
+                Phase {progress?.unlock_phase ?? 1} · {PHASE_LABELS[progress?.unlock_phase ?? 1]}
+              </span>
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-purple-400">
-              Phase {progress?.unlock_phase ?? 1} · {PHASE_LABELS[progress?.unlock_phase ?? 1]}
+            <span
+              className="rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-purple-200"
+              style={{ background: "rgba(168,85,247,0.18)", border: "1px solid rgba(168,85,247,0.30)" }}
+            >
+              Exclusive
             </span>
           </div>
-          <h2 className="font-display text-[20px] font-black leading-tight text-white">
-            Help Build Socia
+          <h2 className="font-display text-[22px] font-black leading-tight text-white">
+            Become a Founding Supporter
           </h2>
-          <p className="mt-1 text-[11.5px] leading-relaxed text-white/55" style={{ maxWidth: 290 }}>
-            Community support expands AI infrastructure and advances Socia's creator economy systems.
-            Confirmed instantly via secure PayMongo checkout.
+          <p className="mt-1.5 text-[11.5px] leading-relaxed text-white/55" style={{ maxWidth: 300 }}>
+            Join founding members shaping the future of creator monetization on Socia.
+            Contributions are confirmed instantly via secure PayMongo checkout.
           </p>
         </div>
 
@@ -363,11 +392,47 @@ export function CommunityFunding() {
           whileTap={{ scale: 0.97 }}
           onClick={() => setShowModal(true)}
           className="w-full rounded-2xl py-3 text-sm font-bold text-white"
-          style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)", boxShadow: "0 8px 20px -6px rgba(168,85,247,0.6)" }}
+          style={{ background: "linear-gradient(135deg,#a855f7,#3b82f6,#ec4899)", boxShadow: "0 8px 24px -8px rgba(168,85,247,0.55)" }}
         >
-          <Heart className="mr-1.5 inline h-4 w-4" /> {copy.triggerCta}
+          <BadgeCheck className="mr-1.5 inline h-4 w-4" /> {copy.triggerCta}
         </motion.button>
       </motion.div>
+
+      {/* ── Founding Supporter Benefits ────────────────────────────── */}
+      <div
+        className="mb-4 rounded-[20px] p-4"
+        style={{
+          background: "linear-gradient(145deg, rgba(168,85,247,0.07) 0%, rgba(59,130,246,0.04) 50%, rgba(236,72,153,0.06) 100%)",
+          border: "1px solid rgba(168,85,247,0.18)",
+        }}
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <div className="grid h-6 w-6 place-items-center rounded-lg"
+               style={{ background: "linear-gradient(135deg,#a855f7,#3b82f6)" }}>
+            <BadgeCheck className="h-3 w-3 text-white" />
+          </div>
+          <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-purple-400">
+            Founder Benefits
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-2">
+          {FOUNDER_BENEFITS.map((b, i) => (
+            <motion.div
+              key={b.label}
+              initial={{ opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: i * 0.04 }}
+              className="flex items-start gap-3"
+            >
+              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-purple-400" />
+              <div className="min-w-0">
+                <p className="text-[12px] font-semibold text-white leading-tight">{b.label}</p>
+                <p className="text-[10.5px] text-white/45 mt-0.5 leading-snug">{b.desc}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
 
       {/* ── Recent supporters feed ─────────────────────────────────── */}
       {(loading || supporters.length > 0) && (
@@ -413,10 +478,10 @@ export function CommunityFunding() {
         </div>
       )}
 
-      {/* ── Why support matters ────────────────────────────────────── */}
+      {/* ── What founding support builds ───────────────────────────── */}
       <div className="mb-4">
         <p className="mb-3 px-0.5 text-[10.5px] font-semibold uppercase tracking-[0.09em] app-text-muted">
-          Why community support matters
+          What founding support builds
         </p>
         <div className="grid grid-cols-2 gap-2">
           {WHY_CARDS.map((c, i) => (
@@ -439,29 +504,72 @@ export function CommunityFunding() {
         </div>
       </div>
 
-      {/* ── Locked feature preview pills ──────────────────────────── */}
-      <div className="mb-2">
-        <p className="mb-3 px-0.5 text-[10.5px] font-semibold uppercase tracking-[0.09em] app-text-muted">
-          Preview upcoming systems
-        </p>
-        <div className="hide-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
+      {/* ── Creator Economy Roadmap ────────────────────────────────── */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-3 px-0.5">
+          <p className="text-[10.5px] font-semibold uppercase tracking-[0.09em] app-text-muted">
+            Creator Economy Roadmap
+          </p>
+          <span className="text-[9px] font-bold uppercase tracking-wider text-purple-400/70">
+            Coming Soon
+          </span>
+        </div>
+
+        {/* Quick-access pills (existing preview links) */}
+        <div className="hide-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 mb-3">
           {[
-            { label: "Creator Monetization", icon: Star,        path: "/creator/monetization" },
-            { label: "Affiliate Program",    icon: Users,       path: "/creator/affiliate" },
-            { label: "Seller Center",        icon: ShoppingBag, path: "/creator/seller" },
-            { label: "Creator Stars",        icon: Sparkles,    path: "/creator/stars" },
+            { label: "Monetization", icon: Star,        path: "/creator/monetization" },
+            { label: "Affiliate",    icon: Users,       path: "/creator/affiliate" },
+            { label: "Seller",       icon: ShoppingBag, path: "/creator/seller" },
+            { label: "Stars",        icon: Sparkles,    path: "/creator/stars" },
           ].map((f) => (
             <motion.button
               key={f.label}
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate(f.path)}
-              className="flex shrink-0 items-center gap-2 rounded-2xl px-3.5 py-2.5"
-              style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.15)" }}
+              className="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2"
+              style={{ background: "rgba(168,85,247,0.08)", border: "1px solid rgba(168,85,247,0.14)" }}
             >
-              <f.icon className="h-3.5 w-3.5 text-purple-400" />
-              <span className="text-[11.5px] font-semibold app-text whitespace-nowrap">{f.label}</span>
-              <ChevronRight className="h-3 w-3 app-text-muted" />
+              <f.icon className="h-3 w-3 text-purple-400" />
+              <span className="text-[11px] font-semibold app-text whitespace-nowrap">{f.label}</span>
             </motion.button>
+          ))}
+        </div>
+
+        {/* Full roadmap grid — Phase 5 Creator Economy architecture scaffold */}
+        <div className="grid grid-cols-1 gap-2">
+          {CREATOR_ECONOMY_ROADMAP.map((item, i) => (
+            <motion.div
+              key={item.label}
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04 }}
+              className="flex items-start gap-3 rounded-[14px] px-3.5 py-3"
+              style={{
+                background: "linear-gradient(135deg,rgba(168,85,247,0.05),rgba(59,130,246,0.03))",
+                border: "1px solid rgba(168,85,247,0.10)",
+              }}
+            >
+              <div
+                className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-xl"
+                style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.18)" }}
+              >
+                <item.icon className="h-3.5 w-3.5 text-purple-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-[12px] font-semibold app-text leading-tight">{item.label}</p>
+                  <span
+                    className="rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-purple-400/80"
+                    style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.20)" }}
+                  >
+                    {item.phase}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-[10.5px] app-text-muted leading-snug">{item.desc}</p>
+              </div>
+              <Lock className="mt-1 h-3 w-3 shrink-0 text-white/20" />
+            </motion.div>
           ))}
         </div>
       </div>

@@ -200,7 +200,7 @@ export default function SupportSuccess() {
             </h1>
             <p className="mt-2 mb-5 text-[12px] leading-relaxed text-white/55">
               {phase === "failed"
-                ? "We couldn't confirm this contribution. No charge was made — please try again from the Support Socia card."
+                ? "We couldn't confirm this contribution. No charge was made — please try again from the Founding Supporter card."
                 : "Your bank is taking a little longer than usual. You'll receive an update once the contribution is confirmed."}
             </p>
             <button

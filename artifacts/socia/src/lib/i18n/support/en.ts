@@ -1,8 +1,8 @@
 import type { SupportCopy } from "./types";
 
 const en: SupportCopy = {
-  title:              "Support Socia",
-  subtitle:           "Help build creator infrastructure. Secure contribution via PayMongo.",
+  title:              "Founding Supporter",
+  subtitle:           "Help build the future of creator monetization.",
   sectionAmount:      "Choose your contribution",
   sectionMethod:      "Payment method",
   customAmountLabel:  "Custom amount",
@@ -27,23 +27,23 @@ const en: SupportCopy = {
   statusCancelled:    "Cancelled",
   statusExpired:      "Expired",
   trustLine:          "Powered by PayMongo · End-to-end encrypted checkout",
-  recentSupporters:   "Recent supporters",
-  noRecentSupporters: "Be the first to support Socia today.",
+  recentSupporters:   "Recent founding supporters",
+  noRecentSupporters: "Be the first Founding Supporter today.",
   minAmountError:     "Minimum contribution is ₱50.",
   trustPoints: [
-    "100% goes to creator infrastructure",
+    "100% funds creator economy development",
     "Confirmed instantly after payment",
     "Cancel anytime before paying",
   ],
-  thanksTitle:        "Thank you for supporting Socia",
-  thanksBody:         "Your contribution is confirmed and now counted toward our community goal. Every supporter helps build the creator economy for everyone.",
+  thanksTitle:        "Welcome, Founding Supporter",
+  thanksBody:         "Your contribution is confirmed and counts toward our community goal. Every founding supporter helps shape the creator economy for everyone.",
   thanksCta:          "Back to Socia",
   raisedLabel:        "Raised",
   goalLabel:          "Goal",
-  supportersLabel:    "Supporters",
+  supportersLabel:    "Founders",
   remainingSuffix:    "remaining",
   fundedSuffix:       "funded",
-  triggerCta:         "Support Socia",
+  triggerCta:         "Become a Founding Supporter",
 };
 
 export default en;
