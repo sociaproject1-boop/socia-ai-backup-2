@@ -93,6 +93,13 @@ export default defineConfig({
       // rely on native inotify which is far cheaper on CPU.
       usePolling: false,
     },
+    proxy: {
+      "/api": {
+        target: "http://localhost:8080",
+        changeOrigin: true,
+        ws: true,
+      },
+    },
   },
   preview: {
     port,

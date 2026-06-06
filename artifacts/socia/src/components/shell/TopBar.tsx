@@ -66,17 +66,17 @@ export function TopBar() {
         {/* Search — Home only */}
         {isHome && (
           <IconBtn onClick={() => navigate("/search")}>
-            <Search style={{ width: 16, height: 16, strokeWidth: 1.9 }} />
+            <Search style={{ width: 15, height: 15, strokeWidth: 1.9 }} />
           </IconBtn>
         )}
 
         {/* Notification bell */}
         {user && (
           <IconBtn onClick={() => navigate("/notifications")}>
-            <Bell style={{ width: 16, height: 16, strokeWidth: 1.9 }} />
+            <Bell style={{ width: 15, height: 15, strokeWidth: 1.9 }} />
             {notifUnread > 0 && (
               <span
-                className="absolute right-1 top-1 flex h-[14px] min-w-[14px] items-center justify-center rounded-full px-0.5 text-[8px] font-bold text-white"
+                className="absolute right-0.5 top-0.5 flex h-[13px] min-w-[13px] items-center justify-center rounded-full px-0.5 text-[8px] font-bold text-white"
                 style={{ background: "var(--accent-primary)" }}
               >
                 {notifUnread > 9 ? "9+" : notifUnread}
@@ -87,10 +87,10 @@ export function TopBar() {
 
         {/* Chat */}
         <IconBtn onClick={() => navigate("/messages")}>
-          <MessageCircle style={{ width: 16, height: 16, strokeWidth: 1.9 }} />
+          <MessageCircle style={{ width: 15, height: 15, strokeWidth: 1.9 }} />
           {unread && (
             <span
-              className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full"
+              className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full"
               style={{ background: "var(--accent-primary)" }}
             />
           )}
@@ -99,17 +99,17 @@ export function TopBar() {
         {/* Refund notification bell (second bell) */}
         {user && <RefundNotificationBell />}
 
-        {/* Creator / Credits badge — 10px total gap = 8px flex-gap + 2px marginLeft */}
+        {/* Creator / Credits badge */}
         {user && (
           <div style={{ marginLeft: 2, flexShrink: 0 }}>
             <CreditsBadge
               compact
-              className="justify-center text-[12px]"
+              className="justify-center text-[11px]"
               style={{
-                height:      38,
-                minWidth:    52,
-                borderRadius: 19,
-                paddingTop:   0,
+                height:        30,
+                minWidth:      44,
+                borderRadius:  15,
+                paddingTop:    0,
                 paddingBottom: 0,
               }}
             />
@@ -119,7 +119,7 @@ export function TopBar() {
         {/* ── Home-only: Live + Refresh ────────────────────────────────── */}
         {isHome && (
           <>
-            {/* Live — 10px total gap = 8px flex-gap + 2px marginLeft */}
+            {/* Live */}
             <motion.button
               whileTap={{ scale: 0.92 }}
               onClick={() => navigate("/go-live")}
@@ -129,32 +129,32 @@ export function TopBar() {
                 display:        "flex",
                 alignItems:     "center",
                 justifyContent: "center",
-                gap:            4,
-                height:         38,
-                minWidth:       68,
-                borderRadius:   19,
+                gap:            3,
+                height:         30,
+                minWidth:       58,
+                borderRadius:   15,
                 background:     "rgba(239,68,68,0.12)",
                 border:         "1px solid rgba(239,68,68,0.28)",
                 cursor:         "pointer",
-                padding:        "0 10px",
+                padding:        "0 8px",
                 flexShrink:     0,
               }}
             >
-              <Radio style={{ width: 11, height: 11, color: "#f87171", flexShrink: 0 }} />
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#f87171", letterSpacing: "0.02em", whiteSpace: "nowrap" }}>
+              <Radio style={{ width: 10, height: 10, color: "#f87171", flexShrink: 0 }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#f87171", letterSpacing: "0.02em", whiteSpace: "nowrap" }}>
                 Live
               </span>
             </motion.button>
 
-            {/* Refresh — 8px gap from Live (flex gap) */}
+            {/* Refresh */}
             <motion.button
               whileTap={{ scale: 0.88 }}
               onClick={handleRefresh}
               aria-label="Refresh feed"
               className="app-surface relative grid place-items-center app-text"
-              style={{ width: 38, height: 38, borderRadius: "50%", flexShrink: 0 }}
+              style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0 }}
             >
-              <RefreshCw style={{ width: 14, height: 14 }} />
+              <RefreshCw style={{ width: 13, height: 13 }} />
             </motion.button>
           </>
         )}
@@ -169,7 +169,7 @@ function IconBtn({ onClick, children }: { onClick: () => void; children: React.R
       whileTap={{ scale: 0.88 }}
       onClick={onClick}
       className="app-surface relative grid place-items-center rounded-full app-text"
-      style={{ width: 38, height: 38, borderRadius: "50%", flexShrink: 0 }}
+      style={{ width: 32, height: 32, borderRadius: "50%", flexShrink: 0 }}
     >
       {children}
     </motion.button>
