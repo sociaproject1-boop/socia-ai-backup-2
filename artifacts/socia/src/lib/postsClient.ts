@@ -193,6 +193,11 @@ export async function createPost(payload: {
   return j.post;
 }
 
+/** Create a text-only Moments post (no media). Uses existing POST /api/posts. */
+export async function createTextPost(caption: string): Promise<SocialPost> {
+  return createPost({ caption, type: "photo", media: [] });
+}
+
 export async function deletePost(postId: string): Promise<void> {
   const headers = await authHeaders();
   const r = await fetch(`${BASE}/api/posts/${postId}`, {

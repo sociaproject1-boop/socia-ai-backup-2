@@ -4,13 +4,14 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Settings, Heart, Bookmark, Grid3x3, Copy, ArrowUpRight, Camera,
-  Check, X, Facebook, Instagram, Music2, Shield, ChevronRight,
+  Check, X, Facebook, Instagram, Music2, Shield, ChevronRight, Feather,
 } from "lucide-react";
 import { supabase, uploadAvatar, upsertProfile, isSupabaseReady } from "@/lib/supabase";
 import { fetchUserPosts, fetchSavedFeed, type SocialPost } from "@/lib/postsClient";
 import { NameBadges, OnlineDot } from "@/components/Badges";
 import { ProfileTabs } from "@/components/profile/ProfileTabs";
 import { MutualConnections } from "@/components/profile/MutualConnections";
+import { MomentsComposer } from "@/components/profile/MomentsComposer";
 import {
   FoundingSupporterBadge, SupporterProfileRing, SupporterLabel, getSupporterTier,
 } from "@/components/profile/FoundingSupporterBadge";
@@ -169,6 +170,9 @@ export default function Profile() {
   const followedUserIds = useAppStore((s) => s.followedUserIds);
   const [, navigate]    = useLocation();
   const [tab, setTab]   = useState<Tab>("creations");
+
+  const [composerOpen,  setComposerOpen]  = useState(false);
+  const [freshMoment,   setFreshMoment]   = useState<SocialPost | null>(null);
 
   const [isEditing,    setIsEditing]    = useState(false);
   const [editName,     setEditName]     = useState(user?.name   ?? "");
@@ -802,6 +806,31 @@ export default function Profile() {
         </>
       )}
 
+      {/* ── Write a Moment button (only when not editing) ── */}
+      {!isEditing && (
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={() => setComposerOpen(true)}
+          className="mx-4 mt-4 flex w-[calc(100%-2rem)] items-center gap-3 rounded-[18px] px-4 py-3 text-left"
+          style={{
+            background: "rgba(255,255,255,0.028)",
+            border:     "1px solid rgba(255,255,255,0.055)",
+          }}
+        >
+          <span
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full"
+            style={{
+              background: "linear-gradient(135deg,rgba(168,85,247,0.22),rgba(236,72,153,0.12))",
+              border:     "1px solid rgba(168,85,247,0.28)",
+            }}
+          >
+            <Feather className="h-3.5 w-3.5 text-purple-400" />
+          </span>
+          <span className="flex-1 text-[13px] text-white/30">Write a Moment…</span>
+          <span className="text-[10px] font-mono text-white/15">⌘E</span>
+        </motion.button>
+      )}
+
       {/* ── Socia Profile Tabs (Spotlight / Motion / Gallery / Moments / Milestones) ── */}
       <div className="mt-4">
         <ProfileTabs
@@ -817,8 +846,19 @@ export default function Profile() {
             followers:           liveFollowers ?? user?.followers ?? 0,
           }}
           supporterTier={supporterTier}
+          prependPost={freshMoment}
         />
       </div>
+
+      {/* ── Moments Composer sheet ── */}
+      <MomentsComposer
+        open={composerOpen}
+        onClose={() => setComposerOpen(false)}
+        onPosted={(post) => {
+          setFreshMoment(post);
+          setComposerOpen(false);
+        }}
+      />
 
       {/* Hidden file inputs */}
       <input ref={fileRef}      type="file" accept="image/*" className="hidden" onChange={handleAvatarPick} />

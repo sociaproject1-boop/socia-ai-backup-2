@@ -48,6 +48,8 @@ interface Props {
   userProfile?: UserProfileData;
   supporterTier?: SupporterTier | null;
   defaultTab?: ProfileTabId;
+  /** When a new text post is created externally, pass it here to prepend instantly. */
+  prependPost?: SocialPost | null;
 }
 
 function filterByTab(posts: SocialPost[], tab: ProfileTabId): SocialPost[] {
@@ -76,6 +78,7 @@ export function ProfileTabs({
   userProfile,
   supporterTier,
   defaultTab = "spotlight",
+  prependPost,
 }: Props) {
   const [activeTab, setActiveTab] = useState<ProfileTabId>(defaultTab);
 
@@ -106,6 +109,16 @@ export function ProfileTabs({
     fetchedOnce.current = true;
     loadInitial();
   }, [loadInitial]);
+
+  /* Prepend a newly created post instantly, then switch to Moments tab */
+  useEffect(() => {
+    if (!prependPost) return;
+    setAllPosts(prev => {
+      if (prev.some(p => p.id === prependPost.id)) return prev;
+      return [prependPost, ...prev];
+    });
+    setActiveTab("moments");
+  }, [prependPost]);
 
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
