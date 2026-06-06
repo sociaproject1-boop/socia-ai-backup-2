@@ -87,29 +87,15 @@ export function BottomNav() {
               width: 54,
               height: 54,
               borderRadius: "50%",
-              background:
-                "radial-gradient(circle at 50% 42%, rgba(120,40,220,0.38) 0%, rgba(60,10,100,0.28) 40%, rgba(6,3,18,0.97) 72%)",
-              border: "1.5px solid rgba(168,85,247,0.55)",
+              background: "#0c0c0e",
+              border: "1px solid rgba(255,255,255,0.08)",
               display: "grid",
               placeItems: "center",
               flexShrink: 0,
               marginBottom: 2,
-              animation: "navCenterGlow 3.2s ease-in-out infinite",
-              position: "relative",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
             }}
           >
-            {/* Subtle inner radial highlight */}
-            <span
-              aria-hidden
-              style={{
-                position: "absolute",
-                inset: 0,
-                borderRadius: "50%",
-                background:
-                  "radial-gradient(circle at 50% 30%, rgba(236,72,153,0.12) 0%, transparent 65%)",
-                pointerEvents: "none",
-              }}
-            />
             <img
               src={markUrl}
               alt=""
@@ -118,11 +104,8 @@ export function BottomNav() {
                 width: 40,
                 height: 40,
                 objectFit: "contain",
-                animation: "sociaMarkGlow 3.2s ease-in-out infinite",
                 userSelect: "none",
                 pointerEvents: "none",
-                position: "relative",
-                zIndex: 1,
               }}
             />
           </motion.button>

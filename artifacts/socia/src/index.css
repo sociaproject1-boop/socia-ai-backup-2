@@ -429,37 +429,3 @@ html.light {
   from { transform: rotate(0deg);   }
   to   { transform: rotate(360deg); }
 }
-/* Bottom-nav center Socia "S" button — premium neon breathing glow */
-@keyframes navCenterGlow {
-  0%, 100% {
-    box-shadow:
-      0 0 8px  rgba(236, 72,  153, 0.50),
-      0 0 18px rgba(168, 85,  247, 0.60),
-      0 0 34px rgba(168, 85,  247, 0.28),
-      0 0 54px rgba(59,  130, 246, 0.18),
-      0 0 4px  rgba(236, 72,  153, 0.70) inset;
-  }
-  50% {
-    box-shadow:
-      0 0 14px rgba(236, 72,  153, 0.80),
-      0 0 30px rgba(168, 85,  247, 0.90),
-      0 0 56px rgba(168, 85,  247, 0.48),
-      0 0 80px rgba(59,  130, 246, 0.32),
-      0 0 8px  rgba(236, 72,  153, 0.85) inset;
-  }
-}
-
-@keyframes sociaMarkGlow {
-  0%, 100% {
-    filter:
-      drop-shadow(0 0 6px  rgba(236, 72,  153, 0.75))
-      drop-shadow(0 0 14px rgba(168, 85,  247, 0.80))
-      drop-shadow(0 0 26px rgba(59,  130, 246, 0.50));
-  }
-  50% {
-    filter:
-      drop-shadow(0 0 10px rgba(236, 72,  153, 1.00))
-      drop-shadow(0 0 22px rgba(168, 85,  247, 1.00))
-      drop-shadow(0 0 40px rgba(59,  130, 246, 0.75));
-  }
-}
