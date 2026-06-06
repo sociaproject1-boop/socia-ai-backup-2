@@ -4,7 +4,13 @@ import { Sparkles, Crown } from "lucide-react";
 import { useBillingStore } from "@/lib/billing";
 
 /** Compact pill showing credit balance — tap to open billing. */
-export function CreditsBadge({ compact = false }: { compact?: boolean }) {
+export function CreditsBadge({
+  compact = false,
+  className = "",
+}: {
+  compact?: boolean;
+  className?: string;
+}) {
   const [, navigate] = useLocation();
   const summary = useBillingStore((s) => s.summary);
   const refresh = useBillingStore((s) => s.refresh);
@@ -20,7 +26,7 @@ export function CreditsBadge({ compact = false }: { compact?: boolean }) {
   return (
     <button
       onClick={() => navigate("/billing")}
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold text-white"
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold text-white ${className}`}
       style={{
         background: owner
           ? "linear-gradient(135deg,#f59e0b,#fbbf24)"

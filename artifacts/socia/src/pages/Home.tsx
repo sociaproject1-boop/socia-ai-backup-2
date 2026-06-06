@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Flame, Sparkles, RefreshCw, ArrowUp, WifiOff, Radio } from "lucide-react";
+import { Flame, Sparkles, ArrowUp, WifiOff } from "lucide-react";
 import { FeedCard } from "@/components/feed/FeedCard";
 import { SupportSociaBanner } from "@/components/home/SupportSociaBanner";
 import { ImmersiveViewer } from "@/components/feed/ImmersiveViewer";
@@ -89,6 +89,13 @@ export default function Home() {
     return () => observer.disconnect();
   }, [loadMore]);
 
+  /* ── TopBar refresh button event ─────────────────────────────────────── */
+  useEffect(() => {
+    const handler = () => refresh();
+    window.addEventListener("socia:refresh-feed", handler);
+    return () => window.removeEventListener("socia:refresh-feed", handler);
+  }, [refresh]);
+
   /* ── Delete post ─────────────────────────────────────────────────────── */
   const handleDelete = useCallback(async (postId: string) => {
     try {
@@ -140,36 +147,6 @@ export default function Home() {
           </motion.button>
         ))}
 
-        <div className="flex-1" />
-
-        {/* Go Live shortcut */}
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={() => navigate("/go-live")}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 5,
-            background: "rgba(239,68,68,0.14)",
-            border: "1px solid rgba(239,68,68,0.35)",
-            borderRadius: 20,
-            padding: "4px 10px 4px 8px",
-            cursor: "pointer",
-            marginRight: 4,
-          }}
-          aria-label="Go Live"
-        >
-          <Radio style={{ width: 11, height: 11, color: "#f87171" }} />
-          <span style={{ fontSize: 11, fontWeight: 700, color: "#f87171", letterSpacing: "0.02em" }}>Live</span>
-        </motion.button>
-
-        <motion.button
-          whileTap={{ scale: 0.85 }}
-          onClick={refresh}
-          className="grid h-8 w-8 place-items-center rounded-full app-surface"
-        >
-          <RefreshCw className="h-3.5 w-3.5 app-text-muted" />
-        </motion.button>
       </div>
 
       {/* ── New posts banner ──────────────────────────────────────────── */}
