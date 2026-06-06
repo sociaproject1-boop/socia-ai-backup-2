@@ -64,17 +64,22 @@ function buildParticles(): Particle[] {
 }
 
 export function SplashScreen() {
-  const [exiting, setExiting] = useState(false);
-  const [done, setDone] = useState(false);
+  /* ?nosplash=1 skips the intro entirely (used for screenshots / testing) */
+  const skipSplash = new URLSearchParams(window.location.search).get("nosplash") === "1";
+
+  const [exiting, setExiting] = useState(skipSplash);
+  const [done, setDone] = useState(skipSplash);
   const particles = useMemo(buildParticles, []);
 
   useEffect(() => {
+    if (skipSplash) return;
     const t1 = window.setTimeout(() => setExiting(true), EXIT_AT);
     const t2 = window.setTimeout(() => setDone(true), UNMOUNT_AT);
     return () => {
       window.clearTimeout(t1);
       window.clearTimeout(t2);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (done) return null;

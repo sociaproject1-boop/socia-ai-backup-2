@@ -104,7 +104,15 @@ router.get("/streams/active", requireAuth, async (_req, res) => {
       .order("viewer_count", { ascending: false })
       .limit(20);
 
-    if (error) throw error;
+    if (error) {
+      /* PGRST205 = relation not found (migration not yet run) — return empty gracefully */
+      const code = (error as { code?: string }).code;
+      if (code === "PGRST205" || code === "42P01") {
+        res.json({ streams: [] });
+        return;
+      }
+      throw error;
+    }
     res.json({ streams: data ?? [] });
   } catch (err) {
     logger.error({ err }, "[streams] list active failed");
