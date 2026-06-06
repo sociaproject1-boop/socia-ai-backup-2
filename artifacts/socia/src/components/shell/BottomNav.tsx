@@ -1,7 +1,8 @@
 import { useLocation } from "wouter";
-import { Home, Search, MessageCircle, User, Plus } from "lucide-react";
+import { Home, Search, MessageCircle, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
+import markUrl from "@assets/splash2/mark.png";
 
 const SIDE_TABS = [
   { path: "/",        label: "Home",   icon: Home,          match: (l: string) => l === "/" },
@@ -75,7 +76,7 @@ export function BottomNav() {
           );
         })}
 
-        {/* Center upload button */}
+        {/* Center upload button — Socia "S" brand mark */}
         <li style={{ flex: "0 0 72px", display: "flex", justifyContent: "center", alignItems: "center" }}>
           <motion.button
             whileTap={{ scale: 0.84 }}
@@ -86,15 +87,29 @@ export function BottomNav() {
               width: 50,
               height: 50,
               borderRadius: "50%",
-              background: "linear-gradient(135deg, #a855f7 0%, #ec4899 60%, #6366f1 100%)",
-              boxShadow: "0 0 20px rgba(168,85,247,0.6), 0 4px 16px rgba(0,0,0,0.45)",
+              background: "radial-gradient(circle at 38% 35%, rgba(168,85,247,0.22) 0%, rgba(0,0,0,0.96) 70%)",
+              border: "1px solid rgba(168,85,247,0.30)",
               display: "grid",
               placeItems: "center",
               flexShrink: 0,
               marginBottom: 4,
+              animation: "navCenterGlow 2.6s ease-in-out infinite",
             }}
           >
-            <Plus style={{ width: 24, height: 24, color: "white", strokeWidth: 2.8 }} />
+            <img
+              src={markUrl}
+              alt=""
+              draggable={false}
+              style={{
+                width: 34,
+                height: 34,
+                objectFit: "contain",
+                filter:
+                  "drop-shadow(0 0 8px rgba(168,85,247,0.75)) drop-shadow(0 0 18px rgba(59,130,246,0.45))",
+                userSelect: "none",
+                pointerEvents: "none",
+              }}
+            />
           </motion.button>
         </li>
 

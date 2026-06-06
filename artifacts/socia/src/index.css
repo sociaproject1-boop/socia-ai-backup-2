@@ -429,3 +429,19 @@ html.light {
   from { transform: rotate(0deg);   }
   to   { transform: rotate(360deg); }
 }
+/* Bottom-nav center Socia "S" button — soft neon glow breathing */
+@keyframes navCenterGlow {
+  0%, 100% {
+    box-shadow:
+      0 0 16px rgba(168, 85, 247, 0.55),
+      0 0 32px rgba(59, 130, 246, 0.22),
+      0 4px 16px rgba(0, 0, 0, 0.50);
+  }
+  50% {
+    box-shadow:
+      0 0 26px rgba(168, 85, 247, 0.82),
+      0 0 52px rgba(59, 130, 246, 0.40),
+      0 0 14px rgba(236, 72, 153, 0.45),
+      0 4px 16px rgba(0, 0, 0, 0.50);
+  }
+}
