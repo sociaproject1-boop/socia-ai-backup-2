@@ -87,15 +87,15 @@ export function RefundNotificationBell() {
         whileTap={{ scale: 0.88 }}
         onClick={() => setOpen((o) => !o)}
         className="app-surface relative grid place-items-center rounded-full app-text"
-        style={{ width: 44, height: 44, borderRadius: "50%", flexShrink: 0 }}
+        style={{ width: 38, height: 38, borderRadius: "50%", flexShrink: 0 }}
       >
-        <Bell style={{ width: 17, height: 17, strokeWidth: 1.9 }} />
+        <Bell style={{ width: 16, height: 16, strokeWidth: 1.9 }} />
         {unreadCount > 0 && (
           <motion.span
             key={unreadCount}
             initial={{ scale: 0.5 }} animate={{ scale: 1 }}
             className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white"
-            style={{ background: "var(--accent-primary)", boxShadow: "0 0 6px 2px var(--accent-glow)" }}
+            style={{ background: "var(--accent-primary)" }}
           >
             {unreadCount > 9 ? "9+" : unreadCount}
           </motion.span>

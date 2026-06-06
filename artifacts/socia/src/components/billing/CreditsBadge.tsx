@@ -7,9 +7,11 @@ import { useBillingStore } from "@/lib/billing";
 export function CreditsBadge({
   compact = false,
   className = "",
+  style: styleProp,
 }: {
   compact?: boolean;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   const [, navigate] = useLocation();
   const summary = useBillingStore((s) => s.summary);
@@ -33,7 +35,7 @@ export function CreditsBadge({
           : credits < 50
             ? "linear-gradient(135deg,#ef4444,#f97316)"
             : "linear-gradient(135deg,#a855f7,#ec4899)",
-        boxShadow: "0 6px 14px -6px rgba(168,85,247,0.55)",
+        ...styleProp,
       }}
       title="Credits & billing"
     >
