@@ -76,38 +76,53 @@ export function BottomNav() {
           );
         })}
 
-        {/* Center upload button — Socia "S" brand mark */}
+        {/* Center — Socia "S" brand mark */}
         <li style={{ flex: "0 0 72px", display: "flex", justifyContent: "center", alignItems: "center" }}>
           <motion.button
-            whileTap={{ scale: 0.84 }}
-            transition={{ type: "spring", stiffness: 520, damping: 20 }}
+            whileTap={{ scale: 0.88 }}
+            transition={{ type: "spring", stiffness: 480, damping: 22 }}
             onClick={() => navigate("/upload")}
             aria-label="New Post"
             style={{
-              width: 50,
-              height: 50,
+              width: 54,
+              height: 54,
               borderRadius: "50%",
-              background: "radial-gradient(circle at 38% 35%, rgba(168,85,247,0.22) 0%, rgba(0,0,0,0.96) 70%)",
-              border: "1px solid rgba(168,85,247,0.30)",
+              background:
+                "radial-gradient(circle at 50% 42%, rgba(120,40,220,0.38) 0%, rgba(60,10,100,0.28) 40%, rgba(6,3,18,0.97) 72%)",
+              border: "1.5px solid rgba(168,85,247,0.55)",
               display: "grid",
               placeItems: "center",
               flexShrink: 0,
-              marginBottom: 4,
-              animation: "navCenterGlow 2.6s ease-in-out infinite",
+              marginBottom: 2,
+              animation: "navCenterGlow 3.2s ease-in-out infinite",
+              position: "relative",
             }}
           >
+            {/* Subtle inner radial highlight */}
+            <span
+              aria-hidden
+              style={{
+                position: "absolute",
+                inset: 0,
+                borderRadius: "50%",
+                background:
+                  "radial-gradient(circle at 50% 30%, rgba(236,72,153,0.12) 0%, transparent 65%)",
+                pointerEvents: "none",
+              }}
+            />
             <img
               src={markUrl}
               alt=""
               draggable={false}
               style={{
-                width: 34,
-                height: 34,
+                width: 40,
+                height: 40,
                 objectFit: "contain",
-                filter:
-                  "drop-shadow(0 0 8px rgba(168,85,247,0.75)) drop-shadow(0 0 18px rgba(59,130,246,0.45))",
+                animation: "sociaMarkGlow 3.2s ease-in-out infinite",
                 userSelect: "none",
                 pointerEvents: "none",
+                position: "relative",
+                zIndex: 1,
               }}
             />
           </motion.button>
