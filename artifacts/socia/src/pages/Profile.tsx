@@ -9,6 +9,11 @@ import {
 } from "lucide-react";
 import { ProfileDetailsPanel } from "@/components/profile/ProfileDetailsPanel";
 import type { ProfilePanelData } from "@/components/profile/ProfileDetailsPanel";
+import { PulseRing } from "@/components/pulse/PulseRing";
+import { CreatePulse } from "@/components/pulse/CreatePulse";
+import { useUserPulses, usePulseSocket } from "@/lib/usePulse";
+import { openPulseViewer } from "@/components/pulse/PulseViewer";
+import type { PulseFeedGroup } from "@/lib/pulseClient";
 import { supabase, isSupabaseReady } from "@/lib/supabase";
 import { fetchUserPosts, fetchSavedFeed, type SocialPost } from "@/lib/postsClient";
 import { NameBadges, OnlineDot } from "@/components/Badges";
@@ -93,6 +98,11 @@ export default function Profile() {
 
   /* ── Cover photo ────────────────────────────────────────────────────── */
   const [coverPhotoUrl, setCoverPhotoUrl] = useState<string | null>(null);
+
+  /* ── Pulse ───────────────────────────────────────────────────────────── */
+  const { hasActivePulse, pulses: myPulses } = useUserPulses(user?.id);
+  const [showCreatePulse, setShowCreatePulse] = useState(false);
+  usePulseSocket();
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -351,7 +361,25 @@ export default function Profile() {
           {/* Avatar + identity (overlapping cover) */}
           <div className="px-4 pb-4" style={{ marginTop: -44 }}>
             <div className="flex items-end justify-between">
-              <div className="relative">
+              <div
+                className="relative cursor-pointer"
+                onClick={() => hasActivePulse
+                  ? openPulseViewer(
+                      [{ user: { id: user!.id, name: user!.name, username: user!.handle, avatar_url: user!.avatar ?? null }, pulses: myPulses, has_unviewed: myPulses.some(p => !p.is_viewed) } satisfies PulseFeedGroup],
+                      0, 0
+                    )
+                  : setShowCreatePulse(true)
+                }
+              >
+                {hasActivePulse && (
+                  <>
+                    <div className="pulse-ring-anim absolute rounded-full pointer-events-none"
+                      style={{ inset: -7, background: "conic-gradient(from 0deg,#ff006e,#8338ec,#3a86ff,#06d6a0,#ffbe0b,#ff006e)", zIndex: 0 }} />
+                    <div className="absolute rounded-full pointer-events-none"
+                      style={{ inset: -4, background: "#000", zIndex: 1 }} />
+                  </>
+                )}
+                <div className="relative" style={{ zIndex: 2 }}>
                 <SupporterProfileRing tier={supporterTier} size={88}>
                   <div className="h-[88px] w-[88px] overflow-hidden rounded-full"
                     style={{ border: "3px solid #000", boxShadow: "0 2px 16px rgba(0,0,0,0.6)" }}>
@@ -366,6 +394,7 @@ export default function Profile() {
                     )}
                   </div>
                 </SupporterProfileRing>
+                </div>
               </div>
             </div>
 
@@ -510,6 +539,14 @@ export default function Profile() {
         onSaved={handleModalSaved}
         initialCoverUrl={coverPhotoUrl}
       />
+
+      {/* ── Create Pulse ── */}
+      {showCreatePulse && (
+        <CreatePulse
+          onClose={() => setShowCreatePulse(false)}
+          onCreated={() => setShowCreatePulse(false)}
+        />
+      )}
     </div>
   );
 }

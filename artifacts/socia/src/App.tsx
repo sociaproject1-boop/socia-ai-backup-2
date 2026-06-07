@@ -18,6 +18,7 @@ import { GlobalLoaderProvider } from "@/components/loader/GlobalLoaderProvider";
 import { GlobalAIGenerationOverlay } from "@/components/loader/GlobalAIGenerationOverlay";
 import { CinematicLoadingOverlay } from "@/components/loader/CinematicLoadingOverlay";
 import { SplashScreen } from "@/components/splash/SplashScreen";
+import { PulseViewerHost } from "@/components/pulse/PulseViewer";
 
 // ── Critical path (eager) ────────────────────────────────────────────────────
 // Auth is the unauthenticated landing page — must be available without delay.
@@ -77,6 +78,7 @@ const CreatorDashboard       = lazy(() => import("@/pages/CreatorDashboard"));
 const LiveStream             = lazy(() => import("@/pages/LiveStream"));
 const GoLive                 = lazy(() => import("@/pages/GoLive"));
 const FriendsPage            = lazy(() => import("@/pages/Friends"));
+const PulseAdminPage         = lazy(() => import("@/pages/PulseAdmin"));
 
 // Stable wrapper components defined outside Router to avoid remounts on re-render.
 // They reference lazy components which are resolved by the nearest Suspense boundary.
@@ -204,6 +206,7 @@ function Router() {
       <Route path="/followers/:id"        component={FollowersPage} />
       <Route path="/following/:id"        component={FollowingPage} />
       <Route path="/friends/:id"          component={FriendsPage} />
+      <Route path="/pulse-admin"          component={PulseAdminPage} />
       <Route path="/user/:username"       component={UserByUsername} />
       <Route path="/subscribe"            component={Subscribe} />
       <Route path="/billing"              component={Billing} />
@@ -306,6 +309,8 @@ function App() {
                     then fades out to reveal the login screen. Fully additive
                     visual layer; does not touch routing or auth. */}
                 <SplashScreen />
+                {/* Global PULSE viewer host — listens for socia:open-pulse events */}
+                <PulseViewerHost />
               </GlobalLoaderProvider>
             </AuthProvider>
           </TooltipProvider>

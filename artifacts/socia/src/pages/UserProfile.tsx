@@ -9,6 +9,9 @@ import { motion } from "framer-motion";
 import { ArrowLeft, MessageCircle, UserPlus, UserCheck, Facebook, Instagram, Music2, Star } from "lucide-react";
 import { ProfileDetailsPanel } from "@/components/profile/ProfileDetailsPanel";
 import type { ProfilePanelData } from "@/components/profile/ProfileDetailsPanel";
+import { useUserPulses, usePulseSocket } from "@/lib/usePulse";
+import { openPulseViewer } from "@/components/pulse/PulseViewer";
+import type { PulseFeedGroup } from "@/lib/pulseClient";
 import SendStarsModal from "@/components/stars/SendStarsModal";
 import { supabase } from "@/lib/supabase";
 import type { DbUser } from "@/lib/supabase";
@@ -41,6 +44,10 @@ export default function UserProfile() {
   const [followWorking, setFollowWorking] = useState(false);
   const [userPosts,     setUserPosts]     = useState<SocialPost[]>([]);
   const [starsOpen,     setStarsOpen]     = useState(false);
+
+  /* ── Pulse ───────────────────────────────────────────────────────────── */
+  const { hasActivePulse, pulses: viewedUserPulses } = useUserPulses(userId || undefined);
+  usePulseSocket();
 
   const fetchCounts = async () => {
     const { data, error } = await supabase
@@ -422,7 +429,25 @@ export default function UserProfile() {
 
             {/* Avatar row */}
             <div className="flex items-end justify-between mb-3">
-              <div className="relative">
+              <div
+                className="relative cursor-pointer"
+                onClick={() => hasActivePulse
+                  ? openPulseViewer(
+                      [{ user: { id: profile.id, name: profile.name, username: profile.username, avatar_url: profile.avatar_url ?? null }, pulses: viewedUserPulses, has_unviewed: viewedUserPulses.some(p => !p.is_viewed) } satisfies PulseFeedGroup],
+                      0, 0
+                    )
+                  : undefined
+                }
+              >
+                {hasActivePulse && (
+                  <>
+                    <div className="pulse-ring-anim absolute rounded-full pointer-events-none"
+                      style={{ inset: -7, background: "conic-gradient(from 0deg,#ff006e,#8338ec,#3a86ff,#06d6a0,#ffbe0b,#ff006e)", zIndex: 0 }} />
+                    <div className="absolute rounded-full pointer-events-none"
+                      style={{ inset: -4, background: "#000", zIndex: 1 }} />
+                  </>
+                )}
+                <div className="relative" style={{ zIndex: 2 }}>
                 <SupporterProfileRing tier={supporterTier} size={88}>
                 <div className="h-[88px] w-[88px] overflow-hidden rounded-full"
                   style={{ border: "3px solid #000", boxShadow: "0 2px 16px rgba(0,0,0,0.6)" }}>
@@ -432,8 +457,9 @@ export default function UserProfile() {
                   }
                 </div>
                 </SupporterProfileRing>
-                <div className="absolute bottom-0.5 right-0.5">
+                <div className="absolute bottom-0.5 right-0.5" style={{ zIndex: 3 }}>
                   <OnlineDot status={presenceStatus} size={14} />
+                </div>
                 </div>
               </div>
               <div className="relative z-10"><ActionButtons /></div>

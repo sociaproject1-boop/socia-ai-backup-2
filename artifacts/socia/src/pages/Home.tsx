@@ -18,6 +18,8 @@ import { SupportSociaBanner } from "@/components/home/SupportSociaBanner";
 import { ImmersiveViewer } from "@/components/feed/ImmersiveViewer";
 import { CommentsSheet } from "@/components/feed/CommentsSheet";
 import { LiveNowSection } from "@/components/live/LiveNowSection";
+import { PulseBar } from "@/components/pulse/PulseBar";
+import { usePulseSocket } from "@/lib/usePulse";
 import { useFeed, type FeedMode } from "@/lib/useFeed";
 import { useAppStore } from "@/lib/store";
 import { deletePost, type SocialPost } from "@/lib/postsClient";
@@ -66,6 +68,9 @@ export default function Home() {
   /* CommentsSheet — lifted here (same pattern as ImmersiveViewer) so the
      portal renders at document.body level, outside AppShell's stacking ctx */
   const [commentPostId, setCommentPostId] = useState<string | null>(null);
+
+  /* ── Pulse realtime ──────────────────────────────────────────────────── */
+  usePulseSocket();
 
   const {
     posts,
@@ -172,6 +177,9 @@ export default function Home() {
 
       {/* ── Support Socia compact banner — immediately below tabs ───── */}
       <SupportSociaBanner />
+
+      {/* ── PULSE stories bar ─────────────────────────────────────────── */}
+      <PulseBar />
 
       {/* ── Live Now section ──────────────────────────────────────────── */}
       <LiveNowSection />
