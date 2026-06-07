@@ -18,7 +18,7 @@ import { motion } from "framer-motion";
 import {
   Pencil, MapPin, Calendar, Heart, User as UserIcon,
   GraduationCap, Globe, Briefcase, School, Link as LinkIcon,
-  Users, ChevronRight, Search, X,
+  Users, ChevronRight, Search, X, Mail, Phone, AtSign,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -57,6 +57,9 @@ export interface ProfilePanelData {
   social_x?:            string;
   social_youtube?:      string;
   social_linkedin?:     string;
+  /* Contact */
+  public_email?:        string;
+  public_phone?:        string;
   /* Meta */
   created_at?:          string;
   privacy_settings?:    Record<string, boolean | string>;
@@ -121,8 +124,12 @@ export function ProfileDetailsPanel({ profile, isOwnProfile, viewerId, onEditOpe
     (isOwnProfile || priv["showRelationship"] !== false)
   );
   const showGender = Boolean(
-    profile.gender && profile.gender !== "Prefer not to say" && isOwnProfile
+    profile.gender && profile.gender !== "Prefer not to say" &&
+    (isOwnProfile || priv["showGender"] === true)
   );
+  const showContact = Boolean(
+    profile.username || profile.public_email || profile.public_phone
+  ) && (isOwnProfile || priv["showContact"] !== false);
 
   /* ── Social link builder ─────────────────────────────────────────────── */
   function buildUrl(kind: string, val?: string): string | null {
@@ -146,6 +153,9 @@ export function ProfileDetailsPanel({ profile, isOwnProfile, viewerId, onEditOpe
   /* ── Derived booleans ────────────────────────────────────────────────── */
   const hasPersonalDetails = showLocation || showBirthday || showRelStatus || showGender ||
     Boolean(profile.education || profile.school || profile.college) || Boolean(profile.created_at);
+  const hasContactInfo = Boolean(
+    profile.username || profile.public_email || profile.public_phone
+  );
   const hasLinks = Boolean(
     profile.website || profile.social_facebook || profile.social_instagram ||
     profile.social_tiktok || profile.social_x || profile.social_youtube || profile.social_linkedin
@@ -314,7 +324,47 @@ export function ProfileDetailsPanel({ profile, isOwnProfile, viewerId, onEditOpe
       )}
 
       {/* ═══════════════════════════════════════════════════════════════
-          4. FRIENDS
+          4. CONTACT INFORMATION
+      ═══════════════════════════════════════════════════════════════ */}
+      {(isOwnProfile || (hasContactInfo && showContact)) && (
+        <SectionCard
+          title="Contact Information"
+          onEdit={isOwnProfile ? onEditOpen : undefined}
+        >
+          {profile.username && (
+            <DetailRow
+              icon={<AtSign style={{width:15,height:15}} />}
+              text={`@${profile.username}`}
+            />
+          )}
+          {profile.public_email && (
+            <DetailRow
+              icon={<Mail style={{width:15,height:15}} />}
+              text={profile.public_email}
+              href={`mailto:${profile.public_email}`}
+            />
+          )}
+          {profile.public_phone && (
+            <DetailRow
+              icon={<Phone style={{width:15,height:15}} />}
+              text={profile.public_phone}
+              href={`tel:${profile.public_phone}`}
+            />
+          )}
+          {isOwnProfile && !profile.public_email && !profile.public_phone && (
+            <button
+              onClick={onEditOpen}
+              className="w-full text-left text-[12px] py-1"
+              style={{ color: "var(--accent-primary)" }}
+            >
+              + Add email or phone
+            </button>
+          )}
+        </SectionCard>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+          5. FRIENDS
       ═══════════════════════════════════════════════════════════════ */}
       {(isOwnProfile || friends.length > 0) && (
         <SectionCard
@@ -388,7 +438,7 @@ export function ProfileDetailsPanel({ profile, isOwnProfile, viewerId, onEditOpe
       )}
 
       {/* ═══════════════════════════════════════════════════════════════
-          5. FOLLOWERS & FOLLOWING
+          6. FOLLOWERS & FOLLOWING
       ═══════════════════════════════════════════════════════════════ */}
       <SectionCard
         title="Followers"

@@ -1,10 +1,12 @@
 /**
- * MutualConnections.tsx — Social proof section showing mutual connections.
- * Shows followers of the profile who are also followed by the viewer.
- * Uses Supabase directly for the intersection query.
+ * MutualConnections.tsx — Mutual friends section on another user's profile.
+ * Shows people who follow the profile AND are followed by the viewer.
+ * Displays: count badge, avatar stack, names, "See All" link.
  */
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { useLocation } from "wouter";
+import { Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 interface MutualUser {
@@ -20,9 +22,10 @@ interface Props {
 }
 
 export function MutualConnections({ profileUserId, viewerId }: Props) {
-  const [mutuals, setMutuals] = useState<MutualUser[]>([]);
-  const [totalMutuals, setTotalMutuals] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [, navigate]     = useLocation();
+  const [mutuals,        setMutuals]       = useState<MutualUser[]>([]);
+  const [totalMutuals,   setTotalMutuals]  = useState(0);
+  const [loading,        setLoading]       = useState(true);
 
   useEffect(() => {
     if (!viewerId || viewerId === profileUserId) {
@@ -34,32 +37,20 @@ export function MutualConnections({ profileUserId, viewerId }: Props) {
 
     async function load() {
       try {
-        /* People who follow the profile */
-        const { data: profileFollowers } = await supabase
-          .from("follows")
-          .select("follower_id")
-          .eq("following_id", profileUserId);
+        const [profileFollowersRes, viewerFollowingRes] = await Promise.all([
+          supabase.from("follows").select("follower_id").eq("following_id", profileUserId),
+          supabase.from("follows").select("following_id").eq("follower_id", viewerId!),
+        ]);
 
-        /* People the viewer follows */
-        const { data: viewerFollowing } = await supabase
-          .from("follows")
-          .select("following_id")
-          .eq("follower_id", viewerId);
-
-        const followerIds = new Set((profileFollowers ?? []).map((f: any) => f.follower_id as string));
-        const followingIds = (viewerFollowing ?? []).map((f: any) => f.following_id as string);
-
-        const mutualIds = followingIds.filter(id => followerIds.has(id) && id !== viewerId);
+        const followerIds  = new Set((profileFollowersRes.data ?? []).map((f: any) => f.follower_id as string));
+        const followingIds = (viewerFollowingRes.data ?? []).map((f: any) => f.following_id as string);
+        const mutualIds    = followingIds.filter(id => followerIds.has(id) && id !== viewerId);
 
         if (!alive) return;
         setTotalMutuals(mutualIds.length);
 
-        if (mutualIds.length === 0) {
-          setLoading(false);
-          return;
-        }
+        if (mutualIds.length === 0) { setLoading(false); return; }
 
-        /* Fetch user data for first 5 mutuals */
         const { data: users } = await supabase
           .from("users")
           .select("id, name, username, avatar_url")
@@ -78,53 +69,72 @@ export function MutualConnections({ profileUserId, viewerId }: Props) {
     return () => { alive = false; };
   }, [profileUserId, viewerId]);
 
-  if (loading || mutuals.length === 0) return null;
+  if (loading || totalMutuals === 0) return null;
 
   const shown = mutuals.slice(0, 4);
   const extra = totalMutuals - shown.length;
-  const label = totalMutuals === 1
-    ? `Connected through ${mutuals[0]?.name ?? mutuals[0]?.username ?? "a shared connection"}`
-    : `People in your network`;
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25 }}
-      className="flex items-center gap-2.5 px-4 py-2"
+      transition={{ duration: 0.22 }}
+      className="mx-4 mb-4 rounded-[18px] overflow-hidden"
+      style={{ border: "1px solid var(--s-border-a)", background: "rgba(255,255,255,0.025)" }}
     >
-      {/* Avatar stack */}
-      <div className="flex items-center" style={{ marginRight: shown.length > 1 ? (shown.length - 1) * 6 : 0 }}>
-        {shown.map((u, i) => (
-          <div
-            key={u.id}
-            className="relative h-[22px] w-[22px] overflow-hidden rounded-full"
-            style={{
-              marginLeft: i === 0 ? 0 : -8,
-              zIndex: shown.length - i,
-              border: "1.5px solid rgba(0,0,0,0.8)",
-            }}
-          >
-            {u.avatar_url ? (
-              <img src={u.avatar_url} alt={u.name ?? ""} className="h-full w-full object-cover" loading="lazy" />
-            ) : (
-              <div className="h-full w-full bg-gradient-to-br from-purple-600 to-pink-500 grid place-items-center">
-                <span className="text-[7px] font-bold text-white">
-                  {(u.name ?? u.username ?? "?")[0]?.toUpperCase()}
-                </span>
-              </div>
-            )}
-          </div>
-        ))}
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
+        <div className="flex items-center gap-2">
+          <Users style={{ width: 13, height: 13, color: "#a855f7" }} />
+          <span className="text-[13px] font-bold app-text">
+            {totalMutuals} mutual {totalMutuals === 1 ? "friend" : "friends"}
+          </span>
+        </div>
+        <button
+          onClick={() => navigate(`/friends/${profileUserId}`)}
+          className="text-[12px] font-semibold"
+          style={{ color: "var(--accent-primary)" }}
+        >
+          See all
+        </button>
       </div>
 
-      {/* Label */}
-      <p className="text-[11px] text-white/40 leading-snug flex-1 min-w-0">
-        {label}
-        {extra > 0 && (
-          <span className="text-white/55 font-semibold"> +{extra} more</span>
-        )}
-      </p>
+      {/* Avatar stack + names */}
+      <div className="px-4 pb-3.5 flex items-center gap-3">
+        {/* Overlapping avatars */}
+        <div className="flex flex-shrink-0">
+          {shown.map((u, i) => (
+            <div
+              key={u.id}
+              className="h-8 w-8 overflow-hidden rounded-full flex-shrink-0"
+              style={{
+                marginLeft: i === 0 ? 0 : -10,
+                zIndex: shown.length - i,
+                border: "2px solid rgba(0,0,0,0.7)",
+                position: "relative",
+              }}
+            >
+              {u.avatar_url ? (
+                <img src={u.avatar_url} alt={u.name ?? ""} className="h-full w-full object-cover" loading="lazy" />
+              ) : (
+                <div className="h-full w-full bg-gradient-to-br from-purple-600 to-pink-500 grid place-items-center">
+                  <span className="text-[9px] font-bold text-white">
+                    {(u.name ?? u.username ?? "?")[0]?.toUpperCase()}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Name list */}
+        <p className="text-[11.5px] text-white/45 leading-snug flex-1 min-w-0">
+          {shown.slice(0, 2).map(u => u.name ?? u.username ?? "Someone").join(", ")}
+          {extra > 0 && (
+            <span className="text-white/55 font-semibold"> and {extra} more</span>
+          )}
+        </p>
+      </div>
     </motion.div>
   );
 }

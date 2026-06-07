@@ -482,6 +482,8 @@ export default function Profile() {
                 social_linkedin:      user.social?.linkedin,
                 created_at:           (user as any).created_at,
                 privacy_settings:     user.privacySettings as Record<string, boolean | string>,
+                public_email:         (user as any).public_email,
+                public_phone:         (user as any).public_phone,
               } satisfies ProfilePanelData}
               isOwnProfile
               viewerId={user.id}

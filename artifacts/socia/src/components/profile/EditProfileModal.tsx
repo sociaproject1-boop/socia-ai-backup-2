@@ -10,7 +10,7 @@ import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Check, Camera, Globe, MapPin, Calendar,
-  Briefcase, GraduationCap,
+  Briefcase, GraduationCap, Mail, Phone,
 } from "lucide-react";
 import { uploadAvatar, upsertProfile, isSupabaseReady, supabase } from "@/lib/supabase";
 import { uploadCoverPhoto } from "@/lib/postsClient";
@@ -76,6 +76,10 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
   const [school,      setSchool]      = useState((user as any)?.school      ?? "");
   const [college,     setCollege]     = useState((user as any)?.college     ?? "");
   const [education,   setEducation]   = useState((user as any)?.education   ?? "");
+
+  /* ── Contact (public) ───────────────────────────────────────────────── */
+  const [publicEmail, setPublicEmail] = useState((user as any)?.public_email ?? "");
+  const [publicPhone, setPublicPhone] = useState((user as any)?.public_phone ?? "");
 
   /* ── Privacy ────────────────────────────────────────────────────────── */
   const [privacy, setPrivacy] = useState<PrivacySettings>(() => {
@@ -155,6 +159,8 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
       school:            school.trim(),
       college:           college.trim(),
       education:         education.trim(),
+      public_email:      publicEmail.trim(),
+      public_phone:      publicPhone.trim(),
       social: {
         facebook:  facebook.trim(),
         instagram: instagram.trim(),
@@ -193,6 +199,8 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
           work_previous:       workPrev.trim(),
           school:              school.trim(),
           college:             college.trim(),
+          public_email:        publicEmail.trim(),
+          public_phone:        publicPhone.trim(),
         } as any);
       } catch (err) {
         console.warn("[EditProfileModal] save error:", err);
@@ -480,6 +488,26 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
                 </ModalField>
               </ModalSection>
 
+              {/* ── CONTACT INFO ───────────────────────────────────────── */}
+              <ModalSection label="Contact Info (Public)">
+                <ModalField label="Public Email (shown on your profile — optional)">
+                  <div className="app-input flex items-center rounded-[13px] overflow-hidden">
+                    <span className="pl-4 flex-shrink-0 text-purple-400"><Mail style={{ width: 14, height: 14 }} /></span>
+                    <input type="email" value={publicEmail} onChange={(e) => setPublicEmail(e.target.value)}
+                      placeholder="e.g. hello@yourdomain.com"
+                      className="flex-1 bg-transparent px-3 py-3 text-[14px] app-text focus:outline-none" />
+                  </div>
+                </ModalField>
+                <ModalField label="Public Phone (shown on your profile — optional)">
+                  <div className="app-input flex items-center rounded-[13px] overflow-hidden">
+                    <span className="pl-4 flex-shrink-0 text-purple-400"><Phone style={{ width: 14, height: 14 }} /></span>
+                    <input type="tel" value={publicPhone} onChange={(e) => setPublicPhone(e.target.value)}
+                      placeholder="+1 555 000 0000"
+                      className="flex-1 bg-transparent px-3 py-3 text-[14px] app-text focus:outline-none" />
+                  </div>
+                </ModalField>
+              </ModalSection>
+
               {/* ── PRIVACY ────────────────────────────────────────────── */}
               <ModalSection label="Privacy">
                 <ModalField label="Posts visible to">
@@ -521,6 +549,8 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
                   <PrivacyToggle label="Show location on profile"    value={privacy.showLocation    ?? true}  onChange={(v) => setPrivacy((p) => ({ ...p, showLocation: v }))} />
                   <PrivacyToggle label="Show birthday on profile"    value={privacy.showBirthday    ?? false} onChange={(v) => setPrivacy((p) => ({ ...p, showBirthday: v }))} />
                   <PrivacyToggle label="Show relationship status"    value={privacy.showRelationship ?? true}  onChange={(v) => setPrivacy((p) => ({ ...p, showRelationship: v }))} />
+                  <PrivacyToggle label="Show gender on profile"      value={privacy.showGender      ?? false} onChange={(v) => setPrivacy((p) => ({ ...p, showGender: v }))} />
+                  <PrivacyToggle label="Show contact info publicly"  value={privacy.showContact     ?? true}  onChange={(v) => setPrivacy((p) => ({ ...p, showContact: v }))} />
                 </div>
               </ModalSection>
 

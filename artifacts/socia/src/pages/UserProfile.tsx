@@ -361,6 +361,8 @@ export default function UserProfile() {
                   social_linkedin:      profile.social_linkedin,
                   created_at:           profile.created_at,
                   privacy_settings:     profile.privacy_settings,
+                  public_email:         profile.public_email,
+                  public_phone:         profile.public_phone,
                 } satisfies ProfilePanelData}
                 isOwnProfile={false}
                 viewerId={sessionUid}
@@ -534,6 +536,8 @@ export default function UserProfile() {
                   social_linkedin:      profile.social_linkedin,
                   created_at:           profile.created_at,
                   privacy_settings:     profile.privacy_settings,
+                  public_email:         profile.public_email,
+                  public_phone:         profile.public_phone,
                 } satisfies ProfilePanelData}
                 isOwnProfile={false}
                 viewerId={sessionUid}

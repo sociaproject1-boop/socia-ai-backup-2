@@ -6,6 +6,8 @@ export interface PrivacySettings {
   showLocation?:    boolean;
   showBirthday?:    boolean;
   showRelationship?: boolean;
+  showGender?:      boolean;
+  showContact?:     boolean;
 }
 
 export interface User {
@@ -40,6 +42,8 @@ export interface User {
   education?:         string;
   school?:            string;
   college?:           string;
+  public_email?:      string;
+  public_phone?:      string;
   privacySettings?:   PrivacySettings;
 }
 

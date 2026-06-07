@@ -59,6 +59,8 @@ export interface DbUser {
   social_youtube?:      string;
   social_linkedin?:     string;
   privacy_settings?:    Record<string, boolean | string>;
+  public_email?:        string;
+  public_phone?:        string;
 }
 
 /* ── Online presence + owner badge helpers (RPCs, defined in schema §13) ── */
