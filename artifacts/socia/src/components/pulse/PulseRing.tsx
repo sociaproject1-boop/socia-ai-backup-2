@@ -46,7 +46,7 @@ export function PulseRing({
       className={`relative flex-shrink-0 cursor-pointer select-none ${className}`}
       style={{ width: outer, height: outer }}
       role={onTap ? "button" : undefined}
-      aria-label="View Pulse"
+      aria-label="View Story"
     >
       {/* Spinning conic-gradient ring */}
       <div

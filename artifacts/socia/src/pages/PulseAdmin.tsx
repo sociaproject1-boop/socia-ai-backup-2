@@ -67,7 +67,7 @@ export default function PulseAdmin() {
           <ArrowLeft className="h-4 w-4 app-text" />
         </button>
         <div className="flex-1">
-          <h1 className="text-base font-bold app-text">Pulse Moderation</h1>
+          <h1 className="text-base font-bold app-text">Story Moderation</h1>
           <p className="text-[11px] app-text-muted">{pulses.length} reported</p>
         </div>
         <motion.button
@@ -100,7 +100,7 @@ export default function PulseAdmin() {
             <ShieldCheck className="h-8 w-8" style={{ color: "var(--accent-primary)" }} />
           </div>
           <h3 className="text-base font-bold app-text">All clear</h3>
-          <p className="text-sm app-text-muted">No reported Pulses at the moment.</p>
+          <p className="text-sm app-text-muted">No reported Stories at the moment.</p>
         </div>
       ) : (
         <div className="space-y-3 px-4 pt-4">
@@ -126,7 +126,7 @@ export default function PulseAdmin() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold app-text truncate">{author.name ?? author.username ?? "Unknown"}</p>
-                    <p className="text-[11px] app-text-muted">{timeAgo(pulse.created_at)} • {pulse.type} pulse</p>
+                    <p className="text-[11px] app-text-muted">{timeAgo(pulse.created_at)} • {pulse.type} story</p>
                   </div>
                   <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold text-red-400"
                     style={{ background: "rgba(239,68,68,0.12)" }}>
@@ -176,7 +176,7 @@ export default function PulseAdmin() {
                     style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}
                   >
                     <Trash2 className="h-4 w-4" />
-                    {isRemoving ? "Removing…" : "Remove Pulse"}
+                    {isRemoving ? "Removing…" : "Remove Story"}
                   </motion.button>
                 </div>
               </motion.div>

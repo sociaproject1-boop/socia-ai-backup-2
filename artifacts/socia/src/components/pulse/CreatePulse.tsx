@@ -140,7 +140,7 @@ export function CreatePulse({ onClose, onCreated }: CreatePulseProps) {
           {/* Header */}
           <div className="flex items-center justify-between px-4 pb-3">
             <div className="flex items-center gap-2">
-              <span className="text-base font-bold app-text">Add Pulse</span>
+              <span className="text-base font-bold app-text">Add Story</span>
               <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
                 style={{ background: "linear-gradient(135deg,#8338ec,#ff006e)", color: "#fff" }}>
                 24h
@@ -358,7 +358,7 @@ export function CreatePulse({ onClose, onCreated }: CreatePulseProps) {
               className="w-full py-3.5 rounded-2xl text-sm font-bold text-white disabled:opacity-50"
               style={{ background: "linear-gradient(135deg,#8338ec,#ff006e)" }}
             >
-              {uploading ? "Posting…" : "Post Pulse ⚡"}
+              {uploading ? "Posting…" : "Post Story ⚡"}
             </motion.button>
           </div>
         </motion.div>

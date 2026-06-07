@@ -85,7 +85,7 @@ function PulseCircle({ group, allGroups, groupIdx, isMe, onAddPulse }: PulseCirc
         className="text-[10px] font-medium max-w-[64px] truncate"
         style={{ color: (isMe && !hasAny) || viewed ? "var(--s-text-muted)" : "hsl(var(--foreground))" }}
       >
-        {isMe ? "Your Pulse" : (user.name ?? user.username ?? "Unknown")}
+        {isMe ? "Your Story" : (user.name ?? user.username ?? "Unknown")}
       </span>
     </motion.div>
   );
@@ -141,7 +141,7 @@ export function PulseBar() {
       <div className="flex items-center gap-1.5 px-4 pt-3 pb-1">
         <Zap className="h-3.5 w-3.5" style={{ color: "var(--accent-primary)" }} fill="currentColor" />
         <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--accent-primary)" }}>
-          Pulse
+          Stories
         </span>
       </div>
 
