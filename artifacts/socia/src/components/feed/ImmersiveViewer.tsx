@@ -474,6 +474,8 @@ export function ImmersiveViewer({
         className="absolute right-3 z-30 flex flex-col items-center gap-5"
         style={{ bottom: `calc(${safeBottom} + 84px)` }}
         onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
       >
         {/* Profile avatar */}
         <button

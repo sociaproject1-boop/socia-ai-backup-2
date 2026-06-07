@@ -271,14 +271,15 @@ export function CommentsSheet({ postId, initialCount, onClose, onCountChange }: 
 
   /* ── Drag to close ────────────────────────────────────────────────────── */
   const dragY    = useMotionValue(0);
-  const opacity  = useTransform(dragY, [0, 200], [1, 0]);
+  const opacity  = useTransform(dragY, [0, 300], [1, 0]);
   const controls = useDragControls();
 
   const handleDragEnd = (_: unknown, info: { offset: { y: number }; velocity: { y: number } }) => {
-    if (info.offset.y > 120 || info.velocity.y > 400) {
+    if (info.offset.y > 100 || info.velocity.y > 500) {
       onClose();
     } else {
-      dragY.set(0);
+      /* Spring back to resting position */
+      void (dragY as { set: (v: number) => void }).set(0);
     }
   };
 
@@ -310,8 +311,8 @@ export function CommentsSheet({ postId, initialCount, onClose, onCountChange }: 
           drag="y"
           dragControls={controls}
           dragListener={false}
-          dragConstraints={{ top: 0, bottom: 0 }}
-          dragElastic={{ top: 0, bottom: 0.3 }}
+          dragConstraints={{ top: 0, bottom: 400 }}
+          dragElastic={{ top: 0, bottom: 0.05 }}
           onDragEnd={handleDragEnd}
           style={{
             y: dragY,
@@ -325,31 +326,34 @@ export function CommentsSheet({ postId, initialCount, onClose, onCountChange }: 
           initial={{ y: "100%" }}
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
-          transition={{ type: "spring", stiffness: 340, damping: 36, mass: 1 }}
+          transition={{ type: "spring", stiffness: 380, damping: 38, mass: 0.9 }}
           className="absolute bottom-0 left-0 right-0 flex flex-col rounded-t-[24px] overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Drag handle */}
+          {/* Drag handle + header — entire zone starts the drag */}
           <div
-            className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing select-none"
+            className="flex-shrink-0 cursor-grab active:cursor-grabbing select-none touch-none"
             onPointerDown={(e) => controls.start(e)}
           >
-            <div className="rounded-full" style={{ width: 36, height: 4, background: "rgba(255,255,255,0.18)" }} />
-          </div>
-
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 pb-3"
-            style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-            <h3 className="text-[15px] font-bold app-text">
-              {count > 0 ? `${count} Comment${count !== 1 ? "s" : ""}` : "Comments"}
-            </h3>
-            <button
-              onClick={onClose}
-              className="grid h-8 w-8 place-items-center rounded-full"
-              style={{ background: "rgba(255,255,255,0.08)" }}
-            >
-              <X className="h-4 w-4 app-text-muted" />
-            </button>
+            {/* Pill */}
+            <div className="flex justify-center pt-3 pb-2">
+              <div className="rounded-full" style={{ width: 40, height: 4, background: "rgba(255,255,255,0.22)" }} />
+            </div>
+            {/* Header row */}
+            <div className="flex items-center justify-between px-5 pb-3"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+              <h3 className="text-[15px] font-bold app-text">
+                {count > 0 ? `${count} Comment${count !== 1 ? "s" : ""}` : "Comments"}
+              </h3>
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={onClose}
+                className="grid h-8 w-8 place-items-center rounded-full"
+                style={{ background: "rgba(255,255,255,0.08)" }}
+              >
+                <X className="h-4 w-4 app-text-muted" />
+              </button>
+            </div>
           </div>
 
           {/* Comment list */}
