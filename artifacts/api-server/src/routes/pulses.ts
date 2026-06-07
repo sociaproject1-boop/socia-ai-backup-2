@@ -3,7 +3,7 @@
  *
  * §1  Feed: grouped by user, sorted unviewed-first
  * §2  User pulses: all active pulses for a specific user
- * §3  Create pulse
+ * §3  Create pulse  ← uses user JWT so RLS auth.uid() works without service-role key
  * §4  Delete pulse (owner or admin)
  * §5  Record view + realtime viewer count
  * §6  Get views (owner only)
@@ -17,13 +17,29 @@ import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
 import { getIo } from "../lib/ioInstance.js";
 import { logger } from "../lib/logger.js";
 
-const SUPABASE_URL       = process.env["VITE_SUPABASE_URL"]        ?? process.env["SUPABASE_URL"]        ?? "";
-const SUPABASE_SVC_KEY   = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "";
-const OWNER_EMAIL        = (process.env["OWNER_EMAIL"] ?? "allanalbacen5@gmail.com").toLowerCase();
+const SUPABASE_URL     = process.env["VITE_SUPABASE_URL"]        ?? process.env["SUPABASE_URL"]        ?? "";
+const SUPABASE_SVC_KEY = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "";
+const SUPABASE_ANON    = process.env["VITE_SUPABASE_ANON_KEY"]   ?? "";
+const OWNER_EMAIL      = (process.env["OWNER_EMAIL"] ?? "allanalbacen5@gmail.com").toLowerCase();
 
+/** Service-role client — bypasses RLS. Used for READ-only feed/view queries. */
 function db() {
-  return createClient(SUPABASE_URL, SUPABASE_SVC_KEY, {
+  const key = SUPABASE_SVC_KEY || SUPABASE_ANON;
+  return createClient(SUPABASE_URL, key, {
     auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+/**
+ * User-context client — passes the caller's JWT so Supabase RLS sees auth.uid().
+ * Used for INSERT / DELETE operations that must satisfy row-level security.
+ * Works even when SUPABASE_SERVICE_ROLE_KEY is not set.
+ */
+function userDb(req: any) {
+  const token = ((req.headers["authorization"] as string) ?? "").replace(/^Bearer\s+/i, "");
+  return createClient(SUPABASE_URL, SUPABASE_ANON, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: `Bearer ${token}` } },
   });
 }
 
@@ -125,11 +141,17 @@ router.get("/api/pulses/user/:userId", requireAuth, async (req, res) => {
 });
 
 /* ── §3  Create ────────────────────────────────────────────────────────── */
-
+/*
+ * Uses userDb() (anon key + caller JWT) so that Supabase RLS evaluates
+ * auth.uid() correctly.  This works WITHOUT SUPABASE_SERVICE_ROLE_KEY.
+ */
 router.post("/api/pulses", requireAuth, async (req, res) => {
   try {
     const { id: userId } = getAuthedUser(req);
-    const { type, media_url, text_content, text_bg, text_color, music_url, music_name, visibility } = req.body as Record<string, string>;
+    const {
+      type, media_url, text_content, text_bg, text_color,
+      music_url, music_name, visibility,
+    } = req.body as Record<string, string>;
 
     if (!type || !["image", "video", "text"].includes(type)) {
       res.status(400).json({ error: "Invalid pulse type" });
@@ -144,27 +166,32 @@ router.post("/api/pulses", requireAuth, async (req, res) => {
       return;
     }
 
-    const svc = db();
+    // Use user-context client so RLS "Owner full access" WITH CHECK passes
+    const udb = userDb(req);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-    const { data, error } = await svc
+    const { data, error } = await udb
       .from("pulses")
       .insert({
-        user_id: userId,
+        user_id:      userId,
         type,
-        media_url: media_url ?? null,
+        media_url:    media_url    ?? null,
         text_content: text_content ?? null,
-        text_bg: text_bg ?? "#0f0f23",
-        text_color: text_color ?? "#ffffff",
-        music_url: music_url ?? null,
-        music_name: music_name ?? null,
-        visibility: visibility ?? "public",
-        expires_at: expiresAt,
+        text_bg:      text_bg      ?? "#0f0f23",
+        text_color:   text_color   ?? "#ffffff",
+        music_url:    music_url    ?? null,
+        music_name:   music_name   ?? null,
+        visibility:   visibility   ?? "public",
+        expires_at:   expiresAt,
       })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      logger.error({ err: error, userId, type }, "[pulses] create DB error");
+      res.status(500).json({ error: error.message ?? "Failed to create pulse" });
+      return;
+    }
 
     getIo()?.emit("pulse:new", { userId, pulseId: data.id });
     logger.info({ userId, type }, "[pulses] created");
@@ -181,9 +208,10 @@ router.delete("/api/pulses/:id", requireAuth, async (req, res) => {
   try {
     const { id: userId } = getAuthedUser(req);
     const { id } = req.params as { id: string };
-    const svc = db();
 
-    const q = svc.from("pulses").delete().eq("id", id);
+    // Use userDb for delete so RLS owner check applies (or service role for admin)
+    const client = isAdmin(req) ? db() : userDb(req);
+    const q = client.from("pulses").delete().eq("id", id);
     const { error } = await (isAdmin(req) ? q : q.eq("user_id", userId));
 
     if (error) throw error;
@@ -202,13 +230,14 @@ router.post("/api/pulses/:id/view", requireAuth, async (req, res) => {
   try {
     const { id: viewerId } = getAuthedUser(req);
     const { id: pulseId } = req.params as { id: string };
-    const svc = db();
 
-    await svc
+    // Use user JWT so "Insert own views" WITH CHECK passes
+    const udb = userDb(req);
+    await udb
       .from("pulse_views")
       .upsert({ pulse_id: pulseId, viewer_id: viewerId }, { onConflict: "pulse_id,viewer_id" });
 
-    const { count } = await svc
+    const { count } = await db()
       .from("pulse_views")
       .select("*", { count: "exact", head: true })
       .eq("pulse_id", pulseId);
@@ -262,8 +291,8 @@ router.post("/api/pulses/:id/react", requireAuth, async (req, res) => {
       return;
     }
 
-    const svc = db();
-    const { data, error } = await svc
+    const udb = userDb(req);
+    const { data, error } = await udb
       .from("pulse_reactions")
       .upsert({ pulse_id: pulseId, user_id: userId, emoji }, { onConflict: "pulse_id,user_id" })
       .select()
@@ -287,16 +316,15 @@ router.post("/api/pulses/:id/report", requireAuth, async (req, res) => {
     const { id: pulseId } = req.params as { id: string };
     const { reason } = req.body as { reason?: string };
 
-    const svc = db();
-
-    await svc
+    const udb = userDb(req);
+    await udb
       .from("pulse_reports")
       .upsert(
         { pulse_id: pulseId, reporter_id: reporterId, reason: reason ?? "Inappropriate content" },
-        { onConflict: "pulse_id,reporter_id" }
+        { onConflict: "pulse_id,reporter_id" },
       );
 
-    await svc
+    await db()
       .from("pulses")
       .update({ is_reported: true })
       .eq("id", pulseId);
