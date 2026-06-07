@@ -292,7 +292,7 @@ export function CommentsSheet({ postId, initialCount, onClose, onCountChange }: 
   const sheet = (
     <AnimatePresence>
       <motion.div
-        className="fixed inset-0 z-[200]"
+        className="fixed inset-0 z-[100000]"
         style={{ isolation: "isolate" }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
