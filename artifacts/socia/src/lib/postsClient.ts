@@ -34,6 +34,23 @@ export interface PostAuthor {
   is_monetized?: boolean;
 }
 
+export interface SoundCreator {
+  id:         string;
+  name:       string | null;
+  username:   string | null;
+  avatar_url: string | null;
+}
+
+export interface PostSound {
+  id:          string;
+  title:       string;
+  cover_image: string | null;
+  audio_url:   string;
+  usage_count: number;
+  creator_id:  string | null;
+  creator:     SoundCreator | null;
+}
+
 export interface SocialPost {
   id: string;
   author_id: string;
@@ -48,6 +65,8 @@ export interface SocialPost {
   save_count?: number;
   has_liked?: boolean;
   has_saved?: boolean;
+  sound_id?: string | null;
+  sound?: PostSound | null;
 }
 
 export interface Comment {
@@ -179,6 +198,7 @@ export async function createPost(payload: {
   caption?: string;
   type: "photo" | "video" | "multi";
   media: Array<{ url: string; type: "photo" | "video"; width?: number; height?: number; duration?: number }>;
+  sound_id?: string | null;
 }): Promise<SocialPost> {
   const headers = await authHeaders();
   const r = await fetch(`${BASE}/api/posts`, {

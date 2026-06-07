@@ -47,6 +47,7 @@ import tipRouter                 from "./tip.js";
 import streamsRouter             from "./streams.js";
 import starsRouter               from "./stars.js";
 import pulsesRouter              from "./pulses.js";
+import soundsRouter              from "./sounds.js";
 
 const router: IRouter = Router();
 
@@ -97,6 +98,7 @@ router.use(searchRouter);
 router.use(tipRouter);
 router.use(streamsRouter);
 router.use(starsRouter);
+router.use(soundsRouter);
 router.use(pulsesRouter);
 
 export default router;

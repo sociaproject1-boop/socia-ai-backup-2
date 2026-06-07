@@ -43,9 +43,10 @@ function isOwnerUser(req: any): boolean {
 }
 
 const BASE_POST_SELECT = `
-  id, author_id, caption, type, view_count, created_at, updated_at,
+  id, author_id, caption, type, view_count, created_at, updated_at, sound_id,
   author:users!posts_author_id_fkey(id, name, username, avatar_url, is_verified, is_owner, subscription_status),
-  media:post_media(id, url, type, width, height, duration, position)
+  media:post_media(id, url, type, width, height, duration, position),
+  sound:sounds!posts_sound_id_fkey(id, title, cover_image, audio_url, usage_count, creator_id, creator:users!sounds_creator_id_fkey(id, name, username, avatar_url))
 `;
 
 /** Enrich posts with real aggregate counts + viewer like/save status. */
@@ -289,7 +290,7 @@ router.post("/posts", requireAuth as any, async (req, res) => {
   try {
     const user = getAuthedUser(req as any);
     const svc  = db();
-    const { caption, type = "photo", media = [] } = req.body ?? {};
+    const { caption, type = "photo", media = [], sound_id } = req.body ?? {};
 
     const trimmedCaption = caption?.trim() ?? null;
     if ((!media || media.length === 0) && !trimmedCaption) {
@@ -299,7 +300,7 @@ router.post("/posts", requireAuth as any, async (req, res) => {
 
     const { data: post, error: postErr } = await svc
       .from("posts")
-      .insert({ author_id: user.id, caption: caption?.trim() ?? null, type })
+      .insert({ author_id: user.id, caption: caption?.trim() ?? null, type, sound_id: sound_id ?? null })
       .select()
       .single();
 
@@ -312,6 +313,20 @@ router.post("/posts", requireAuth as any, async (req, res) => {
     }));
     if (mediaRows.length > 0) {
       await svc.from("post_media").insert(mediaRows);
+    }
+
+    /* Track sound usage after post creation */
+    if (sound_id && (post as any)?.id) {
+      void (async () => {
+        try {
+          await svc.from("sound_usage").upsert(
+            { sound_id, post_id: (post as any).id, user_id: user.id },
+            { onConflict: "sound_id,post_id" }
+          );
+          const { data: s } = await svc.from("sounds").select("usage_count").eq("id", sound_id).single();
+          if (s) await svc.from("sounds").update({ usage_count: ((s as any).usage_count ?? 0) + 1 }).eq("id", sound_id);
+        } catch (e) { logger.warn({ e }, "[posts] sound usage track failed (non-critical)"); }
+      })();
     }
 
     /* Return full enriched post */

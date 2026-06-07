@@ -3,8 +3,8 @@
  * Supports photos and videos, multiple files, preview, caption, and publish.
  * Files are uploaded to Supabase post-media bucket; posts stored in DB.
  */
-import { useRef, useState, useCallback } from "react";
-import { useLocation } from "wouter";
+import { useRef, useState, useCallback, useEffect } from "react";
+import { useLocation, useSearch } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Image as ImageIcon, Video, X, Check, Plus,
@@ -12,6 +12,9 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { uploadPostMedia, createPost } from "@/lib/postsClient";
+import { SoundBrowser } from "@/components/sounds/SoundBrowser";
+import { fetchSound } from "@/lib/soundsClient";
+import type { Sound } from "@/lib/soundsClient";
 
 interface MediaItem {
   file: File;
@@ -24,6 +27,7 @@ interface MediaItem {
 
 export default function UploadPage() {
   const [, navigate]   = useLocation();
+  const search         = useSearch();
   const user           = useAppStore((s) => s.user);
   const [items, setItems]       = useState<MediaItem[]>([]);
   const [caption, setCaption]   = useState("");
@@ -31,8 +35,18 @@ export default function UploadPage() {
   const [published, setPublished]   = useState(false);
   const [error, setError]           = useState<string | null>(null);
   const [dragOver, setDragOver]     = useState(false);
+  const [soundBrowserOpen, setSoundBrowserOpen] = useState(false);
+  const [selectedSound, setSelectedSound]       = useState<Sound | null>(null);
   const fileRef   = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+
+  /* ── Pre-select sound from ?sound=:id query param ─────────────── */
+  useEffect(() => {
+    const params  = new URLSearchParams(search);
+    const soundId = params.get("sound");
+    if (!soundId) return;
+    fetchSound(soundId).then(setSelectedSound).catch(() => {});
+  }, [search]);
 
   const addFiles = useCallback((files: FileList | File[]) => {
     const arr = Array.from(files).slice(0, 10 - items.length);
@@ -86,7 +100,7 @@ export default function UploadPage() {
       }
 
       const type = items.length > 1 ? "multi" : items[0].type === "video" ? "video" : "photo";
-      await createPost({ caption: caption.trim() || undefined, type, media: uploaded });
+      await createPost({ caption: caption.trim() || undefined, type, media: uploaded, sound_id: selectedSound?.id ?? null });
 
       setPublished(true);
       setTimeout(() => navigate("/"), 1400);
@@ -293,23 +307,60 @@ export default function UploadPage() {
             />
             <div className="text-right text-[11px] app-text-muted">{caption.length}/2200</div>
 
-            {/* Music — architecture placeholder (not fake) */}
-            <div
-              className="flex items-center justify-between rounded-2xl px-4 py-3 app-surface"
-              style={{ border: "1px solid rgba(255,255,255,0.06)" }}
+            {/* Sound Picker */}
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setSoundBrowserOpen(true)}
+              className="w-full flex items-center justify-between rounded-2xl px-4 py-3 text-left app-surface"
+              style={{ border: selectedSound ? "1px solid rgba(131,56,236,0.4)" : "1px solid rgba(255,255,255,0.06)" }}
             >
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-xl grid place-items-center"
-                  style={{ background: "linear-gradient(135deg,rgba(168,85,247,0.2),rgba(236,72,153,0.15))" }}>
-                  <Music2 className="h-4 w-4 text-purple-400" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium app-text">Add Sound</p>
-                  <p className="text-xs app-text-muted">Music library — coming soon</p>
+              <div className="flex items-center gap-3 min-w-0">
+                {selectedSound?.cover_image ? (
+                  <img
+                    src={selectedSound.cover_image}
+                    alt={selectedSound.title}
+                    className="h-8 w-8 rounded-xl object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div
+                    className="h-8 w-8 rounded-xl grid place-items-center flex-shrink-0"
+                    style={{ background: selectedSound ? "linear-gradient(135deg,#8338ec,#ff006e)" : "linear-gradient(135deg,rgba(168,85,247,0.2),rgba(236,72,153,0.15))" }}
+                  >
+                    <Music2 className="h-4 w-4 text-purple-400" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="text-sm font-medium app-text truncate">
+                    {selectedSound ? selectedSound.title : "Add Sound"}
+                  </p>
+                  <p className="text-xs app-text-muted truncate">
+                    {selectedSound
+                      ? (selectedSound.creator?.name ?? selectedSound.creator?.username ?? "Original sound")
+                      : "Browse music library"}
+                  </p>
                 </div>
               </div>
-              <ChevronRight className="h-4 w-4 app-text-muted" />
-            </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {selectedSound && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setSelectedSound(null); }}
+                    className="grid h-5 w-5 place-items-center rounded-full"
+                    style={{ background: "rgba(255,255,255,0.1)" }}
+                  >
+                    <X className="h-3 w-3 app-text-muted" />
+                  </button>
+                )}
+                <ChevronRight className="h-4 w-4 app-text-muted" />
+              </div>
+            </motion.button>
+
+            {/* Sound Browser Modal */}
+            <SoundBrowser
+              open={soundBrowserOpen}
+              onClose={() => setSoundBrowserOpen(false)}
+              onSelect={(s) => setSelectedSound(s ?? null)}
+              selected={selectedSound}
+            />
           </motion.div>
         )}
 

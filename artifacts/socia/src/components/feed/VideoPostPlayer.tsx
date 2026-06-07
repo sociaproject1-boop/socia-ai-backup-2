@@ -11,12 +11,15 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Play } from "lucide-react";
+import { MusicDisc } from "./MusicDisc";
+import type { PostSound } from "@/lib/postsClient";
 
 interface Props {
   url: string;
   posterUrl?: string;
   aspectRatio?: string;
   autoplayThreshold?: number;
+  sound?: PostSound | null;
 }
 
 export function VideoPostPlayer({
@@ -24,6 +27,7 @@ export function VideoPostPlayer({
   posterUrl,
   aspectRatio = "4/5",
   autoplayThreshold = 0.4,
+  sound,
 }: Props) {
   const videoRef     = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -135,6 +139,14 @@ export function VideoPostPlayer({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Music disc — only when the post has a sound attached */}
+      {sound && (
+        <MusicDisc
+          sound={sound as any}
+          playing={playing}
+        />
+      )}
     </div>
   );
 }

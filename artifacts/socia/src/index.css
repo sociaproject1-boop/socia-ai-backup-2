@@ -346,6 +346,16 @@ html.light {
   @keyframes orbit-cw  { to { transform: rotate(360deg);  } }
   @keyframes orbit-ccw { to { transform: rotate(-360deg); } }
 
+  /* Music disc spin (used by MusicDisc.tsx and SoundPage.tsx) */
+  @keyframes discSpin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  /* Scrollable strip without scrollbar */
+  .hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+
   /* ── Cinematic scan line ─────────────────────────────────────────────── */
   @keyframes scan-line-sweep {
     0%   { transform: translate3d(0, -110%, 0); opacity: 0;    }

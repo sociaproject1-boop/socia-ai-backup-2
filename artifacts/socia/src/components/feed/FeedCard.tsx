@@ -311,7 +311,7 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
           onTouchEnd={handleTouchEnd}
         >
           {currentMedia?.type === "video" ? (
-            <VideoPostPlayer url={currentMedia.url} aspectRatio="4/5" />
+            <VideoPostPlayer url={currentMedia.url} aspectRatio="4/5" sound={post.sound} />
           ) : (
             <div className="relative overflow-hidden" style={{ aspectRatio: "4/5", background: "#0a0a0a" }}>
               <AnimatePresence mode="popLayout" initial={false}>

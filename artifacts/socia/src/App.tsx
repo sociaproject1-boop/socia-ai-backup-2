@@ -79,6 +79,8 @@ const LiveStream             = lazy(() => import("@/pages/LiveStream"));
 const GoLive                 = lazy(() => import("@/pages/GoLive"));
 const FriendsPage            = lazy(() => import("@/pages/Friends"));
 const PulseAdminPage         = lazy(() => import("@/pages/PulseAdmin"));
+const SoundPage              = lazy(() => import("@/pages/SoundPage"));
+const CameraCreator          = lazy(() => import("@/pages/CameraCreator"));
 
 // Stable wrapper components defined outside Router to avoid remounts on re-render.
 // They reference lazy components which are resolved by the nearest Suspense boundary.
@@ -222,6 +224,8 @@ function Router() {
       <Route path="/creator/seller"       component={SellerCenter} />
       <Route path="/creator/stars"        component={CreatorStars} />
       <Route path="/upload"               component={UploadPage} />
+      <Route path="/sounds/:id"           component={SoundPage} />
+      <Route path="/camera"               component={CameraCreator} />
       <Route path="/support-hub"          component={SupportHub} />
       <Route path="/notifications"        component={SocialNotifications} />
       <Route path="/status"               component={PublicStatus} />
