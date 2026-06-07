@@ -300,6 +300,10 @@ export default function Home() {
             onClose={() => setViewerIdx(null)}
             onLike={handleLike}
             onSave={handleSave}
+            onComment={(postId) => {
+              console.log("[Home] ImmersiveViewer onComment fired, postId=", postId);
+              setCommentPostId(postId);
+            }}
             onCommentCountChange={updateCommentCount}
           />
         )}

@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import type { SocialPost } from "@/lib/postsClient";
-import { CommentsSheet } from "./CommentsSheet";
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 function fmtCount(n: number): string {
@@ -56,6 +55,7 @@ export interface ImmersiveViewerProps {
   onClose:    () => void;
   onLike:     (postId: string) => void;
   onSave:     (postId: string) => void;
+  onComment:  (postId: string) => void;
   onCommentCountChange?: (postId: string, delta: number) => void;
 }
 
@@ -294,14 +294,14 @@ export function ImmersiveViewer({
   onClose,
   onLike,
   onSave,
+  onComment,
   onCommentCountChange,
 }: ImmersiveViewerProps) {
   const [, navigate]  = useLocation();
   const [postIdx, setPostIdx]       = useState(startIndex);
   const [swipeDir, setSwipeDir]     = useState(1);
   const [heartBurst, setHeartBurst] = useState(false);
-  const [showComments, setShowComments] = useState(false);
-  /* Local comment count state so the button updates without closing viewer */
+  /* Local comment count state so the button label updates without closing viewer */
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
 
   const touchStartY   = useRef<number | null>(null);
@@ -324,28 +324,22 @@ export function ImmersiveViewer({
     onCommentCountChange?.(post.id, delta);
   }, [post, onCommentCountChange]);
 
-  /* Escape key / hardware back → close (if comments not open) */
+  /* Escape key / hardware back → close */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (showComments) setShowComments(false);
-        else onClose();
-      }
+      if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
 
     window.history.pushState({ immersiveViewer: true }, "");
-    const onPop = () => {
-      if (showComments) setShowComments(false);
-      else onClose();
-    };
+    const onPop = () => onClose();
     window.addEventListener("popstate", onPop);
 
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("popstate", onPop);
     };
-  }, [onClose, showComments]);
+  }, [onClose]);
 
   /* Lock body scroll while open */
   useEffect(() => {
@@ -357,7 +351,6 @@ export function ImmersiveViewer({
   /* Double-tap to like */
   const lastTap = useRef(0);
   const handleTap = useCallback(() => {
-    if (showComments) return;
     const now = Date.now();
     if (now - lastTap.current < 300) {
       if (!post?.has_liked) {
@@ -369,18 +362,17 @@ export function ImmersiveViewer({
     } else {
       lastTap.current = now;
     }
-  }, [post, onLike, showComments]);
+  }, [post, onLike]);
 
-  /* Vertical swipe navigation — disabled when comments sheet is open */
+  /* Vertical swipe navigation */
   const onTouchStart = (e: React.TouchEvent) => {
-    if (showComments) return;
     touchStartY.current = e.touches[0].clientY;
     touchStartX.current = e.touches[0].clientX;
     swipeCaptured.current = false;
   };
 
   const onTouchEnd = (e: React.TouchEvent) => {
-    if (showComments || touchStartY.current === null || swipeCaptured.current) return;
+    if (touchStartY.current === null || swipeCaptured.current) return;
     const dy = e.changedTouches[0].clientY - touchStartY.current;
     const dx = Math.abs(e.changedTouches[0].clientX - (touchStartX.current ?? 0));
     if (Math.abs(dy) > 72 && Math.abs(dy) > dx * 1.2) {
@@ -529,16 +521,16 @@ export function ImmersiveViewer({
           </span>
         </motion.button>
 
-        {/* Comment — opens sheet, does NOT navigate */}
+        {/* Comment — delegates to Home.tsx via onComment prop */}
         <motion.button
           whileTap={{ scale: 0.78 }}
-          onClick={() => setShowComments(true)}
+          onClick={() => { console.log("[ImmersiveViewer] comment tapped, postId=", post.id); onComment(post.id); }}
           className="flex flex-col items-center gap-1"
           aria-label="Comment"
         >
           <MessageCircle
             className="h-7 w-7 drop-shadow-lg"
-            style={{ color: showComments ? "var(--accent-primary)" : "white" }}
+            style={{ color: "white" }}
           />
           <span className="text-[11px] font-semibold text-white drop-shadow leading-none">
             {fmtCount(commentCount)}
@@ -666,15 +658,6 @@ export function ImmersiveViewer({
       </AnimatePresence>
     </motion.div>
 
-    {/* ── Comments sheet — renders on top of viewer, viewer stays open ── */}
-    {showComments && (
-      <CommentsSheet
-        postId={post.id}
-        initialCount={post.comment_count ?? 0}
-        onClose={() => setShowComments(false)}
-        onCountChange={handleCommentCountChange}
-      />
-    )}
     </>
   );
 }
