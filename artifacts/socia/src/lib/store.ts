@@ -36,7 +36,10 @@ export interface User {
   birthday?:          string;
   relationshipStatus?: string;
   work?:              string;
+  workPrevious?:      string;
   education?:         string;
+  school?:            string;
+  college?:           string;
   privacySettings?:   PrivacySettings;
 }
 

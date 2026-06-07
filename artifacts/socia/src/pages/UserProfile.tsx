@@ -7,6 +7,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { ArrowLeft, MessageCircle, UserPlus, UserCheck, Facebook, Instagram, Music2, Star } from "lucide-react";
+import { ProfileDetailsPanel } from "@/components/profile/ProfileDetailsPanel";
+import type { ProfilePanelData } from "@/components/profile/ProfileDetailsPanel";
 import SendStarsModal from "@/components/stars/SendStarsModal";
 import { supabase } from "@/lib/supabase";
 import type { DbUser } from "@/lib/supabase";
@@ -324,6 +326,40 @@ export default function UserProfile() {
               <StatBox label="Following" value={profile.following ?? 0} onClick={() => navigate(`/following/${userId}`)} />
             </div>
 
+            {/* Facebook-style Details Panel — owner */}
+            <div className="mt-4 -mx-5">
+              <ProfileDetailsPanel
+                profile={{
+                  id:                   profile.id,
+                  name:                 profile.name ?? undefined,
+                  username:             profile.username ?? undefined,
+                  avatar_url:           profile.avatar_url ?? undefined,
+                  followers:            profile.followers ?? 0,
+                  following:            profile.following ?? 0,
+                  location:             profile.location,
+                  birthday:             profile.birthday,
+                  gender:               profile.gender,
+                  relationship_status:  profile.relationship_status,
+                  work:                 profile.work,
+                  work_previous:        profile.work_previous,
+                  education:            profile.education,
+                  school:               profile.school,
+                  college:              profile.college,
+                  website:              profile.website,
+                  social_facebook:      profile.social_facebook,
+                  social_instagram:     profile.social_instagram,
+                  social_tiktok:        profile.social_tiktok,
+                  social_x:             profile.social_x,
+                  social_youtube:       profile.social_youtube,
+                  social_linkedin:      profile.social_linkedin,
+                  created_at:           profile.created_at,
+                  privacy_settings:     profile.privacy_settings,
+                } satisfies ProfilePanelData}
+                isOwnProfile={false}
+                viewerId={sessionUid}
+              />
+            </div>
+
             {/* Socia Profile Tabs — owner layout */}
             <div className="mt-6 -mx-6">
               <MutualConnections profileUserId={userId} viewerId={sessionUid} />
@@ -442,6 +478,40 @@ export default function UserProfile() {
               <StatBox label="Followers" value={profile.followers ?? 0} onClick={() => navigate(`/followers/${userId}`)} />
               <div className="my-3 w-px self-stretch bg-white/[0.06]" />
               <StatBox label="Following" value={profile.following ?? 0} onClick={() => navigate(`/following/${userId}`)} />
+            </div>
+
+            {/* Facebook-style Details Panel */}
+            <div className="mt-4 -mx-4">
+              <ProfileDetailsPanel
+                profile={{
+                  id:                   profile.id,
+                  name:                 profile.name ?? undefined,
+                  username:             profile.username ?? undefined,
+                  avatar_url:           profile.avatar_url ?? undefined,
+                  followers:            profile.followers ?? 0,
+                  following:            profile.following ?? 0,
+                  location:             profile.location,
+                  birthday:             profile.birthday,
+                  gender:               profile.gender,
+                  relationship_status:  profile.relationship_status,
+                  work:                 profile.work,
+                  work_previous:        profile.work_previous,
+                  education:            profile.education,
+                  school:               profile.school,
+                  college:              profile.college,
+                  website:              profile.website,
+                  social_facebook:      profile.social_facebook,
+                  social_instagram:     profile.social_instagram,
+                  social_tiktok:        profile.social_tiktok,
+                  social_x:             profile.social_x,
+                  social_youtube:       profile.social_youtube,
+                  social_linkedin:      profile.social_linkedin,
+                  created_at:           profile.created_at,
+                  privacy_settings:     profile.privacy_settings,
+                } satisfies ProfilePanelData}
+                isOwnProfile={false}
+                viewerId={sessionUid}
+              />
             </div>
 
             {/* Socia Profile Tabs — standard layout */}

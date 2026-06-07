@@ -51,7 +51,10 @@ export interface DbUser {
   birthday?:            string | null;
   relationship_status?: string;
   work?:                string;
+  work_previous?:       string;
   education?:           string;
+  school?:              string;
+  college?:             string;
   social_x?:            string;
   social_youtube?:      string;
   social_linkedin?:     string;

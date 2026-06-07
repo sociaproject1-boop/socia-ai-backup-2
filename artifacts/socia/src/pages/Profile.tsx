@@ -7,6 +7,8 @@ import {
   ChevronRight, Feather, MapPin, Globe, Briefcase, GraduationCap,
   Facebook, Instagram, Music2,
 } from "lucide-react";
+import { ProfileDetailsPanel } from "@/components/profile/ProfileDetailsPanel";
+import type { ProfilePanelData } from "@/components/profile/ProfileDetailsPanel";
 import { supabase, isSupabaseReady } from "@/lib/supabase";
 import { fetchUserPosts, fetchSavedFeed, type SocialPost } from "@/lib/postsClient";
 import { NameBadges, OnlineDot } from "@/components/Badges";
@@ -422,6 +424,41 @@ export default function Profile() {
 
           {/* Profile Completeness bar */}
           <ProfileCompleteness user={user} onEdit={() => setEditModalOpen(true)} />
+
+          {/* Facebook-style Details Panel */}
+          <div className="mt-4">
+            <ProfileDetailsPanel
+              profile={{
+                id:                   user.id,
+                name:                 user.name,
+                username:             user.handle,
+                avatar_url:           user.avatar ?? undefined,
+                followers:            liveFollowers ?? user.followers,
+                following:            liveFollowing ?? user.following,
+                location:             user.location,
+                birthday:             user.birthday,
+                gender:               user.gender,
+                relationship_status:  user.relationshipStatus,
+                work:                 user.work,
+                work_previous:        user.workPrevious,
+                education:            user.education,
+                school:               (user as any).school,
+                college:              (user as any).college,
+                website:              user.website,
+                social_facebook:      user.social?.facebook,
+                social_instagram:     user.social?.instagram,
+                social_tiktok:        user.social?.tiktok,
+                social_x:             user.social?.x,
+                social_youtube:       user.social?.youtube,
+                social_linkedin:      user.social?.linkedin,
+                created_at:           (user as any).created_at,
+                privacy_settings:     user.privacySettings as Record<string, boolean | string>,
+              } satisfies ProfilePanelData}
+              isOwnProfile
+              viewerId={user.id}
+              onEditOpen={() => setEditModalOpen(true)}
+            />
+          </div>
         </>
       )}
 

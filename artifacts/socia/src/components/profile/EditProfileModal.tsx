@@ -71,8 +71,11 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
   const [relationship, setRelationship] = useState((user as any)?.relationshipStatus ?? "Prefer not to say");
 
   /* ── Work & Education ───────────────────────────────────────────────── */
-  const [work,      setWork]      = useState((user as any)?.work      ?? "");
-  const [education, setEducation] = useState((user as any)?.education ?? "");
+  const [work,        setWork]        = useState((user as any)?.work        ?? "");
+  const [workPrev,    setWorkPrev]    = useState((user as any)?.workPrevious ?? "");
+  const [school,      setSchool]      = useState((user as any)?.school      ?? "");
+  const [college,     setCollege]     = useState((user as any)?.college     ?? "");
+  const [education,   setEducation]   = useState((user as any)?.education   ?? "");
 
   /* ── Privacy ────────────────────────────────────────────────────────── */
   const [privacy, setPrivacy] = useState<PrivacySettings>(() => {
@@ -148,6 +151,9 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
       birthday:          birthday || undefined,
       relationshipStatus: relationship,
       work:              work.trim(),
+      workPrevious:      workPrev.trim(),
+      school:            school.trim(),
+      college:           college.trim(),
       education:         education.trim(),
       social: {
         facebook:  facebook.trim(),
@@ -184,6 +190,9 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
           social_youtube:      youtube.trim(),
           social_linkedin:     linkedin.trim(),
           privacy_settings:    privacy as Record<string, boolean | string>,
+          work_previous:       workPrev.trim(),
+          school:              school.trim(),
+          college:             college.trim(),
         } as any);
       } catch (err) {
         console.warn("[EditProfileModal] save error:", err);
@@ -198,7 +207,7 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
     }, 700);
   }, [
     user, saving, name, handle, bio, avatarSrc, website, location, gender, birthday,
-    relationship, work, education, facebook, instagram, tiktok, socialX, youtube, linkedin,
+    relationship, work, workPrev, school, college, education, facebook, instagram, tiktok, socialX, youtube, linkedin,
     privacy, coverSrc, setUser, onSaved, onClose,
   ]);
 
@@ -434,17 +443,38 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
 
               {/* ── WORK & EDUCATION ───────────────────────────────────── */}
               <ModalSection label="Work & Education">
-                <ModalField label="Occupation / Work">
+                <ModalField label="Current Work / Occupation">
                   <div className="app-input flex items-center rounded-[13px] overflow-hidden">
                     <span className="pl-4 flex-shrink-0 text-purple-400"><Briefcase style={{ width: 14, height: 14 }} /></span>
                     <input value={work} onChange={(e) => setWork(e.target.value)} placeholder="Job title or company"
                       className="flex-1 bg-transparent px-3 py-3 text-[14px] app-text focus:outline-none" />
                   </div>
                 </ModalField>
-                <ModalField label="Education">
+                <ModalField label="Previous Work">
+                  <div className="app-input flex items-center rounded-[13px] overflow-hidden">
+                    <span className="pl-4 flex-shrink-0 text-purple-400"><Briefcase style={{ width: 14, height: 14 }} /></span>
+                    <input value={workPrev} onChange={(e) => setWorkPrev(e.target.value)} placeholder="Previous employer or role"
+                      className="flex-1 bg-transparent px-3 py-3 text-[14px] app-text focus:outline-none" />
+                  </div>
+                </ModalField>
+                <ModalField label="College / University">
                   <div className="app-input flex items-center rounded-[13px] overflow-hidden">
                     <span className="pl-4 flex-shrink-0 text-purple-400"><GraduationCap style={{ width: 14, height: 14 }} /></span>
-                    <input value={education} onChange={(e) => setEducation(e.target.value)} placeholder="School or university"
+                    <input value={college} onChange={(e) => setCollege(e.target.value)} placeholder="College or university name"
+                      className="flex-1 bg-transparent px-3 py-3 text-[14px] app-text focus:outline-none" />
+                  </div>
+                </ModalField>
+                <ModalField label="School">
+                  <div className="app-input flex items-center rounded-[13px] overflow-hidden">
+                    <span className="pl-4 flex-shrink-0 text-purple-400"><GraduationCap style={{ width: 14, height: 14 }} /></span>
+                    <input value={school} onChange={(e) => setSchool(e.target.value)} placeholder="High school or secondary school"
+                      className="flex-1 bg-transparent px-3 py-3 text-[14px] app-text focus:outline-none" />
+                  </div>
+                </ModalField>
+                <ModalField label="Other Education">
+                  <div className="app-input flex items-center rounded-[13px] overflow-hidden">
+                    <span className="pl-4 flex-shrink-0 text-purple-400"><GraduationCap style={{ width: 14, height: 14 }} /></span>
+                    <input value={education} onChange={(e) => setEducation(e.target.value)} placeholder="Courses, certifications…"
                       className="flex-1 bg-transparent px-3 py-3 text-[14px] app-text focus:outline-none" />
                   </div>
                 </ModalField>
