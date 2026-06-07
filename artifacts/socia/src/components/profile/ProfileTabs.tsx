@@ -1,8 +1,9 @@
 /**
  * ProfileTabs.tsx — Socia profile content hub.
  *
- * Five tabs with unique Socia identity:
- *   Spotlight  — all content mixed
+ * Modern segmented navigation with 6 tabs:
+ *   All        — unified chronological feed (all content types)
+ *   Spotlight  — grid of all posts
  *   Motion     — video only
  *   Gallery    — photos only
  *   Moments    — text posts only
@@ -24,7 +25,7 @@ export type ProfileTabId = "all" | "spotlight" | "motion" | "gallery" | "moments
 
 const TABS: { id: ProfileTabId; label: string; icon: typeof LayoutGrid }[] = [
   { id: "all",        label: "All",        icon: LayoutList },
-  { id: "spotlight",  label: "Grid",       icon: LayoutGrid },
+  { id: "spotlight",  label: "Spotlight",  icon: LayoutGrid },
   { id: "motion",     label: "Motion",     icon: Video      },
   { id: "gallery",    label: "Gallery",    icon: ImageIcon  },
   { id: "moments",    label: "Moments",    icon: FileText   },
@@ -49,7 +50,6 @@ interface Props {
   userProfile?: UserProfileData;
   supporterTier?: SupporterTier | null;
   defaultTab?: ProfileTabId;
-  /** When a new text post is created externally, pass it here to prepend instantly. */
   prependPost?: SocialPost | null;
 }
 
@@ -83,8 +83,8 @@ export function ProfileTabs({
   prependPost,
 }: Props) {
   const [activeTab, setActiveTab] = useState<ProfileTabId>(defaultTab);
+  const tabBarRef = useRef<HTMLDivElement>(null);
 
-  /* All posts cache — fetch once, filter client-side per tab */
   const [allPosts, setAllPosts]         = useState<SocialPost[]>([]);
   const [loading, setLoading]           = useState(true);
   const [hasMore, setHasMore]           = useState(true);
@@ -112,7 +112,6 @@ export function ProfileTabs({
     loadInitial();
   }, [loadInitial]);
 
-  /* Prepend a newly created post instantly, then switch to All tab */
   useEffect(() => {
     if (!prependPost) return;
     setAllPosts(prev => {
@@ -141,6 +140,15 @@ export function ProfileTabs({
     }
   }, [userId, viewerId, loadingMore, hasMore]);
 
+  /* Scroll active tab into view on change */
+  const handleTabChange = useCallback((id: ProfileTabId) => {
+    setActiveTab(id);
+    const bar = tabBarRef.current;
+    if (!bar) return;
+    const btn = bar.querySelector(`[data-tab="${id}"]`) as HTMLElement | null;
+    if (btn) btn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, []);
+
   const displayedPosts = activeTab === "milestones"
     ? []
     : filterByTab(allPosts, activeTab);
@@ -152,24 +160,25 @@ export function ProfileTabs({
       className="transition-opacity duration-200"
       style={isEditing ? { pointerEvents: "none", opacity: 0.25 } : {}}
     >
-      {/* ── Tab bar ─────────────────────────────────────────────────── */}
+      {/* ── Tab bar ─────────────────────────────────────────────────────── */}
       <div
+        ref={tabBarRef}
         className="app-header sticky top-0 z-20 overflow-x-auto hide-scrollbar"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
       >
-        <div className="flex min-w-max px-3 gap-0">
+        <div className="flex min-w-max px-2 gap-0">
           {TABS.map(tab => (
-            <TabPill
+            <TabButton
               key={tab.id}
               tab={tab}
               active={activeTab === tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
             />
           ))}
         </div>
       </div>
 
-      {/* ── Tab content ─────────────────────────────────────────────── */}
+      {/* ── Tab content ─────────────────────────────────────────────────── */}
       <div className={isAllTab ? "" : "px-4 pt-4"}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
@@ -186,7 +195,6 @@ export function ProfileTabs({
                 supporterTier={supporterTier}
               />
             ) : activeTab === "all" ? (
-              /* All — feed layout (Facebook-style vertical cards) */
               <ProfilePostGrid
                 posts={displayedPosts}
                 loading={loading}
@@ -233,7 +241,7 @@ export function ProfileTabs({
                 emptyIcon={<ImageIcon className="h-7 w-7 text-purple-400" />}
               />
             ) : (
-              /* spotlight / grid */
+              /* spotlight */
               <ProfilePostGrid
                 posts={displayedPosts}
                 loading={loading}
@@ -252,7 +260,7 @@ export function ProfileTabs({
   );
 }
 
-function TabPill({
+function TabButton({
   tab,
   active,
   onClick,
@@ -265,19 +273,20 @@ function TabPill({
 
   return (
     <motion.button
+      data-tab={tab.id}
       whileTap={{ scale: 0.93 }}
       onClick={onClick}
-      className="relative flex items-center gap-1.5 px-3 py-2.5 rounded-none text-[11.5px] font-semibold transition-colors"
-      style={{ color: active ? "white" : "rgba(255,255,255,0.35)" }}
+      className="relative flex items-center gap-1.5 px-4 py-3.5 rounded-none text-[12.5px] font-semibold transition-colors whitespace-nowrap"
+      style={{ color: active ? "white" : "rgba(255,255,255,0.38)", minWidth: 44 }}
     >
-      <Icon style={{ width: 12, height: 12, flexShrink: 0 }} />
+      <Icon style={{ width: 13, height: 13, flexShrink: 0 }} />
       <span>{tab.label}</span>
 
-      {/* Active underline */}
+      {/* Active underline indicator */}
       {active && (
         <motion.span
           layoutId="sociaTabUnderline"
-          className="absolute inset-x-0 bottom-0 h-[2px] rounded-full"
+          className="absolute inset-x-2 bottom-0 h-[2.5px] rounded-full"
           style={{ background: "linear-gradient(90deg,#a855f7,#ec4899,#3b82f6)" }}
           transition={{ type: "spring", stiffness: 400, damping: 35 }}
         />

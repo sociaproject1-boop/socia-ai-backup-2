@@ -1,22 +1,20 @@
 /**
  * FeedCard.tsx — Full-width social feed card.
  *
- * Shows all social metadata: author, verified badge, timestamp, media,
- * caption, like/save/comment counts. Backend-connected interactions.
+ * Facebook-standard layout:
+ *   Header (avatar, name, username, timestamp, follow)
+ *   Caption / text content  ← ALWAYS above media & actions
+ *   Media (if any)
+ *   Action bar: Like · Comment · Share · Save  (standardised)
+ *   View count (inline, right-aligned)
  *
- * Phase 2: removed dot indicators and frame counter badge (TikTok-style).
- * Phase 4: comment tap calls onComment(postId) — CommentsSheet is lifted
- *           to Home.tsx and rendered as a portal there (same pattern as
- *           ImmersiveViewer) so it never gets clipped by AppShell's
- *           overflow-hidden stacking context.
- *
- * Used in Home.tsx. Profile grids use PostThumbnail.tsx instead.
+ * Phase 5: Standardised action bar, caption always above media.
  */
 import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import {
-  Heart, MessageCircle, Bookmark, Eye, MoreHorizontal, BadgeCheck, Flag,
+  Heart, MessageCircle, Bookmark, Share2, Eye, MoreHorizontal, BadgeCheck, Flag,
 } from "lucide-react";
 import { VideoPostPlayer } from "./VideoPostPlayer";
 import { reportPost } from "@/lib/postsClient";
@@ -34,7 +32,6 @@ interface Props {
   onComment?: (postId: string) => void;
   onDelete?: (postId: string) => void;
   onCommentCountChange?: (postId: string, delta: number) => void;
-  /** If provided, single-tap on media opens the immersive viewer instead of navigating */
   onOpenViewer?: (post: SocialPost) => void;
 }
 
@@ -99,7 +96,6 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
   const handleMediaTap = useCallback(() => {
     const now = Date.now();
     if (now - lastTap.current < 300) {
-      /* Double-tap → like */
       if (!post.has_liked) {
         onLike(post.id);
         setHeartBurst(true);
@@ -110,7 +106,6 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
       lastTap.current = now;
       setTimeout(() => {
         if (lastTap.current === now) {
-          /* Single-tap → immersive viewer (or fall back to post detail) */
           if (onOpenViewer) onOpenViewer(post);
           else navigate(`/post/${post.id}`);
           lastTap.current = 0;
@@ -119,15 +114,21 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
     }
   }, [post, onLike, onOpenViewer, navigate]);
 
-  /* ── Open comments sheet — delegates to parent (Home.tsx owns portal) ── */
   const handleCommentClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log("[FeedCard] comment button clicked, postId=", post.id, "onComment=", typeof onComment);
     onComment?.(post.id);
-    console.log("[FeedCard] onComment fired");
   }, [onComment, post.id]);
 
-  /* ── Follow / unfollow ──────────────────────────────────────────────── */
+  const handleShare = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const url = `${window.location.origin}/post/${post.id}`;
+    if (navigator.share) {
+      try { await navigator.share({ url, title: post.caption ?? "Post" }); return; }
+      catch { /* fall through */ }
+    }
+    navigator.clipboard?.writeText(url);
+  }, [post]);
+
   const handleFollow = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (followWorking || isMe) return;
@@ -145,16 +146,20 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
     }
   }, [followWorking, isMe, isFollowing, post.author_id, followedIds, setFollowedIds]);
 
-  /* ── Report ─────────────────────────────────────────────────────────── */
   const handleReport = useCallback(async () => {
     setShowMenu(false);
     try { await reportPost(post.id, "inappropriate"); } catch { /* silent */ }
   }, [post.id]);
 
+  const CAPTION_LIMIT = media.length > 0 ? 160 : 400;
+
   return (
-    <div className="border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-      {/* ── Header ───────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-4 py-3">
+    <article
+      className="border-b"
+      style={{ borderColor: "rgba(255,255,255,0.06)" }}
+    >
+      {/* ── Header ────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 px-4 pt-3 pb-2">
         <motion.button
           whileTap={{ scale: 0.92 }}
           onClick={() => navigate(isMe ? "/profile" : `/profile/${post.author_id}`)}
@@ -178,11 +183,11 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
         </motion.button>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-wrap">
             <motion.button
               whileTap={{ scale: 0.97 }}
               onClick={() => navigate(isMe ? "/profile" : `/profile/${post.author_id}`)}
-              className="text-sm font-bold app-text truncate max-w-[140px]"
+              className="text-[14px] font-bold app-text leading-tight"
             >
               {post.author?.name || post.author?.username || "User"}
             </motion.button>
@@ -194,11 +199,14 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
                 <BadgeCheck className="h-3.5 w-3.5 flex-shrink-0" style={{ color: "var(--accent-primary)" }} />
               )
             }
-            <span className="text-[11px] app-text-muted ml-1">{relTime(post.created_at)}</span>
           </div>
-          {post.author?.username && (
-            <div className="text-[11px] app-text-muted">@{post.author.username}</div>
-          )}
+          <div className="flex items-center gap-1.5 mt-0.5">
+            {post.author?.username && (
+              <span className="text-[11px] app-text-muted">@{post.author.username}</span>
+            )}
+            <span className="text-[10px] app-text-muted opacity-60">·</span>
+            <span className="text-[11px] app-text-muted">{relTime(post.created_at)}</span>
+          </div>
         </div>
 
         {!isMe && (
@@ -268,7 +276,33 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
         </div>
       </div>
 
-      {/* ── Media ────────────────────────────────────────────────────── */}
+      {/* ── Caption — ALWAYS above media ─────────────────────────────── */}
+      {post.caption && (
+        <div className="px-4 pb-2">
+          <p
+            className="text-[14px] leading-relaxed app-text"
+            style={{
+              display: captionExpand ? "block" : "-webkit-box",
+              WebkitLineClamp: captionExpand ? undefined : (media.length > 0 ? 3 : 8),
+              WebkitBoxOrient: "vertical",
+              overflow: captionExpand ? "visible" : "hidden",
+            } as React.CSSProperties}
+          >
+            {post.caption}
+          </p>
+          {post.caption.length > CAPTION_LIMIT && !captionExpand && (
+            <button
+              onClick={() => setCaptionExpand(true)}
+              className="text-xs mt-0.5"
+              style={{ color: "var(--accent-primary)" }}
+            >
+              more
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Media ─────────────────────────────────────────────────────── */}
       {media.length > 0 && (
         <div
           className="relative"
@@ -277,10 +311,7 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
           onTouchEnd={handleTouchEnd}
         >
           {currentMedia?.type === "video" ? (
-            <VideoPostPlayer
-              url={currentMedia.url}
-              aspectRatio="4/5"
-            />
+            <VideoPostPlayer url={currentMedia.url} aspectRatio="4/5" />
           ) : (
             <div className="relative overflow-hidden" style={{ aspectRatio: "4/5", background: "#0a0a0a" }}>
               <AnimatePresence mode="popLayout" initial={false}>
@@ -300,7 +331,7 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
             </div>
           )}
 
-          {/* Multi-media: invisible edge-tap zones only (no dots, no counter) */}
+          {/* Multi-media: invisible edge-tap zones */}
           {hasMulti && (
             <>
               {mediaIndex > 0 && (
@@ -317,6 +348,20 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
                   className="absolute right-0 top-0 h-full w-1/4 z-10 opacity-0"
                 />
               )}
+              {/* Dot indicators */}
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 pointer-events-none">
+                {media.map((_, i) => (
+                  <span
+                    key={i}
+                    className="rounded-full transition-all"
+                    style={{
+                      width: i === mediaIndex ? 14 : 5,
+                      height: 5,
+                      background: i === mediaIndex ? "white" : "rgba(255,255,255,0.45)",
+                    }}
+                  />
+                ))}
+              </div>
             </>
           )}
 
@@ -337,106 +382,72 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
         </div>
       )}
 
-      {/* ── Caption (text posts: shown BEFORE actions; media posts: after actions) ── */}
-      {post.caption && media.length === 0 && (
-        <div className="px-4 pt-2 pb-1">
-          <p
-            className="text-[15px] leading-relaxed app-text"
-            style={{
-              display: captionExpand ? "block" : "-webkit-box",
-              WebkitLineClamp: captionExpand ? undefined : 6,
-              WebkitBoxOrient: "vertical",
-              overflow: captionExpand ? "visible" : "hidden",
-            } as React.CSSProperties}
-          >
-            {post.caption}
-          </p>
-          {post.caption.length > 200 && !captionExpand && (
-            <button
-              onClick={() => setCaptionExpand(true)}
-              className="text-xs app-text-muted mt-0.5"
-            >
-              more
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* ── Actions ──────────────────────────────────────────────────── */}
+      {/* ── Action bar: Like · Comment · Share · Save + view count ───── */}
       <div
-        className="flex items-center gap-1 px-3 pt-2 pb-1"
-        style={{ borderTop: media.length === 0 ? "1px solid rgba(255,255,255,0.05)" : undefined, marginTop: media.length === 0 ? 6 : 0 }}
+        className="flex items-center px-2 pt-1 pb-2"
+        style={{ borderTop: media.length === 0 ? "1px solid rgba(255,255,255,0.05)" : undefined }}
       >
+        {/* Like */}
         <motion.button
           whileTap={{ scale: 0.82 }}
           onClick={() => onLike(post.id)}
-          className="flex items-center gap-1.5 rounded-full px-3 py-2"
+          className="flex items-center gap-1.5 rounded-full px-3 py-2.5 min-w-[52px]"
         >
           <Heart
-            className="h-5 w-5 transition-colors"
-            style={{ fill: post.has_liked ? "#f43f5e" : "none", color: post.has_liked ? "#f43f5e" : "rgba(255,255,255,0.7)" }}
+            className="h-[19px] w-[19px] transition-colors flex-shrink-0"
+            style={{ fill: post.has_liked ? "#f43f5e" : "none", color: post.has_liked ? "#f43f5e" : "rgba(255,255,255,0.65)" }}
           />
-          <span className="text-xs font-semibold" style={{ color: post.has_liked ? "#f43f5e" : "rgba(255,255,255,0.7)" }}>
-            {fmtCount(post.like_count ?? 0)}
-          </span>
+          {(post.like_count ?? 0) > 0 && (
+            <span className="text-[12px] font-semibold" style={{ color: post.has_liked ? "#f43f5e" : "rgba(255,255,255,0.65)" }}>
+              {fmtCount(post.like_count ?? 0)}
+            </span>
+          )}
         </motion.button>
 
+        {/* Comment */}
         <motion.button
           whileTap={{ scale: 0.82 }}
           onClick={handleCommentClick}
-          className="flex items-center gap-1.5 rounded-full px-3 py-2"
+          className="flex items-center gap-1.5 rounded-full px-3 py-2.5 min-w-[52px]"
         >
-          <MessageCircle className="h-5 w-5" style={{ color: "rgba(255,255,255,0.7)" }} />
-          <span className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.7)" }}>
-            {fmtCount(post.comment_count ?? 0)}
-          </span>
+          <MessageCircle className="h-[19px] w-[19px] flex-shrink-0" style={{ color: "rgba(255,255,255,0.65)" }} />
+          {(post.comment_count ?? 0) > 0 && (
+            <span className="text-[12px] font-semibold" style={{ color: "rgba(255,255,255,0.65)" }}>
+              {fmtCount(post.comment_count ?? 0)}
+            </span>
+          )}
         </motion.button>
 
+        {/* Share */}
+        <motion.button
+          whileTap={{ scale: 0.82 }}
+          onClick={handleShare}
+          className="flex items-center gap-1.5 rounded-full px-3 py-2.5"
+        >
+          <Share2 className="h-[19px] w-[19px]" style={{ color: "rgba(255,255,255,0.65)" }} />
+        </motion.button>
+
+        {/* Save */}
         <motion.button
           whileTap={{ scale: 0.82 }}
           onClick={() => onSave(post.id)}
-          className="flex items-center gap-1.5 rounded-full px-3 py-2"
+          className="flex items-center gap-1.5 rounded-full px-3 py-2.5"
         >
           <Bookmark
-            className="h-5 w-5 transition-colors"
-            style={{ fill: post.has_saved ? "#a855f7" : "none", color: post.has_saved ? "#a855f7" : "rgba(255,255,255,0.7)" }}
+            className="h-[19px] w-[19px] transition-colors flex-shrink-0"
+            style={{ fill: post.has_saved ? "#a855f7" : "none", color: post.has_saved ? "#a855f7" : "rgba(255,255,255,0.65)" }}
           />
         </motion.button>
 
+        {/* View count right-aligned */}
         <div className="flex-1" />
-
-        <div className="flex items-center gap-1 px-3">
-          <Eye className="h-4 w-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-          <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+        <div className="flex items-center gap-1 px-2 opacity-50">
+          <Eye className="h-3.5 w-3.5" style={{ color: "rgba(255,255,255,0.45)" }} />
+          <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.45)" }}>
             {fmtCount(post.view_count ?? 0)}
           </span>
         </div>
       </div>
-
-      {/* ── Caption (media posts: shown AFTER actions) ─────────────── */}
-      {post.caption && media.length > 0 && (
-        <div className="px-4 pb-4">
-          <p
-            className="text-sm leading-relaxed app-text"
-            style={{
-              display: captionExpand ? "block" : "-webkit-box",
-              WebkitLineClamp: captionExpand ? undefined : 2,
-              WebkitBoxOrient: "vertical",
-              overflow: captionExpand ? "visible" : "hidden",
-            } as React.CSSProperties}
-          >
-            {post.caption}
-          </p>
-          {post.caption.length > 100 && !captionExpand && (
-            <button
-              onClick={() => setCaptionExpand(true)}
-              className="text-xs app-text-muted mt-0.5"
-            >
-              more
-            </button>
-          )}
-        </div>
-      )}
-    </div>
+    </article>
   );
 }
