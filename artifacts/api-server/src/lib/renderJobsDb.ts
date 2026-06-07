@@ -8,7 +8,9 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { logger } from "./logger.js";
 
-const SUPABASE_URL = process.env["VITE_SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "";
+function getSupabaseUrl(): string {
+  return process.env["VITE_SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "";
+}
 
 function resolveServiceRole(): string {
   const fromEnv = process.env["SUPABASE_SERVICE_ROLE_KEY"];
@@ -36,9 +38,9 @@ export function getServiceClient(): SupabaseClient {
   if (!key) {
     logger.warn("[renderJobsDb] SUPABASE_SERVICE_ROLE_KEY missing — worker will degrade gracefully");
     // Return anon client as fallback (RLS will block most writes)
-    _serviceClient = createClient(SUPABASE_URL, process.env["VITE_SUPABASE_ANON_KEY"] ?? "");
+    _serviceClient = createClient(getSupabaseUrl(), process.env["VITE_SUPABASE_ANON_KEY"] ?? "");
   } else {
-    _serviceClient = createClient(SUPABASE_URL, key, {
+    _serviceClient = createClient(getSupabaseUrl(), key, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
   }

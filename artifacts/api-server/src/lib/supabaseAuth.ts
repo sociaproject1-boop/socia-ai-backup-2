@@ -1,18 +1,12 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Request, RequestHandler } from "express";
 
-const SUPABASE_URL  = process.env["VITE_SUPABASE_URL"]      ?? process.env["SUPABASE_URL"];
-const SUPABASE_ANON = process.env["VITE_SUPABASE_ANON_KEY"] ?? process.env["SUPABASE_ANON_KEY"];
-
-if (!SUPABASE_URL || !SUPABASE_ANON) {
-  throw new Error(
-    "Supabase env not configured for api-server. " +
-    "Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (or SUPABASE_URL / SUPABASE_ANON_KEY).",
-  );
+function getSupabaseUrl(): string {
+  return process.env["VITE_SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "";
 }
-
-const URL  = SUPABASE_URL;
-const ANON = SUPABASE_ANON;
+function getSupabaseAnon(): string {
+  return process.env["VITE_SUPABASE_ANON_KEY"] ?? process.env["SUPABASE_ANON_KEY"] ?? "";
+}
 
 export interface AuthedUser {
   id:    string;
@@ -30,7 +24,7 @@ export interface QuotaResult {
 
 /** Per-request Supabase client carrying the caller's JWT — RLS applies as that user. */
 function clientForJwt(jwt: string): SupabaseClient {
-  return createClient(URL, ANON, {
+  return createClient(getSupabaseUrl(), getSupabaseAnon(), {
     global: { headers: { Authorization: `Bearer ${jwt}` } },
     auth:   { persistSession: false, autoRefreshToken: false },
   });

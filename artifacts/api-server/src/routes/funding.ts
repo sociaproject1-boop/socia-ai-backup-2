@@ -13,15 +13,13 @@ import { getServiceClient } from "../lib/adminAuth.js";
 
 const router = Router();
 
-const GLOBAL_ID   = "00000000-0000-0000-0000-000000000001";
-const SUPA_URL    = process.env["VITE_SUPABASE_URL"]  ?? "";
-const SUPA_ANON   = process.env["VITE_SUPABASE_ANON_KEY"] ?? "";
+const GLOBAL_ID = "00000000-0000-0000-0000-000000000001";
 
-/** Lazy anon client for public reads (no user session). */
-let _anon: ReturnType<typeof createClient> | null = null;
+/** Anon client for public reads (no user session). Always reads env at call time. */
 function anonClient() {
-  if (!_anon) _anon = createClient(SUPA_URL, SUPA_ANON, { auth: { persistSession: false } });
-  return _anon;
+  const url  = process.env["VITE_SUPABASE_URL"]      ?? "";
+  const anon = process.env["VITE_SUPABASE_ANON_KEY"] ?? "";
+  return createClient(url, anon, { auth: { persistSession: false } });
 }
 
 /* ── GET /api/funding/progress ─────────────────────────────────────── */

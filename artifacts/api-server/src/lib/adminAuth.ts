@@ -27,7 +27,9 @@ const ADMIN_TTL_HOURS = 8;
  *      mobile / when the Secrets panel is stuck — gitignored)
  * The file fallback exists so admins can still bootstrap the system from a
  * mobile editor where the Secrets UI is unreliable. */
-const SUPABASE_URL  = process.env["VITE_SUPABASE_URL"] ?? process.env["SUPABASE_URL"];
+function getSupabaseUrl(): string {
+  return process.env["VITE_SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "";
+}
 
 function resolveServiceRole(): string | undefined {
   const fromEnv = process.env["SUPABASE_SERVICE_ROLE_KEY"];
@@ -51,23 +53,23 @@ function resolveServiceRole(): string | undefined {
   }
   return undefined;
 }
-const SERVICE_ROLE = resolveServiceRole();
-
 let _service: SupabaseClient | null = null;
 /** Service-role Supabase client (bypasses RLS). Lazy-initialised so the
  *  server still boots if SUPABASE_SERVICE_ROLE_KEY hasn't been added yet —
  *  admin routes will return 503 in that case. */
 export function getServiceClient(): SupabaseClient | null {
   if (_service) return _service;
-  if (!SUPABASE_URL || !SERVICE_ROLE) return null;
-  _service = createClient(SUPABASE_URL, SERVICE_ROLE, {
+  const url = getSupabaseUrl();
+  const role = resolveServiceRole();
+  if (!url || !role) return null;
+  _service = createClient(url, role, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   return _service;
 }
 
 export function isAdminSystemReady(): boolean {
-  return Boolean(SUPABASE_URL && SERVICE_ROLE);
+  return Boolean(getSupabaseUrl() && resolveServiceRole());
 }
 
 export interface AdminClaims {

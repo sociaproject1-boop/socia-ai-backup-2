@@ -17,15 +17,13 @@ import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
 import { getIo } from "../lib/ioInstance.js";
 import { logger } from "../lib/logger.js";
 
-const SUPABASE_URL     = process.env["VITE_SUPABASE_URL"]        ?? process.env["SUPABASE_URL"]        ?? "";
-const SUPABASE_SVC_KEY = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "";
-const SUPABASE_ANON    = process.env["VITE_SUPABASE_ANON_KEY"]   ?? "";
-const OWNER_EMAIL      = (process.env["OWNER_EMAIL"] ?? "allanalbacen5@gmail.com").toLowerCase();
+const OWNER_EMAIL = (process.env["OWNER_EMAIL"] ?? "allanalbacen5@gmail.com").toLowerCase();
 
 /** Service-role client — bypasses RLS. Used for READ-only feed/view queries. */
 function db() {
-  const key = SUPABASE_SVC_KEY || SUPABASE_ANON;
-  return createClient(SUPABASE_URL, key, {
+  const url = process.env["VITE_SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "";
+  const key = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? process.env["VITE_SUPABASE_ANON_KEY"] ?? "";
+  return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
