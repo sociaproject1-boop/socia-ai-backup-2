@@ -5,7 +5,10 @@
  * caption, like/save/comment counts. Backend-connected interactions.
  *
  * Phase 2: removed dot indicators and frame counter badge (TikTok-style).
- * Phase 4: comments open a bottom sheet instead of navigating.
+ * Phase 4: comment tap calls onComment(postId) — CommentsSheet is lifted
+ *           to Home.tsx and rendered as a portal there (same pattern as
+ *           ImmersiveViewer) so it never gets clipped by AppShell's
+ *           overflow-hidden stacking context.
  *
  * Used in Home.tsx. Profile grids use PostThumbnail.tsx instead.
  */
@@ -16,7 +19,6 @@ import {
   Heart, MessageCircle, Bookmark, Eye, MoreHorizontal, BadgeCheck, Flag,
 } from "lucide-react";
 import { VideoPostPlayer } from "./VideoPostPlayer";
-import { CommentsSheet } from "./CommentsSheet";
 import { reportPost } from "@/lib/postsClient";
 import type { SocialPost } from "@/lib/postsClient";
 import { useAppStore } from "@/lib/store";
@@ -62,7 +64,6 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
   const [showMenu,      setShowMenu]      = useState(false);
   const [followWorking, setFollowWorking] = useState(false);
   const [heartBurst,    setHeartBurst]    = useState(false);
-  const [showComments,  setShowComments]  = useState(false);
 
   const lastTap      = useRef(0);
   const touchStartX  = useRef<number | null>(null);
@@ -118,11 +119,9 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
     }
   }, [post, onLike, onOpenViewer, navigate]);
 
-  /* ── Open comments sheet ─────────────────────────────────────────────── */
+  /* ── Open comments sheet — delegates to parent (Home.tsx owns portal) ── */
   const handleCommentClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    setShowComments(true);
-    /* Also call external callback if provided (e.g. ImmersiveViewer) */
     onComment?.(post.id);
   }, [onComment, post.id]);
 
@@ -151,7 +150,6 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
   }, [post.id]);
 
   return (
-    <>
     <div className="border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
       {/* ── Header ───────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 px-4 py-3">
@@ -410,16 +408,5 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
         </div>
       )}
     </div>
-
-    {/* ── TikTok-style comments bottom sheet ───────────────────────── */}
-    {showComments && (
-      <CommentsSheet
-        postId={post.id}
-        initialCount={post.comment_count ?? 0}
-        onClose={() => setShowComments(false)}
-        onCountChange={(delta) => onCommentCountChange?.(post.id, delta)}
-      />
-    )}
-    </>
   );
 }

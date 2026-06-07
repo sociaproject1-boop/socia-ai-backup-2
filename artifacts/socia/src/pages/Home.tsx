@@ -16,6 +16,7 @@ import { Flame, Sparkles, ArrowUp, WifiOff } from "lucide-react";
 import { FeedCard } from "@/components/feed/FeedCard";
 import { SupportSociaBanner } from "@/components/home/SupportSociaBanner";
 import { ImmersiveViewer } from "@/components/feed/ImmersiveViewer";
+import { CommentsSheet } from "@/components/feed/CommentsSheet";
 import { LiveNowSection } from "@/components/live/LiveNowSection";
 import { useFeed, type FeedMode } from "@/lib/useFeed";
 import { useAppStore } from "@/lib/store";
@@ -62,6 +63,9 @@ export default function Home() {
 
   const [feedTab, setFeedTab] = useState<FeedMode>("for-you");
   const [viewerIdx, setViewerIdx] = useState<number | null>(null);
+  /* CommentsSheet — lifted here (same pattern as ImmersiveViewer) so the
+     portal renders at document.body level, outside AppShell's stacking ctx */
+  const [commentPostId, setCommentPostId] = useState<string | null>(null);
 
   const {
     posts,
@@ -77,6 +81,9 @@ export default function Home() {
     updateCommentCount,
     removePost,
   } = useFeed({ mode: feedTab, viewerId: me?.id });
+
+  /* Derive commentPost after posts is declared */
+  const commentPost = posts.find((p) => p.id === commentPostId) ?? null;
 
   /* ── Infinite scroll sentinel ────────────────────────────────────────── */
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -255,6 +262,7 @@ export default function Home() {
                 onSave={handleSave}
                 onDelete={handleDelete}
                 onOpenViewer={handleOpenViewer}
+                onComment={(postId) => setCommentPostId(postId)}
                 onCommentCountChange={updateCommentCount}
               />
             ))}
@@ -278,8 +286,7 @@ export default function Home() {
       )}
     </div>
 
-    {/* ── Immersive fullscreen viewer — rendered into document.body via
-         portal to escape AppShell's GPU transform stacking context ────── */}
+    {/* ── Immersive fullscreen viewer ─────────────────────────────────── */}
     {createPortal(
       <AnimatePresence>
         {viewerIdx !== null && (
@@ -293,6 +300,19 @@ export default function Home() {
           />
         )}
       </AnimatePresence>,
+      document.body
+    )}
+
+    {/* ── Comments bottom sheet — portal at document.body level ────────
+         Lifted out of FeedCard so it escapes AppShell's overflow-hidden.
+         Same pattern as ImmersiveViewer above. ─────────────────────── */}
+    {commentPost && createPortal(
+      <CommentsSheet
+        postId={commentPost.id}
+        initialCount={commentPost.comment_count ?? 0}
+        onClose={() => setCommentPostId(null)}
+        onCountChange={(delta) => updateCommentCount(commentPost.id, delta)}
+      />,
       document.body
     )}
     </>
