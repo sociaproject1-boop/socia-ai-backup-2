@@ -30,7 +30,9 @@ function db() {
 
 function userDb(req: any) {
   const token = ((req.headers["authorization"] as string) ?? "").replace(/^Bearer\s+/i, "");
-  return createClient(SUPABASE_URL, SUPABASE_ANON, {
+  const url  = process.env["VITE_SUPABASE_URL"]      ?? process.env["SUPABASE_URL"]      ?? "";
+  const anon = process.env["VITE_SUPABASE_ANON_KEY"] ?? process.env["SUPABASE_ANON_KEY"] ?? "";
+  return createClient(url, anon, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: `Bearer ${token}` } },
   });
@@ -41,6 +43,8 @@ function userDb(req: any) {
  * Cached after first call to avoid repeated probes.
  */
 let _schemaVersion: "new" | "old" | null = null;
+let _creatorJoinWorks: boolean | null = null;
+
 async function getSchemaVersion(): Promise<"new" | "old"> {
   if (_schemaVersion) return _schemaVersion;
   const svc = db();
@@ -49,12 +53,28 @@ async function getSchemaVersion(): Promise<"new" | "old"> {
   return _schemaVersion;
 }
 
+/** Check once whether a join to users works (FK may not exist). */
+async function canJoinCreator(): Promise<boolean> {
+  if (_creatorJoinWorks !== null) return _creatorJoinWorks;
+  const svc = db();
+  // Try plain join without FK hint — PostgREST auto-detects if FK exists
+  const { error } = await svc
+    .from("sounds")
+    .select("id, creator:users(id)")
+    .limit(0);
+  _creatorJoinWorks = !error;
+  return _creatorJoinWorks;
+}
+
 /** Build the correct SELECT string for the detected schema. */
 async function soundSelect(): Promise<string> {
   const v = await getSchemaVersion();
   if (v === "new") {
-    return `id, title, audio_url, cover_image, source_type, duration_seconds, usage_count, is_active, created_at, creator_id,
-      creator:users!sounds_creator_id_fkey(id, name, username, avatar_url)`;
+    const joinOk = await canJoinCreator();
+    const creatorSel = joinOk
+      ? `, creator:users(id, name, username, avatar_url)`
+      : ``;
+    return `id, title, audio_url, cover_image, source_type, duration_seconds, usage_count, is_active, created_at, creator_id${creatorSel}`;
   }
   return `id, title, url, artist, genre, created_at`;
 }
@@ -167,9 +187,15 @@ router.get("/sounds/:id", async (req, res) => {
 
 /* ── §3  Posts using a sound ───────────────────────────────────────────── */
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 router.get("/sounds/:id/videos", async (req, res) => {
   try {
     const { id } = req.params as { id: string };
+    if (!UUID_RE.test(id)) {
+      res.json({ posts: [], has_more: false });
+      return;
+    }
     const limit  = Math.min(Number(req.query["limit"] ?? 30), 60);
     const offset = Number(req.query["offset"] ?? 0);
 
@@ -177,7 +203,7 @@ router.get("/sounds/:id/videos", async (req, res) => {
       .from("sound_usage")
       .select(`
         post_id,
-        post:posts!sound_usage_post_id_fkey(
+        post:posts(
           id, caption, type, view_count, created_at,
           author:users!posts_author_id_fkey(id, name, username, avatar_url),
           media:post_media(id, url, type, width, height, duration, position)
