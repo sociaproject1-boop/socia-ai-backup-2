@@ -2,20 +2,27 @@
  * routes/sounds.ts — Socia Sound Ecosystem
  *
  * §1  List / search sounds
- * §2  Get single sound + stats
+ * §2  Get single sound
  * §3  Get posts using a sound
  * §4  Create a sound
  * §5  Increment usage (called when associating sound with a post)
  * §6  Trending sounds
+ *
+ * NOTE: The sounds table has two possible schemas:
+ *   OLD (pre-migration 54): id, title, url, artist, genre, created_at
+ *   NEW (post-migration 54): id, title, audio_url, cover_image, creator_id,
+ *                             source_type, duration_seconds, usage_count, is_active, created_at
+ * This route normalises the response so the frontend always sees { audio_url, ... }
+ * regardless of which schema version is running.
  */
 import { Router, type IRouter } from "express";
 import { createClient } from "@supabase/supabase-js";
 import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
 import { logger } from "../lib/logger.js";
 
-const SUPABASE_URL = process.env["VITE_SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "";
+const SUPABASE_URL     = process.env["VITE_SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "";
 const SUPABASE_SVC_KEY = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "";
-const SUPABASE_ANON   = process.env["VITE_SUPABASE_ANON_KEY"] ?? "";
+const SUPABASE_ANON    = process.env["VITE_SUPABASE_ANON_KEY"] ?? "";
 
 function db() {
   const key = SUPABASE_SVC_KEY || SUPABASE_ANON;
@@ -32,28 +39,68 @@ function userDb(req: any) {
   });
 }
 
-const SOUND_SELECT = `
-  id, title, cover_image, audio_url, source_type, duration_seconds, usage_count, created_at, creator_id,
-  creator:users!sounds_creator_id_fkey(id, name, username, avatar_url)
-`;
+/**
+ * Detects which schema version is active by probing for `audio_url`.
+ * Cached after first call to avoid repeated probes.
+ */
+let _schemaVersion: "new" | "old" | null = null;
+async function getSchemaVersion(): Promise<"new" | "old"> {
+  if (_schemaVersion) return _schemaVersion;
+  const svc = db();
+  const { error } = await svc.from("sounds").select("audio_url").limit(0);
+  _schemaVersion = error ? "old" : "new";
+  return _schemaVersion;
+}
+
+/** Build the correct SELECT string for the detected schema. */
+async function soundSelect(): Promise<string> {
+  const v = await getSchemaVersion();
+  if (v === "new") {
+    return `id, title, audio_url, cover_image, source_type, duration_seconds, usage_count, is_active, created_at, creator_id,
+      creator:users!sounds_creator_id_fkey(id, name, username, avatar_url)`;
+  }
+  return `id, title, url, artist, genre, created_at`;
+}
+
+/** Normalise a raw sounds row to always expose { audio_url, cover_image, usage_count, ... } */
+function normaliseSound(row: any): any {
+  if (!row) return row;
+  return {
+    id:               row.id,
+    title:            row.title,
+    audio_url:        row.audio_url ?? row.url ?? null,
+    cover_image:      row.cover_image ?? null,
+    usage_count:      row.usage_count ?? 0,
+    duration_seconds: row.duration_seconds ?? null,
+    source_type:      row.source_type ?? "original",
+    creator_id:       row.creator_id ?? null,
+    creator:          row.creator ?? (row.artist ? { name: row.artist } : null),
+    created_at:       row.created_at,
+  };
+}
 
 const router: IRouter = Router();
 
 /* ── §1  List / search ─────────────────────────────────────────────────── */
 
-router.get("/api/sounds", async (req, res) => {
+router.get("/sounds", async (req, res) => {
   try {
     const svc    = db();
     const q      = (req.query["q"] as string | undefined)?.trim();
     const limit  = Math.min(Number(req.query["limit"] ?? 30), 100);
     const offset = Number(req.query["offset"] ?? 0);
+    const sel    = await soundSelect();
+    const v      = await getSchemaVersion();
 
     let query = svc
       .from("sounds")
-      .select(SOUND_SELECT)
-      .eq("is_active", true)
-      .order("usage_count", { ascending: false })
+      .select(sel)
+      .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
+
+    if (v === "new") {
+      query = (query as any).eq("is_active", true).order("usage_count", { ascending: false });
+    }
 
     if (q) {
       query = query.ilike("title", `%${q}%`);
@@ -62,7 +109,7 @@ router.get("/api/sounds", async (req, res) => {
     const { data, error } = await query;
     if (error) throw error;
 
-    res.json({ sounds: data ?? [] });
+    res.json({ sounds: (data ?? []).map(normaliseSound) });
   } catch (err) {
     logger.error({ err }, "[sounds] list error");
     res.status(500).json({ error: "Failed to load sounds" });
@@ -71,17 +118,25 @@ router.get("/api/sounds", async (req, res) => {
 
 /* ── §6  Trending (by usage_count) ────────────────────────────────────── */
 
-router.get("/api/sounds/trending", async (_req, res) => {
+router.get("/sounds/trending", async (_req, res) => {
   try {
-    const { data, error } = await db()
+    const svc = db();
+    const sel = await soundSelect();
+    const v   = await getSchemaVersion();
+
+    let query = svc
       .from("sounds")
-      .select(SOUND_SELECT)
-      .eq("is_active", true)
-      .order("usage_count", { ascending: false })
+      .select(sel)
+      .order("created_at", { ascending: false })
       .limit(20);
 
+    if (v === "new") {
+      query = (query as any).eq("is_active", true).order("usage_count", { ascending: false });
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
-    res.json({ sounds: data ?? [] });
+    res.json({ sounds: (data ?? []).map(normaliseSound) });
   } catch (err) {
     logger.error({ err }, "[sounds] trending error");
     res.status(500).json({ error: "Failed to load trending sounds" });
@@ -90,12 +145,14 @@ router.get("/api/sounds/trending", async (_req, res) => {
 
 /* ── §2  Get single sound ──────────────────────────────────────────────── */
 
-router.get("/api/sounds/:id", async (req, res) => {
+router.get("/sounds/:id", async (req, res) => {
   try {
     const { id } = req.params as { id: string };
+    const sel    = await soundSelect();
+
     const { data, error } = await db()
       .from("sounds")
-      .select(SOUND_SELECT)
+      .select(sel)
       .eq("id", id)
       .single();
 
@@ -104,7 +161,7 @@ router.get("/api/sounds/:id", async (req, res) => {
       return;
     }
 
-    res.json(data);
+    res.json(normaliseSound(data));
   } catch (err) {
     logger.error({ err }, "[sounds] get error");
     res.status(500).json({ error: "Failed to get sound" });
@@ -113,7 +170,7 @@ router.get("/api/sounds/:id", async (req, res) => {
 
 /* ── §3  Posts using a sound ───────────────────────────────────────────── */
 
-router.get("/api/sounds/:id/videos", async (req, res) => {
+router.get("/sounds/:id/videos", async (req, res) => {
   try {
     const { id } = req.params as { id: string };
     const limit  = Math.min(Number(req.query["limit"] ?? 30), 60);
@@ -152,44 +209,55 @@ router.get("/api/sounds/:id/videos", async (req, res) => {
 
 /* ── §4  Create a sound ────────────────────────────────────────────────── */
 
-router.post("/api/sounds", requireAuth, async (req, res) => {
+router.post("/sounds", requireAuth, async (req, res) => {
   try {
     const { id: userId } = getAuthedUser(req);
-    const { title, cover_image, audio_url, source_type, duration_seconds } =
+    const { title, cover_image, audio_url, source_type, duration_seconds, artist, genre } =
       req.body as Record<string, any>;
 
-    if (!title?.trim() || !audio_url?.trim()) {
+    const audioValue = audio_url?.trim() ?? null;
+    if (!title?.trim() || !audioValue) {
       res.status(400).json({ error: "title and audio_url are required" });
       return;
     }
 
     const udb = userDb(req);
-    const { data, error } = await udb
-      .from("sounds")
-      .insert({
-        title: title.trim(),
+    const v   = await getSchemaVersion();
+
+    let insertData: Record<string, any>;
+    if (v === "new") {
+      insertData = {
+        title:            title.trim(),
         cover_image:      cover_image      ?? null,
-        audio_url:        audio_url.trim(),
+        audio_url:        audioValue,
         creator_id:       userId,
         source_type:      source_type      ?? "user_upload",
         duration_seconds: duration_seconds ?? null,
-      })
-      .select(SOUND_SELECT)
+      };
+    } else {
+      insertData = {
+        title:  title.trim(),
+        url:    audioValue,
+        artist: artist ?? null,
+        genre:  genre  ?? null,
+      };
+    }
+
+    const sel = await soundSelect();
+    const { data, error } = await udb
+      .from("sounds")
+      .insert(insertData)
+      .select(sel)
       .single();
 
     if (error) {
       logger.error({ err: error, userId }, "[sounds] create DB error");
-      const code = (error as any).code as string | undefined;
-      if (code === "42P01") {
-        res.status(500).json({ error: "Sounds table not created — run migration 53 in Supabase SQL editor." });
-      } else {
-        res.status(500).json({ error: error.message ?? "Failed to create sound" });
-      }
+      res.status(500).json({ error: error.message ?? "Failed to create sound" });
       return;
     }
 
-    logger.info({ soundId: data.id, userId }, "[sounds] created");
-    res.status(201).json(data);
+    logger.info({ soundId: (data as any).id, userId }, "[sounds] created");
+    res.status(201).json(normaliseSound(data));
   } catch (err) {
     logger.error({ err }, "[sounds] create error");
     res.status(500).json({ error: "Failed to create sound" });
@@ -198,7 +266,7 @@ router.post("/api/sounds", requireAuth, async (req, res) => {
 
 /* ── §5  Record usage (post → sound association) ───────────────────────── */
 
-router.post("/api/sounds/:id/use", requireAuth, async (req, res) => {
+router.post("/sounds/:id/use", requireAuth, async (req, res) => {
   try {
     const { id: soundId } = req.params as { id: string };
     const { id: userId }  = getAuthedUser(req);
@@ -210,23 +278,29 @@ router.post("/api/sounds/:id/use", requireAuth, async (req, res) => {
     }
 
     const svc = db();
+    const v   = await getSchemaVersion();
 
-    // Upsert usage record
+    const usageRow: Record<string, any> = { sound_id: soundId, post_id };
+    if (v === "new") {
+      usageRow["user_id"] = userId;
+    }
+
     const { error: usageErr } = await svc
       .from("sound_usage")
-      .upsert(
-        { sound_id: soundId, post_id, user_id: userId },
-        { onConflict: "sound_id,post_id" }
-      );
+      .upsert(usageRow, { onConflict: "sound_id,post_id" });
+
     if (usageErr) throw usageErr;
 
-    // Increment usage_count (best-effort)
-    try {
-      const { data: s } = await svc.from("sounds").select("usage_count").eq("id", soundId).single();
-      if (s) {
-        await svc.from("sounds").update({ usage_count: ((s as any).usage_count ?? 0) + 1 }).eq("id", soundId);
-      }
-    } catch { /* non-critical */ }
+    if (v === "new") {
+      try {
+        const { data: s } = await svc.from("sounds").select("usage_count").eq("id", soundId).single();
+        if (s) {
+          await svc.from("sounds")
+            .update({ usage_count: ((s as any).usage_count ?? 0) + 1 })
+            .eq("id", soundId);
+        }
+      } catch { /* non-critical */ }
+    }
 
     res.json({ ok: true });
   } catch (err) {

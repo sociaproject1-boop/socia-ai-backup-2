@@ -43,10 +43,9 @@ function isOwnerUser(req: any): boolean {
 }
 
 const BASE_POST_SELECT = `
-  id, author_id, caption, type, view_count, created_at, updated_at, sound_id,
+  id, author_id, caption, type, view_count, created_at, updated_at,
   author:users!posts_author_id_fkey(id, name, username, avatar_url, is_verified, is_owner, subscription_status),
-  media:post_media(id, url, type, width, height, duration, position),
-  sound:sounds!posts_sound_id_fkey(id, title, cover_image, audio_url, usage_count, creator_id, creator:users!sounds_creator_id_fkey(id, name, username, avatar_url))
+  media:post_media(id, url, type, width, height, duration, position)
 `;
 
 /** Enrich posts with real aggregate counts + viewer like/save status. */
@@ -291,6 +290,7 @@ router.post("/posts", requireAuth as any, async (req, res) => {
     const user = getAuthedUser(req as any);
     const svc  = db();
     const { caption, type = "photo", media = [], sound_id } = req.body ?? {};
+    // sound_id requires migration 53 (sound_id column on posts). Tracked below in try/catch.
 
     const trimmedCaption = caption?.trim() ?? null;
     if ((!media || media.length === 0) && !trimmedCaption) {
@@ -300,7 +300,7 @@ router.post("/posts", requireAuth as any, async (req, res) => {
 
     const { data: post, error: postErr } = await svc
       .from("posts")
-      .insert({ author_id: user.id, caption: caption?.trim() ?? null, type, sound_id: sound_id ?? null })
+      .insert({ author_id: user.id, caption: caption?.trim() ?? null, type })
       .select()
       .single();
 

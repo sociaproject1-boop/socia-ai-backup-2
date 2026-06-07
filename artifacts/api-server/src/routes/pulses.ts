@@ -51,7 +51,7 @@ const router: IRouter = Router();
 
 /* ── §1  Feed ──────────────────────────────────────────────────────────── */
 
-router.get("/api/pulses/feed", requireAuth, async (req, res) => {
+router.get("/pulses/feed", requireAuth, async (req, res) => {
   try {
     const viewerId = getAuthedUser(req).id;
     const svc = db();
@@ -107,7 +107,7 @@ router.get("/api/pulses/feed", requireAuth, async (req, res) => {
 
 /* ── §2  User pulses ───────────────────────────────────────────────────── */
 
-router.get("/api/pulses/user/:userId", requireAuth, async (req, res) => {
+router.get("/pulses/user/:userId", requireAuth, async (req, res) => {
   try {
     const viewerId = getAuthedUser(req).id;
     const { userId } = req.params as { userId: string };
@@ -145,7 +145,7 @@ router.get("/api/pulses/user/:userId", requireAuth, async (req, res) => {
  * Uses userDb() (anon key + caller JWT) so that Supabase RLS evaluates
  * auth.uid() correctly.  This works WITHOUT SUPABASE_SERVICE_ROLE_KEY.
  */
-router.post("/api/pulses", requireAuth, async (req, res) => {
+router.post("/pulses", requireAuth, async (req, res) => {
   try {
     const { id: userId } = getAuthedUser(req);
     const {
@@ -212,7 +212,7 @@ router.post("/api/pulses", requireAuth, async (req, res) => {
 
 /* ── §4  Delete ────────────────────────────────────────────────────────── */
 
-router.delete("/api/pulses/:id", requireAuth, async (req, res) => {
+router.delete("/pulses/:id", requireAuth, async (req, res) => {
   try {
     const { id: userId } = getAuthedUser(req);
     const { id } = req.params as { id: string };
@@ -234,7 +234,7 @@ router.delete("/api/pulses/:id", requireAuth, async (req, res) => {
 
 /* ── §5  Record view ───────────────────────────────────────────────────── */
 
-router.post("/api/pulses/:id/view", requireAuth, async (req, res) => {
+router.post("/pulses/:id/view", requireAuth, async (req, res) => {
   try {
     const { id: viewerId } = getAuthedUser(req);
     const { id: pulseId } = req.params as { id: string };
@@ -260,7 +260,7 @@ router.post("/api/pulses/:id/view", requireAuth, async (req, res) => {
 
 /* ── §6  Get views (owner only) ────────────────────────────────────────── */
 
-router.get("/api/pulses/:id/views", requireAuth, async (req, res) => {
+router.get("/pulses/:id/views", requireAuth, async (req, res) => {
   try {
     const { id: userId } = getAuthedUser(req);
     const { id: pulseId } = req.params as { id: string };
@@ -288,7 +288,7 @@ router.get("/api/pulses/:id/views", requireAuth, async (req, res) => {
 
 /* ── §7  React ─────────────────────────────────────────────────────────── */
 
-router.post("/api/pulses/:id/react", requireAuth, async (req, res) => {
+router.post("/pulses/:id/react", requireAuth, async (req, res) => {
   try {
     const { id: userId } = getAuthedUser(req);
     const { id: pulseId } = req.params as { id: string };
@@ -318,7 +318,7 @@ router.post("/api/pulses/:id/react", requireAuth, async (req, res) => {
 
 /* ── §8  Report ────────────────────────────────────────────────────────── */
 
-router.post("/api/pulses/:id/report", requireAuth, async (req, res) => {
+router.post("/pulses/:id/report", requireAuth, async (req, res) => {
   try {
     const { id: reporterId } = getAuthedUser(req);
     const { id: pulseId } = req.params as { id: string };
@@ -346,7 +346,7 @@ router.post("/api/pulses/:id/report", requireAuth, async (req, res) => {
 
 /* ── §9  Admin ─────────────────────────────────────────────────────────── */
 
-router.get("/api/pulses/admin/reported", requireAuth, async (req, res) => {
+router.get("/pulses/admin/reported", requireAuth, async (req, res) => {
   if (!isAdmin(req)) { res.status(403).json({ error: "Forbidden" }); return; }
   try {
     const svc = db();
@@ -364,7 +364,7 @@ router.get("/api/pulses/admin/reported", requireAuth, async (req, res) => {
   }
 });
 
-router.delete("/api/pulses/admin/:id", requireAuth, async (req, res) => {
+router.delete("/pulses/admin/:id", requireAuth, async (req, res) => {
   if (!isAdmin(req)) { res.status(403).json({ error: "Forbidden" }); return; }
   try {
     const svc = db();
