@@ -25,6 +25,7 @@ import { FounderHero, VerifiedFounderBadge } from "@/components/profile/FounderH
 import { fetchUserPosts, type SocialPost } from "@/lib/postsClient";
 import { ProfileTabs } from "@/components/profile/ProfileTabs";
 import { MutualConnections } from "@/components/profile/MutualConnections";
+import { PeopleYouMayKnow } from "@/components/profile/PeopleYouMayKnow";
 
 function compact(n: number) {
   if (n < 1000) return String(n);
@@ -547,6 +548,7 @@ export default function UserProfile() {
             {/* Socia Profile Tabs — standard layout */}
             <div className="mt-6 -mx-4">
               <MutualConnections profileUserId={userId} viewerId={sessionUid} />
+              <PeopleYouMayKnow viewerId={sessionUid} excludeId={userId} />
               <ProfileTabs
                 userId={userId}
                 viewerId={sessionUid}

@@ -19,6 +19,7 @@ import { fetchUserPosts, fetchSavedFeed, type SocialPost } from "@/lib/postsClie
 import { NameBadges, OnlineDot } from "@/components/Badges";
 import { ProfileTabs } from "@/components/profile/ProfileTabs";
 import { MutualConnections } from "@/components/profile/MutualConnections";
+import { PeopleYouMayKnow } from "@/components/profile/PeopleYouMayKnow";
 import { MomentsComposer } from "@/components/profile/MomentsComposer";
 import {
   FoundingSupporterBadge, SupporterProfileRing, SupporterLabel, getSupporterTier,
@@ -507,6 +508,11 @@ export default function Profile() {
         <span className="flex-1 text-[13px] text-white/30">Write a Moment…</span>
         <span className="text-[10px] font-mono text-white/15">⌘E</span>
       </motion.button>
+
+      {/* ── People You May Know ── */}
+      <div className="mt-4">
+        <PeopleYouMayKnow viewerId={user.id} />
+      </div>
 
       {/* ── Socia Profile Tabs ── */}
       <div className="mt-4">
