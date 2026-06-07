@@ -1,16 +1,20 @@
 /**
- * ImmersiveViewer.tsx — Production TikTok-grade fullscreen media viewer.
+ * ImmersiveViewer.tsx — TikTok-grade fullscreen media viewer.
  *
- * Architecture:
- *  - Rendered via React portal into document.body (escapes AppShell stacking context)
- *  - Videos: auto-mount-play (tries unmuted first, silent muted fallback), auto-pause on unmount
- *  - Images: swipe left/right with momentum; object-contain preserves every aspect ratio
- *  - Swipe up → next post, swipe down → prev post / close, browser back → close
- *  - Right action bar: Avatar → Like → Comment → Save → Share (TikTok order)
- *  - Bottom-left: author + badge + caption + view count
- *  - Adjacent media preloaded via hidden <video preload="auto">
- *  - Comments: opens TikTok-style bottom sheet (does NOT close viewer or navigate)
- *  - No dot indicators, no page counter — clean TikTok-style
+ * Swipe system:
+ *  - Finger drag moves the ENTIRE card (media + all overlays) in real time
+ *  - Uses direct DOM style.transform — zero React re-renders during drag
+ *  - Velocity-based snap: fast flick OR 80px threshold commits navigation
+ *  - Spring-back if gesture cancelled
+ *  - Next/prev card enters from below/above with CSS transition
+ *
+ * Video:
+ *  - Auto-plays on mount, auto-pauses on unmount
+ *  - object-contain: never stretches or crops any aspect ratio
+ *  - No controls, no mute button, no chrome — tap to pause/resume
+ *
+ * Overlays (username, caption, like, comment, share) are INSIDE the card
+ * wrapper so they translate with the card during swipe.
  */
 import {
   useState, useRef, useCallback, useEffect, memo,
@@ -18,7 +22,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart, MessageCircle, Bookmark, Share2,
-  Eye, ChevronLeft, ChevronRight, Play, BadgeCheck,
+  Eye, ChevronLeft, ChevronRight, Play, BadgeCheck, X,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import type { SocialPost } from "@/lib/postsClient";
@@ -29,24 +33,6 @@ function fmtCount(n: number): string {
   if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
 }
-
-/* ── Slide variants (direction-aware) ────────────────────────────────────── */
-const slideVariants = {
-  enter: (dir: number) => ({
-    opacity: 0,
-    y: dir >= 0 ? 48 : -48,
-  }),
-  center: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] as const },
-  },
-  exit: (dir: number) => ({
-    opacity: 0,
-    y: dir >= 0 ? -48 : 48,
-    transition: { duration: 0.18, ease: [0.25, 0.46, 0.45, 0.94] as const },
-  }),
-};
 
 /* ── Props ───────────────────────────────────────────────────────────────── */
 export interface ImmersiveViewerProps {
@@ -61,23 +47,20 @@ export interface ImmersiveViewerProps {
 
 /* ─────────────────────────────────────────────────────────────────────────
    ImmersiveVideo — auto-plays on mount, auto-pauses on unmount.
-   • Attempts unmuted autoplay first (per browser policy)
-   • Falls back to muted silently (no visible error, no mute button)
+   • Attempts unmuted autoplay first; falls back to muted silently
    • object-contain → NEVER stretches or crops
-   • No browser chrome (controls hidden)
+   • No browser chrome, no controls
+   • Tap anywhere on video to pause/resume
 ───────────────────────────────────────────────────────────────────────── */
 const ImmersiveVideo = memo(function ImmersiveVideo({
   url,
-  onSwipeCaptured,
 }: {
-  url:             string;
-  onSwipeCaptured: (v: boolean) => void;
+  url: string;
 }) {
   const videoRef    = useRef<HTMLVideoElement>(null);
   const [playing,   setPlaying]   = useState(false);
   const [buffering, setBuffering] = useState(true);
 
-  /* Auto-play on mount; auto-pause + release on unmount */
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -90,7 +73,6 @@ const ImmersiveVideo = memo(function ImmersiveVideo({
         return v.play().catch(() => {});
       });
     };
-
     tryPlay();
 
     return () => {
@@ -100,7 +82,8 @@ const ImmersiveVideo = memo(function ImmersiveVideo({
     };
   }, [url]);
 
-  const togglePlay = useCallback(() => {
+  const togglePlay = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) v.play().catch(() => {});
@@ -131,13 +114,14 @@ const ImmersiveVideo = memo(function ImmersiveVideo({
         onPause={() => setPlaying(false)}
       />
 
-      {/* Buffering ring */}
+      {/* Buffering spinner */}
       {buffering && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="h-10 w-10 rounded-full border-2 border-white/25 border-t-white animate-spin" />
         </div>
       )}
 
+      {/* Paused indicator */}
       <AnimatePresence>
         {!playing && !buffering && (
           <motion.div
@@ -160,14 +144,13 @@ const ImmersiveVideo = memo(function ImmersiveVideo({
 
 /* ─────────────────────────────────────────────────────────────────────────
    ImmersiveImages — swipe left/right through multi-image posts.
-   No dot indicators (TikTok-style — clean UI).
 ───────────────────────────────────────────────────────────────────────── */
 const ImmersiveImages = memo(function ImmersiveImages({
   media,
-  onSwipeCapture,
+  onHorizontalSwipe,
 }: {
-  media:          SocialPost["media"];
-  onSwipeCapture: (captured: boolean) => void;
+  media: SocialPost["media"];
+  onHorizontalSwipe: (captured: boolean) => void;
 }) {
   const [idx, setIdx] = useState(0);
   const [dir, setDir] = useState(0);
@@ -189,11 +172,11 @@ const ImmersiveImages = memo(function ImmersiveImages({
     const dx = e.changedTouches[0].clientX - touchX.current;
     const dy = Math.abs(e.changedTouches[0].clientY - (touchY.current ?? 0));
     if (Math.abs(dx) > 48 && Math.abs(dx) > dy * 1.5) {
-      onSwipeCapture(true);
+      onHorizontalSwipe(true);
       if (dx < 0 && idx < media.length - 1) goTo(idx + 1);
       if (dx > 0 && idx > 0)               goTo(idx - 1);
     } else {
-      onSwipeCapture(false);
+      onHorizontalSwipe(false);
     }
     touchX.current = null;
     touchY.current = null;
@@ -224,12 +207,10 @@ const ImmersiveImages = memo(function ImmersiveImages({
             height: "auto",
             objectFit: "contain",
             display: "block",
-            imageRendering: "auto",
           }}
         />
       </AnimatePresence>
 
-      {/* Edge tap zones for non-touch — no visual indicators */}
       {idx > 0 && (
         <button
           aria-label="Previous image"
@@ -253,14 +234,14 @@ const ImmersiveImages = memo(function ImmersiveImages({
 });
 
 /* ─────────────────────────────────────────────────────────────────────────
-   CaptionText — expands on "see more" tap
+   CaptionText — expands on tap
 ───────────────────────────────────────────────────────────────────────── */
 function CaptionText({ caption }: { caption: string }) {
   const [expanded, setExpanded] = useState(false);
   const isLong = caption.length > 90;
 
   return (
-    <div>
+    <div onClick={(e) => e.stopPropagation()}>
       <p
         className="text-[13px] leading-snug text-white/90"
         style={expanded ? undefined : {
@@ -285,191 +266,95 @@ function CaptionText({ caption }: { caption: string }) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   ImmersiveViewer — main orchestrator.
-   Rendered into document.body via React portal in Home.tsx.
+   PostCard — one full-screen card.
+   Contains media + gradient + all overlays.
+   enterFrom: "bottom" | "top" | "none" — for enter animation
 ───────────────────────────────────────────────────────────────────────── */
-export function ImmersiveViewer({
-  posts,
-  startIndex,
-  onClose,
-  onLike,
-  onSave,
-  onComment,
-  onCommentCountChange,
-}: ImmersiveViewerProps) {
-  const [, navigate]  = useLocation();
-  const [postIdx, setPostIdx]       = useState(startIndex);
-  const [swipeDir, setSwipeDir]     = useState(1);
-  const [heartBurst, setHeartBurst] = useState(false);
-  /* Local comment count state so the button label updates without closing viewer */
-  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+interface PostCardProps {
+  post:           SocialPost;
+  enterFrom:      "bottom" | "top" | "none";
+  cardRef:        React.RefObject<HTMLDivElement | null>;
+  heartBurst:     boolean;
+  commentCount:   number;
+  onLike:         () => void;
+  onSave:         () => void;
+  onComment:      () => void;
+  onShare:        () => void;
+  onClose:        () => void;
+  onDoubleTap:    () => void;
+  onHSwipe:       (v: boolean) => void;
+  navigate:       (path: string) => void;
+}
 
-  const touchStartY   = useRef<number | null>(null);
-  const touchStartX   = useRef<number | null>(null);
-  const swipeCaptured = useRef(false);
-
-  const post   = posts[postIdx];
-  const author = post?.author;
-
-  /* Derive comment count: prefer local delta over post.comment_count */
-  const commentCount = (post?.comment_count ?? 0) + (commentCounts[post?.id] ?? 0);
-
-  /* Handle comment count delta from CommentsSheet */
-  const handleCommentCountChange = useCallback((delta: number) => {
-    if (!post) return;
-    setCommentCounts((prev) => ({
-      ...prev,
-      [post.id]: (prev[post.id] ?? 0) + delta,
-    }));
-    onCommentCountChange?.(post.id, delta);
-  }, [post, onCommentCountChange]);
-
-  /* Escape key / hardware back → close */
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-
-    window.history.pushState({ immersiveViewer: true }, "");
-    const onPop = () => onClose();
-    window.addEventListener("popstate", onPop);
-
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("popstate", onPop);
-    };
-  }, [onClose]);
-
-  /* Lock body scroll while open */
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
-  }, []);
-
-  /* Double-tap to like */
-  const lastTap = useRef(0);
-  const handleTap = useCallback(() => {
-    const now = Date.now();
-    if (now - lastTap.current < 300) {
-      if (!post?.has_liked) {
-        onLike(post.id);
-        setHeartBurst(true);
-        setTimeout(() => setHeartBurst(false), 900);
-      }
-      lastTap.current = 0;
-    } else {
-      lastTap.current = now;
-    }
-  }, [post, onLike]);
-
-  /* Vertical swipe navigation */
-  const onTouchStart = (e: React.TouchEvent) => {
-    touchStartY.current = e.touches[0].clientY;
-    touchStartX.current = e.touches[0].clientX;
-    swipeCaptured.current = false;
-  };
-
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartY.current === null || swipeCaptured.current) return;
-    const dy = e.changedTouches[0].clientY - touchStartY.current;
-    const dx = Math.abs(e.changedTouches[0].clientX - (touchStartX.current ?? 0));
-    if (Math.abs(dy) > 72 && Math.abs(dy) > dx * 1.2) {
-      if (dy > 0) {
-        setSwipeDir(-1);
-        if (postIdx > 0) setPostIdx((i) => i - 1);
-        else onClose();
-      } else {
-        setSwipeDir(1);
-        if (postIdx < posts.length - 1) setPostIdx((i) => i + 1);
-      }
-    }
-    touchStartY.current = null;
-    touchStartX.current = null;
-  };
-
-  if (!post) { onClose(); return null; }
-
+const PostCard = memo(function PostCard({
+  post, enterFrom, cardRef, heartBurst,
+  commentCount, onLike, onSave, onComment, onShare, onClose,
+  onDoubleTap, onHSwipe, navigate,
+}: PostCardProps) {
+  const author     = post.author;
   const firstMedia = post.media?.[0];
   const isVideo    = firstMedia?.type === "video";
   const safeBottom = "env(safe-area-inset-bottom, 0px)";
 
+  /* Enter animation via CSS: start translated off-screen, then transition to 0 */
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el || enterFrom === "none") return;
+    const startY = enterFrom === "bottom" ? "100%" : "-100%";
+    el.style.transform = `translate3d(0, ${startY}, 0)`;
+    el.style.transition = "none";
+    /* Force reflow before animating */
+    void el.offsetHeight;
+    el.style.transition = "transform 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
+    el.style.transform  = "translate3d(0, 0, 0)";
+    const cleanup = () => {
+      if (el) el.style.transition = "";
+    };
+    const t = setTimeout(cleanup, 300);
+    return () => clearTimeout(t);
+  }, []); // run once on mount
+
   return (
-    <>
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.15 }}
-      className="fixed inset-0 bg-black"
-      style={{ zIndex: 99999, touchAction: "none", overflow: "hidden" }}
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
-      onClick={handleTap}
-      onContextMenu={(e) => e.preventDefault()}
+    <div
+      ref={cardRef}
+      className="absolute inset-0 will-change-transform"
+      style={{ background: "black" }}
     >
+      {/* ── Media layer ─────────────────────────────────────────────── */}
+      {isVideo ? (
+        <ImmersiveVideo url={firstMedia!.url} />
+      ) : (
+        <ImmersiveImages media={post.media} onHorizontalSwipe={onHSwipe} />
+      )}
 
-      {/* ── Adjacent-post preloaders (hidden) — warm browser cache ──── */}
-      {[-1, 1].map((offset) => {
-        const adj      = posts[postIdx + offset];
-        const adjMedia = adj?.media?.[0];
-        if (!adj || !adjMedia) return null;
-        return adjMedia.type === "video" ? (
-          <video
-            key={`preload-${adj.id}`}
-            src={adjMedia.url}
-            preload="auto"
-            muted
-            playsInline
-            aria-hidden
-            style={{ position: "absolute", width: 0, height: 0, opacity: 0, pointerEvents: "none" }}
-          />
-        ) : (
-          <link
-            key={`preload-${adj.id}`}
-            rel="preload"
-            as="image"
-            href={adjMedia.url}
-          />
-        );
-      })}
-
-      {/* ── Media layer — direction-aware slide ───────────────────────── */}
-      <AnimatePresence mode="sync" initial={false} custom={swipeDir}>
-        <motion.div
-          key={`post-${postIdx}`}
-          className="absolute inset-0"
-          custom={swipeDir}
-          variants={slideVariants}
-          initial="enter"
-          animate="center"
-          exit="exit"
-        >
-          {isVideo ? (
-            <ImmersiveVideo
-              url={firstMedia!.url}
-              onSwipeCaptured={(v) => { swipeCaptured.current = v; }}
-            />
-          ) : (
-            <ImmersiveImages
-              media={post.media}
-              onSwipeCapture={(c) => { swipeCaptured.current = c; }}
-            />
-          )}
-        </motion.div>
-      </AnimatePresence>
-
-      {/* ── Bottom gradient — protects caption readability ────────────── */}
+      {/* ── Bottom gradient — protects readability ───────────────────── */}
       <div
         className="pointer-events-none absolute inset-x-0 bottom-0 z-10"
         style={{
-          height: 340,
-          background: "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.55) 45%, transparent 100%)",
+          height: 380,
+          background: "linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.55) 45%, transparent 100%)",
         }}
       />
 
-      {/* ── Right action bar — TikTok order: Avatar→Like→Comment→Save→Share */}
+      {/* ── Top gradient — for close button ─────────────────────────── */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 z-10"
+        style={{
+          height: 120,
+          background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)",
+        }}
+      />
+
+      {/* ── Close button ────────────────────────────────────────────── */}
+      <button
+        className="absolute top-4 left-4 z-40 grid h-9 w-9 place-items-center rounded-full bg-black/40 backdrop-blur-sm"
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
+        aria-label="Close"
+      >
+        <X className="h-5 w-5 text-white" />
+      </button>
+
+      {/* ── Right action bar ─────────────────────────────────────────── */}
       <div
         className="absolute right-3 z-30 flex flex-col items-center gap-5"
         style={{ bottom: `calc(${safeBottom} + 84px)` }}
@@ -477,7 +362,7 @@ export function ImmersiveViewer({
         onTouchStart={(e) => e.stopPropagation()}
         onTouchEnd={(e) => e.stopPropagation()}
       >
-        {/* Profile avatar */}
+        {/* Avatar */}
         <button
           className="relative"
           onClick={() => { onClose(); navigate(`/profile/${author?.id}`); }}
@@ -506,7 +391,7 @@ export function ImmersiveViewer({
         {/* Like */}
         <motion.button
           whileTap={{ scale: 0.78 }}
-          onClick={() => onLike(post.id)}
+          onClick={onLike}
           className="flex flex-col items-center gap-1"
           aria-label="Like"
         >
@@ -523,26 +408,23 @@ export function ImmersiveViewer({
           </span>
         </motion.button>
 
-        {/* Comment — delegates to Home.tsx via onComment prop */}
+        {/* Comment */}
         <motion.button
           whileTap={{ scale: 0.78 }}
-          onClick={() => { console.log("[ImmersiveViewer] comment tapped, postId=", post.id); onComment(post.id); }}
+          onClick={onComment}
           className="flex flex-col items-center gap-1"
           aria-label="Comment"
         >
-          <MessageCircle
-            className="h-7 w-7 drop-shadow-lg"
-            style={{ color: "white" }}
-          />
+          <MessageCircle className="h-7 w-7 drop-shadow-lg text-white" />
           <span className="text-[11px] font-semibold text-white drop-shadow leading-none">
             {fmtCount(commentCount)}
           </span>
         </motion.button>
 
-        {/* Save / Bookmark */}
+        {/* Save */}
         <motion.button
           whileTap={{ scale: 0.78 }}
-          onClick={() => onSave(post.id)}
+          onClick={onSave}
           className="flex flex-col items-center gap-1"
           aria-label={post.has_saved ? "Unsave" : "Save"}
         >
@@ -562,14 +444,7 @@ export function ImmersiveViewer({
         {/* Share */}
         <motion.button
           whileTap={{ scale: 0.78 }}
-          onClick={() => {
-            if (navigator.share) {
-              navigator.share({
-                title: post.caption ?? "Check this out on Socia",
-                url:   `${window.location.origin}/post/${post.id}`,
-              }).catch(() => {});
-            }
-          }}
+          onClick={onShare}
           className="flex flex-col items-center gap-1"
           aria-label="Share"
         >
@@ -578,7 +453,7 @@ export function ImmersiveViewer({
         </motion.button>
       </div>
 
-      {/* ── Bottom-left — author + caption + views ─────────────────────── */}
+      {/* ── Bottom-left — author + caption + views ───────────────────── */}
       <div
         className="absolute left-0 z-20 flex flex-col gap-2"
         style={{
@@ -643,7 +518,7 @@ export function ImmersiveViewer({
         </div>
       </div>
 
-      {/* ── Double-tap heart burst ─────────────────────────────────────── */}
+      {/* ── Double-tap heart burst ────────────────────────────────────── */}
       <AnimatePresence>
         {heartBurst && (
           <motion.div
@@ -658,8 +533,250 @@ export function ImmersiveViewer({
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
 
-    </>
+      {/* ── Tap capture for double-tap-to-like ──────────────────────── */}
+      <div
+        className="absolute inset-0 z-[5]"
+        onClick={onDoubleTap}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        style={{ pointerEvents: "none" }}
+      />
+    </div>
+  );
+});
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ImmersiveViewer — main orchestrator.
+   Renders via portal into document.body.
+
+   Swipe system:
+    - touchstart: capture y0, timestamp
+    - touchmove: directly update cardRef.current.style.transform (no setState)
+    - touchend: velocity = dy/dt
+        • if |dy|>80 or velocity>0.35 → commit navigation
+        • else → CSS spring back to 0
+───────────────────────────────────────────────────────────────────────── */
+export function ImmersiveViewer({
+  posts,
+  startIndex,
+  onClose,
+  onLike,
+  onSave,
+  onComment,
+  onCommentCountChange,
+}: ImmersiveViewerProps) {
+  const [, navigate]  = useLocation();
+  const [postIdx, setPostIdx]       = useState(startIndex);
+  const [enterFrom, setEnterFrom]   = useState<"bottom" | "top" | "none">("none");
+  const [heartBurst, setHeartBurst] = useState(false);
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+
+  const cardRef         = useRef<HTMLDivElement>(null);
+  const touchStartY     = useRef<number | null>(null);
+  const touchStartTime  = useRef<number>(0);
+  const touchStartX     = useRef<number | null>(null);
+  const hSwipeCaptured  = useRef(false);
+  const navigating      = useRef(false);
+
+  const post         = posts[postIdx];
+  const commentCount = (post?.comment_count ?? 0) + (commentCounts[post?.id] ?? 0);
+
+  /* ── Escape + browser back ─────────────────────────────────────────── */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    window.history.pushState({ immersiveViewer: true }, "");
+    const onPop = () => onClose();
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("popstate", onPop);
+    };
+  }, [onClose]);
+
+  /* ── Lock body scroll ──────────────────────────────────────────────── */
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  /* ── Double-tap to like ────────────────────────────────────────────── */
+  const lastTap = useRef(0);
+  const handleDoubleTap = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTap.current < 300) {
+      if (!post?.has_liked) {
+        onLike(post.id);
+        setHeartBurst(true);
+        setTimeout(() => setHeartBurst(false), 900);
+      }
+      lastTap.current = 0;
+    } else {
+      lastTap.current = now;
+    }
+  }, [post, onLike]);
+
+  /* ── Navigate to a post index ──────────────────────────────────────── */
+  const navigateTo = useCallback((nextIdx: number, direction: "bottom" | "top") => {
+    if (nextIdx < 0) { onClose(); return; }
+    if (nextIdx >= posts.length) return;
+    setEnterFrom(direction);
+    setPostIdx(nextIdx);
+    navigating.current = false;
+  }, [posts.length, onClose]);
+
+  /* ── Touch handlers — real-time drag + velocity snap ──────────────── */
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    /* Don't intercept touches on interactive overlays */
+    const target = e.target as HTMLElement;
+    if (target.closest("button") || target.closest("[data-no-swipe]")) return;
+
+    touchStartY.current    = e.touches[0].clientY;
+    touchStartX.current    = e.touches[0].clientX;
+    touchStartTime.current = Date.now();
+    hSwipeCaptured.current = false;
+    navigating.current     = false;
+
+    const el = cardRef.current;
+    if (el) {
+      el.style.transition = "none";
+    }
+  }, []);
+
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
+    if (touchStartY.current === null || hSwipeCaptured.current || navigating.current) return;
+
+    const dy = e.touches[0].clientY - touchStartY.current;
+    const dx = Math.abs(e.touches[0].clientX - (touchStartX.current ?? 0));
+
+    /* If clearly a horizontal swipe (for image carousels), don't move card */
+    if (dx > Math.abs(dy) * 1.5 && dx > 20) {
+      hSwipeCaptured.current = true;
+      return;
+    }
+
+    const el = cardRef.current;
+    if (!el) return;
+
+    /* Add resistance at the edges */
+    let resistedDy = dy;
+    if ((dy < 0 && postIdx >= posts.length - 1) ||
+        (dy > 0 && postIdx <= 0)) {
+      resistedDy = dy * 0.25;
+    }
+
+    el.style.transform = `translate3d(0, ${resistedDy}px, 0)`;
+  }, [postIdx, posts.length]);
+
+  const onTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (touchStartY.current === null || hSwipeCaptured.current || navigating.current) return;
+
+    const dy        = e.changedTouches[0].clientY - touchStartY.current;
+    const dt        = Date.now() - touchStartTime.current;
+    const velocity  = Math.abs(dy) / Math.max(dt, 1); /* px/ms */
+    const el        = cardRef.current;
+
+    const shouldNav = (Math.abs(dy) > 80 || velocity > 0.35) &&
+                      Math.abs(dy) > Math.abs(e.changedTouches[0].clientX - (touchStartX.current ?? 0));
+
+    touchStartY.current = null;
+    touchStartX.current = null;
+
+    if (!shouldNav || !el) {
+      /* Spring back */
+      if (el) {
+        el.style.transition = "transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)";
+        el.style.transform  = "translate3d(0, 0, 0)";
+      }
+      return;
+    }
+
+    navigating.current = true;
+
+    /* Snap card off-screen in the swipe direction */
+    const targetY = dy > 0 ? window.innerHeight : -window.innerHeight;
+    el.style.transition = "transform 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
+    el.style.transform  = `translate3d(0, ${targetY}px, 0)`;
+
+    /* After snap animation, switch post */
+    setTimeout(() => {
+      if (dy > 0) {
+        /* Swipe down → previous post */
+        navigateTo(postIdx - 1, "top");
+      } else {
+        /* Swipe up → next post */
+        navigateTo(postIdx + 1, "bottom");
+      }
+    }, 200);
+  }, [postIdx, navigateTo]);
+
+  if (!post) { onClose(); return null; }
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: post.caption ?? "Check this out on Socia",
+        url:   `${window.location.origin}/post/${post.id}`,
+      }).catch(() => {});
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.15 }}
+      className="fixed inset-0 bg-black overflow-hidden"
+      style={{ zIndex: 99999, touchAction: "pan-x" }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      {/* Adjacent post preloaders */}
+      {[-1, 1].map((offset) => {
+        const adj      = posts[postIdx + offset];
+        const adjMedia = adj?.media?.[0];
+        if (!adj || !adjMedia) return null;
+        return adjMedia.type === "video" ? (
+          <video
+            key={`preload-${adj.id}`}
+            src={adjMedia.url}
+            preload="auto"
+            muted
+            playsInline
+            aria-hidden
+            style={{ position: "absolute", width: 0, height: 0, opacity: 0, pointerEvents: "none" }}
+          />
+        ) : (
+          <img
+            key={`preload-${adj.id}`}
+            src={adjMedia.url}
+            aria-hidden
+            style={{ position: "absolute", width: 0, height: 0, opacity: 0, pointerEvents: "none" }}
+          />
+        );
+      })}
+
+      {/* The card — remounts on postIdx change, enters from correct direction */}
+      <PostCard
+        key={`card-${postIdx}`}
+        post={post}
+        enterFrom={enterFrom}
+        cardRef={cardRef}
+        heartBurst={heartBurst}
+        commentCount={commentCount}
+        onLike={() => onLike(post.id)}
+        onSave={() => onSave(post.id)}
+        onComment={() => onComment(post.id)}
+        onShare={handleShare}
+        onClose={onClose}
+        onDoubleTap={handleDoubleTap}
+        onHSwipe={(v) => { hSwipeCaptured.current = v; }}
+        navigate={navigate}
+      />
+    </motion.div>
   );
 }

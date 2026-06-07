@@ -1,17 +1,17 @@
 /**
  * VideoPostPlayer.tsx — Inline video for the social feed.
  *
- * Features:
- * - Autoplay when ≥ 50% visible (IntersectionObserver)
+ * TikTok-style: clean, no visible controls.
+ * - Autoplay when ≥ 40% visible (IntersectionObserver)
  * - Pause when scrolled offscreen
- * - Muted by default, tap to unmute
+ * - Muted by default (browser policy)
+ * - Tap to toggle play/pause
  * - Loop playback
- * - Fullscreen on demand
- * - Never crashes — all errors are silent (shows poster fallback)
+ * - NO speaker button, NO fullscreen button, NO chrome
  */
 import { useRef, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Volume2, VolumeX, Maximize2, Play, Pause } from "lucide-react";
+import { Play } from "lucide-react";
 
 interface Props {
   url: string;
@@ -24,12 +24,11 @@ export function VideoPostPlayer({
   url,
   posterUrl,
   aspectRatio = "4/5",
-  autoplayThreshold = 0.5,
+  autoplayThreshold = 0.4,
 }: Props) {
-  const videoRef    = useRef<HTMLVideoElement>(null);
+  const videoRef     = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [playing,  setPlaying]  = useState(false);
-  const [muted,    setMuted]    = useState(true);
   const [started,  setStarted]  = useState(false);
   const [errored,  setErrored]  = useState(false);
 
@@ -45,8 +44,10 @@ export function VideoPostPlayer({
         if (!video || errored) return;
 
         if (entry.isIntersecting && entry.intersectionRatio >= autoplayThreshold) {
-          video.muted = true; setMuted(true);
-          video.play().then(() => { setPlaying(true); setStarted(true); }).catch(() => {});
+          video.muted = true;
+          video.play()
+            .then(() => { setPlaying(true); setStarted(true); })
+            .catch(() => {});
         } else {
           video.pause();
           setPlaying(false);
@@ -63,31 +64,13 @@ export function VideoPostPlayer({
     const video = videoRef.current;
     if (!video) return;
     if (playing) {
-      video.pause(); setPlaying(false);
+      video.pause();
+      setPlaying(false);
     } else {
       video.play().then(() => setPlaying(true)).catch(() => {});
       setStarted(true);
     }
   }, [playing]);
-
-  const toggleMute = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    const video = videoRef.current;
-    if (!video) return;
-    video.muted = !video.muted;
-    setMuted(video.muted);
-  }, []);
-
-  const openFullscreen = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    const video = videoRef.current;
-    if (!video) return;
-    if ((video as any).webkitEnterFullscreen) {
-      (video as any).webkitEnterFullscreen();
-    } else if (video.requestFullscreen) {
-      video.requestFullscreen().catch(() => {});
-    }
-  }, []);
 
   if (errored && posterUrl) {
     return (
@@ -122,7 +105,7 @@ export function VideoPostPlayer({
         style={{ display: "block" }}
       />
 
-      {/* Play/pause tap overlay */}
+      {/* Play overlay — only shown when paused */}
       <AnimatePresence>
         {!playing && (
           <motion.div
@@ -134,38 +117,11 @@ export function VideoPostPlayer({
             className="pointer-events-none absolute inset-0 flex items-center justify-center"
           >
             <div className="grid h-14 w-14 place-items-center rounded-full bg-black/50 backdrop-blur-sm">
-              {started ? (
-                <Pause className="h-6 w-6 text-white" />
-              ) : (
-                <Play className="h-6 w-6 fill-white text-white" />
-              )}
+              <Play className="h-6 w-6 fill-white text-white ml-0.5" />
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Controls — bottom-right */}
-      <div
-        className="absolute bottom-3 right-3 flex gap-2"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={toggleMute}
-          className="grid h-8 w-8 place-items-center rounded-full bg-black/60 backdrop-blur-sm"
-        >
-          {muted ? (
-            <VolumeX className="h-3.5 w-3.5 text-white" />
-          ) : (
-            <Volume2 className="h-3.5 w-3.5 text-white" />
-          )}
-        </button>
-        <button
-          onClick={openFullscreen}
-          className="grid h-8 w-8 place-items-center rounded-full bg-black/60 backdrop-blur-sm"
-        >
-          <Maximize2 className="h-3.5 w-3.5 text-white" />
-        </button>
-      </div>
     </div>
   );
 }
