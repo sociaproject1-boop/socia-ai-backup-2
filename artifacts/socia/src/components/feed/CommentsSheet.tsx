@@ -164,6 +164,7 @@ function CommentRow({ comment, postId, me, onReplyClick, onNewReply }: CommentRo
 }
 
 export function CommentsSheet({ postId, initialCount, onClose, onCountChange }: Props) {
+  console.log("[CommentsSheet] rendered, postId=", postId);
   const me = useAppStore((s) => s.user);
   const [comments, setComments]         = useState<Comment[]>([]);
   const [loading, setLoading]           = useState(true);
@@ -174,6 +175,11 @@ export function CommentsSheet({ postId, initialCount, onClose, onCountChange }: 
   const listRef                         = useRef<HTMLDivElement>(null);
   const inputRef                        = useRef<HTMLInputElement>(null);
   const seenIds                         = useRef(new Set<string>());
+
+  useEffect(() => {
+    console.log("[CommentsSheet] MOUNTED, postId=", postId);
+    return () => console.log("[CommentsSheet] UNMOUNTED");
+  }, [postId]);
 
   /* ── Load initial comments ────────────────────────────────────────────── */
   useEffect(() => {
@@ -433,5 +439,6 @@ export function CommentsSheet({ postId, initialCount, onClose, onCountChange }: 
     </AnimatePresence>
   );
 
+  console.log("[CommentsSheet] portal rendered to document.body");
   return createPortal(sheet, document.body);
 }

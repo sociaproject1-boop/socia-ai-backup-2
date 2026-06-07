@@ -82,8 +82,9 @@ export default function Home() {
     removePost,
   } = useFeed({ mode: feedTab, viewerId: me?.id });
 
-  /* Derive commentPost after posts is declared */
+  /* Derive commentPost after posts is declared — only for initialCount */
   const commentPost = posts.find((p) => p.id === commentPostId) ?? null;
+  console.log("[Home] commentPostId=", commentPostId, "commentPost=", commentPost?.id ?? "null", "posts.length=", posts.length);
 
   /* ── Infinite scroll sentinel ────────────────────────────────────────── */
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -262,7 +263,10 @@ export default function Home() {
                 onSave={handleSave}
                 onDelete={handleDelete}
                 onOpenViewer={handleOpenViewer}
-                onComment={(postId) => setCommentPostId(postId)}
+                onComment={(postId) => {
+                console.log("[Home] onComment callback fired, postId=", postId);
+                setCommentPostId(postId);
+              }}
                 onCommentCountChange={updateCommentCount}
               />
             ))}
@@ -303,17 +307,20 @@ export default function Home() {
       document.body
     )}
 
-    {/* ── Comments bottom sheet — portal at document.body level ────────
-         Lifted out of FeedCard so it escapes AppShell's overflow-hidden.
-         Same pattern as ImmersiveViewer above. ─────────────────────── */}
-    {commentPost && createPortal(
+    {/* ── Comments bottom sheet ────────────────────────────────────────
+         CommentsSheet already calls createPortal(sheet, document.body)
+         internally — do NOT wrap it in another portal or it double-portals
+         and React silently discards the inner render. Just mount it. ── */}
+    {commentPostId && (
       <CommentsSheet
-        postId={commentPost.id}
-        initialCount={commentPost.comment_count ?? 0}
-        onClose={() => setCommentPostId(null)}
-        onCountChange={(delta) => updateCommentCount(commentPost.id, delta)}
-      />,
-      document.body
+        postId={commentPostId}
+        initialCount={commentPost?.comment_count ?? 0}
+        onClose={() => {
+          console.log("[Home] CommentsSheet onClose fired");
+          setCommentPostId(null);
+        }}
+        onCountChange={(delta) => updateCommentCount(commentPostId, delta)}
+      />
     )}
     </>
   );

@@ -122,7 +122,9 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
   /* ── Open comments sheet — delegates to parent (Home.tsx owns portal) ── */
   const handleCommentClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
+    console.log("[FeedCard] comment button clicked, postId=", post.id, "onComment=", typeof onComment);
     onComment?.(post.id);
+    console.log("[FeedCard] onComment fired");
   }, [onComment, post.id]);
 
   /* ── Follow / unfollow ──────────────────────────────────────────────── */
