@@ -5,7 +5,7 @@
  */
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Feather, Send } from "lucide-react";
+import { X, Feather } from "lucide-react";
 import { createTextPost, type SocialPost } from "@/lib/postsClient";
 
 const MAX_CHARS = 500;
@@ -66,7 +66,7 @@ export function MomentsComposer({ open, onClose, onPosted }: Props) {
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop */}
+          {/* Backdrop — above bottom nav */}
           <motion.div
             key="backdrop"
             initial={{ opacity: 0 }}
@@ -74,23 +74,23 @@ export function MomentsComposer({ open, onClose, onPosted }: Props) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={onClose}
-            className="fixed inset-0 z-40"
-            style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)" }}
+            className="fixed inset-0 z-[60]"
+            style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)" }}
           />
 
-          {/* Bottom sheet */}
+          {/* Bottom sheet — z-[70] ensures it sits above the fixed bottom nav */}
           <motion.div
             key="sheet"
             initial={{ y: "100%", opacity: 0.6 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: "100%", opacity: 0 }}
             transition={{ type: "spring", stiffness: 380, damping: 38, mass: 0.9 }}
-            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-[28px] overflow-hidden"
+            className="fixed bottom-0 left-0 right-0 z-[70] rounded-t-[28px] overflow-hidden"
             style={{
               background: "linear-gradient(160deg,#0d0b1e 0%,#0a0c1a 100%)",
               border:     "1px solid rgba(168,85,247,0.18)",
               borderBottom: "none",
-              paddingBottom: "env(safe-area-inset-bottom,16px)",
+              paddingBottom: "env(safe-area-inset-bottom,20px)",
               maxWidth: 520,
               margin: "0 auto",
             }}
@@ -196,12 +196,10 @@ export function MomentsComposer({ open, onClose, onPosted }: Props) {
                 className="flex items-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-bold text-white transition-opacity disabled:opacity-35"
                 style={{ background: "linear-gradient(135deg,#a855f7,#ec4899,#3b82f6)" }}
               >
-                {posting ? (
+                {posting && (
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                ) : (
-                  <Send className="h-3.5 w-3.5" />
                 )}
-                {posting ? "Posting…" : "Post Moment"}
+                {posting ? "Posting…" : "Post"}
               </motion.button>
             </div>
 

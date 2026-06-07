@@ -467,8 +467,15 @@ export default function PostDetail() {
           </div>
         )}
 
-        {/* Actions row */}
-        <div className="flex items-center gap-1 px-3 pt-4">
+        {/* Caption — appears directly below media */}
+        {post.caption && (
+          <div className="px-4 pt-3 pb-1">
+            <p className="text-[15px] leading-relaxed app-text">{post.caption}</p>
+          </div>
+        )}
+
+        {/* Actions row — below caption */}
+        <div className="flex items-center gap-1 px-3 pt-2 pb-1" style={{ borderTop: "1px solid rgba(255,255,255,0.05)", marginTop: post.caption ? 8 : 0 }}>
           <motion.button whileTap={{ scale: 0.82 }} onClick={handleLike}
             className="flex items-center gap-1.5 rounded-full px-3 py-2">
             <Heart className="h-5 w-5 transition-colors"
@@ -497,8 +504,8 @@ export default function PostDetail() {
             <Share2 className="h-5 w-5" style={{ color: "rgba(255,255,255,0.7)" }} />
           </motion.button>
 
-          {/* Tip creator button — hidden for own posts */}
-          {!isMe && (
+          {/* Tip creator — only show if author is monetized and post is not mine */}
+          {!isMe && post.author?.is_monetized && (
             <motion.button
               whileTap={{ scale: 0.82 }}
               onClick={() => { setTipResult(null); setTipOpen(true); }}
@@ -515,13 +522,6 @@ export default function PostDetail() {
             <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.35)" }}>{fmtCount(post.view_count ?? 0)}</span>
           </div>
         </div>
-
-        {/* Caption */}
-        {post.caption && (
-          <div className="px-4 pt-1 pb-3">
-            <p className="text-sm leading-relaxed app-text">{post.caption}</p>
-          </div>
-        )}
 
         {/* Comments section */}
         <div className="border-t px-4 pt-4" style={{ borderColor: "rgba(255,255,255,0.07)" }}>

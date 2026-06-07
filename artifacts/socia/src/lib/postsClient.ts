@@ -31,6 +31,7 @@ export interface PostAuthor {
   is_verified: boolean;
   is_owner: boolean;
   subscription_status?: string;
+  is_monetized?: boolean;
 }
 
 export interface SocialPost {

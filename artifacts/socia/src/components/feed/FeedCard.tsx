@@ -337,8 +337,36 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
         </div>
       )}
 
+      {/* ── Caption (text posts: shown BEFORE actions; media posts: after actions) ── */}
+      {post.caption && media.length === 0 && (
+        <div className="px-4 pt-2 pb-1">
+          <p
+            className="text-[15px] leading-relaxed app-text"
+            style={{
+              display: captionExpand ? "block" : "-webkit-box",
+              WebkitLineClamp: captionExpand ? undefined : 6,
+              WebkitBoxOrient: "vertical",
+              overflow: captionExpand ? "visible" : "hidden",
+            } as React.CSSProperties}
+          >
+            {post.caption}
+          </p>
+          {post.caption.length > 200 && !captionExpand && (
+            <button
+              onClick={() => setCaptionExpand(true)}
+              className="text-xs app-text-muted mt-0.5"
+            >
+              more
+            </button>
+          )}
+        </div>
+      )}
+
       {/* ── Actions ──────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-1 px-3 pt-3 pb-1">
+      <div
+        className="flex items-center gap-1 px-3 pt-2 pb-1"
+        style={{ borderTop: media.length === 0 ? "1px solid rgba(255,255,255,0.05)" : undefined, marginTop: media.length === 0 ? 6 : 0 }}
+      >
         <motion.button
           whileTap={{ scale: 0.82 }}
           onClick={() => onLike(post.id)}
@@ -385,8 +413,8 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
         </div>
       </div>
 
-      {/* ── Caption ──────────────────────────────────────────────────── */}
-      {post.caption && (
+      {/* ── Caption (media posts: shown AFTER actions) ─────────────── */}
+      {post.caption && media.length > 0 && (
         <div className="px-4 pb-4">
           <p
             className="text-sm leading-relaxed app-text"

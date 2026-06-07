@@ -13,17 +13,18 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  LayoutGrid, Video, ImageIcon, FileText, Award,
+  LayoutList, LayoutGrid, Video, ImageIcon, FileText, Award,
 } from "lucide-react";
 import { fetchUserPosts, type SocialPost } from "@/lib/postsClient";
 import type { SupporterTier } from "@/components/profile/FoundingSupporterBadge";
 import { ProfilePostGrid } from "./ProfilePostGrid";
 import { MilestoneTimeline } from "./MilestoneTimeline";
 
-export type ProfileTabId = "spotlight" | "motion" | "gallery" | "moments" | "milestones";
+export type ProfileTabId = "all" | "spotlight" | "motion" | "gallery" | "moments" | "milestones";
 
 const TABS: { id: ProfileTabId; label: string; icon: typeof LayoutGrid }[] = [
-  { id: "spotlight",  label: "Spotlight",  icon: LayoutGrid },
+  { id: "all",        label: "All",        icon: LayoutList },
+  { id: "spotlight",  label: "Grid",       icon: LayoutGrid },
   { id: "motion",     label: "Motion",     icon: Video      },
   { id: "gallery",    label: "Gallery",    icon: ImageIcon  },
   { id: "moments",    label: "Moments",    icon: FileText   },
@@ -65,6 +66,7 @@ function filterByTab(posts: SocialPost[], tab: ProfileTabId): SocialPost[] {
       );
     case "moments":
       return posts.filter(p => (p.media?.length ?? 0) === 0 && p.caption);
+    case "all":
     case "spotlight":
     default:
       return posts;
@@ -77,7 +79,7 @@ export function ProfileTabs({
   isEditing = false,
   userProfile,
   supporterTier,
-  defaultTab = "spotlight",
+  defaultTab = "all",
   prependPost,
 }: Props) {
   const [activeTab, setActiveTab] = useState<ProfileTabId>(defaultTab);
@@ -110,14 +112,14 @@ export function ProfileTabs({
     loadInitial();
   }, [loadInitial]);
 
-  /* Prepend a newly created post instantly, then switch to Moments tab */
+  /* Prepend a newly created post instantly, then switch to All tab */
   useEffect(() => {
     if (!prependPost) return;
     setAllPosts(prev => {
       if (prev.some(p => p.id === prependPost.id)) return prev;
       return [prependPost, ...prev];
     });
-    setActiveTab("moments");
+    setActiveTab("all");
   }, [prependPost]);
 
   const loadMore = useCallback(async () => {
@@ -143,6 +145,8 @@ export function ProfileTabs({
     ? []
     : filterByTab(allPosts, activeTab);
 
+  const isAllTab = activeTab === "all";
+
   return (
     <div
       className="transition-opacity duration-200"
@@ -153,7 +157,7 @@ export function ProfileTabs({
         className="app-header sticky top-0 z-20 overflow-x-auto hide-scrollbar"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
       >
-        <div className="flex min-w-max px-2 py-1 gap-0.5">
+        <div className="flex min-w-max px-3 gap-0">
           {TABS.map(tab => (
             <TabPill
               key={tab.id}
@@ -166,7 +170,7 @@ export function ProfileTabs({
       </div>
 
       {/* ── Tab content ─────────────────────────────────────────────── */}
-      <div className="px-4 pt-4">
+      <div className={isAllTab ? "" : "px-4 pt-4"}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={activeTab}
@@ -180,6 +184,19 @@ export function ProfileTabs({
                 userProfile={userProfile}
                 posts={allPosts}
                 supporterTier={supporterTier}
+              />
+            ) : activeTab === "all" ? (
+              /* All — feed layout (Facebook-style vertical cards) */
+              <ProfilePostGrid
+                posts={displayedPosts}
+                loading={loading}
+                hasMore={hasMore}
+                loadingMore={loadingMore}
+                onLoadMore={loadMore}
+                layout="feed"
+                emptyTitle="No posts yet"
+                emptySub="All content will appear here once published."
+                emptyIcon={<LayoutList className="h-7 w-7 text-purple-400" />}
               />
             ) : activeTab === "moments" ? (
               <ProfilePostGrid
@@ -216,7 +233,7 @@ export function ProfileTabs({
                 emptyIcon={<ImageIcon className="h-7 w-7 text-purple-400" />}
               />
             ) : (
-              /* spotlight */
+              /* spotlight / grid */
               <ProfilePostGrid
                 posts={displayedPosts}
                 loading={loading}
