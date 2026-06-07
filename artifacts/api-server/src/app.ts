@@ -1,7 +1,9 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
+import path from "path";
+import { fileURLToPath } from "url";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -72,5 +74,25 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
+
+// ── Production: serve the built React frontend ─────────────────────────────
+// In production (NODE_ENV=production) the API server is the only process.
+// It serves the Vite-built static files at "/" and falls back to index.html
+// for all non-API routes so client-side routing (React Router / Wouter) works.
+// The build step copies artifacts/socia/dist/public → artifacts/api-server/dist/public.
+if (process.env["NODE_ENV"] === "production") {
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const staticDir = process.env["STATIC_DIR"] ?? path.join(__dirname, "public");
+
+  app.use(express.static(staticDir, { maxAge: "1d", etag: true }));
+
+  // SPA catch-all: serve index.html for all non-API, non-asset paths.
+  // Uses app.use() (Express 5 compatible — app.get("*") is invalid in Express 5).
+  app.use((_req: Request, res: Response) => {
+    res.sendFile(path.join(staticDir, "index.html"));
+  });
+
+  logger.info({ staticDir }, "[static] Serving frontend in production mode");
+}
 
 export default app;

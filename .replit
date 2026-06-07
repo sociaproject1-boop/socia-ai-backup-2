@@ -3,6 +3,8 @@ modules = ["nodejs-20", "web"]
 [deployment]
 router = "application"
 deploymentTarget = "autoscale"
+run = ["bash", "-c", "PORT=${PORT:-8080} NODE_ENV=production node artifacts/api-server/dist/index.mjs"]
+build = ["bash", "scripts/build-prod.sh"]
 
 [deployment.postBuild]
 args = ["pnpm", "store", "prune"]
@@ -80,6 +82,10 @@ externalPort = 8080
 [[ports]]
 localPort = 8081
 externalPort = 8081
+
+[[ports]]
+localPort = 9001
+externalPort = 6000
 
 [[ports]]
 localPort = 18348
