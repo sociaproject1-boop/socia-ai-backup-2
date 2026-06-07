@@ -1,13 +1,12 @@
 /**
  * VideoPostPlayer.tsx — Inline video for the social feed.
  *
- * TikTok-style: clean, no visible controls.
- * - Autoplay when ≥ 40% visible (IntersectionObserver)
- * - Pause when scrolled offscreen
- * - Muted by default (browser policy)
+ * - No download / PiP / playback rate controls
+ * - Autoplay UNMUTED when ≥ 40% visible (browser may still force muted on first load)
+ * - Muted fallback if browser blocks unmuted autoplay
  * - Tap to toggle play/pause
  * - Loop playback
- * - NO speaker button, NO fullscreen button, NO chrome
+ * - Zero browser chrome
  */
 import { useRef, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -28,11 +27,11 @@ export function VideoPostPlayer({
 }: Props) {
   const videoRef     = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [playing,  setPlaying]  = useState(false);
-  const [started,  setStarted]  = useState(false);
-  const [errored,  setErrored]  = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [errored, setErrored] = useState(false);
 
-  /* ── IntersectionObserver — autoplay when visible ─────────────────── */
+  /* ── IntersectionObserver — autoplay unmuted, muted fallback ─────────── */
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -44,10 +43,16 @@ export function VideoPostPlayer({
         if (!video || errored) return;
 
         if (entry.isIntersecting && entry.intersectionRatio >= autoplayThreshold) {
-          video.muted = true;
+          video.muted = false;
           video.play()
             .then(() => { setPlaying(true); setStarted(true); })
-            .catch(() => {});
+            .catch(() => {
+              /* Browser blocked unmuted — fall back to muted */
+              video.muted = true;
+              video.play()
+                .then(() => { setPlaying(true); setStarted(true); })
+                .catch(() => {});
+            });
         } else {
           video.pause();
           setPlaying(false);
@@ -67,7 +72,13 @@ export function VideoPostPlayer({
       video.pause();
       setPlaying(false);
     } else {
-      video.play().then(() => setPlaying(true)).catch(() => {});
+      video.muted = false;
+      video.play()
+        .then(() => setPlaying(true))
+        .catch(() => {
+          video.muted = true;
+          video.play().then(() => setPlaying(true)).catch(() => {});
+        });
       setStarted(true);
     }
   }, [playing]);
@@ -95,9 +106,11 @@ export function VideoPostPlayer({
         src={url}
         poster={posterUrl}
         loop
-        muted
         playsInline
         preload="metadata"
+        disablePictureInPicture
+        controlsList="nodownload noplaybackrate nofullscreen"
+        onContextMenu={(e) => e.preventDefault()}
         onError={() => setErrored(true)}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
@@ -105,7 +118,7 @@ export function VideoPostPlayer({
         style={{ display: "block" }}
       />
 
-      {/* Play overlay — only shown when paused */}
+      {/* Play overlay — shown when paused */}
       <AnimatePresence>
         {!playing && (
           <motion.div

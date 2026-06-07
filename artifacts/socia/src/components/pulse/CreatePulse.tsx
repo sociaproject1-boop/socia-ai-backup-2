@@ -1,25 +1,22 @@
 /**
- * CreatePulse.tsx — Fullscreen mobile-first story creator.
+ * CreatePulse.tsx — Facebook Stories–quality story creator.
  *
- * Features:
- *  • Fullscreen overlay (fixed inset-0, no bottom-sheet card)
- *  • Tabs: Photo / Video / Text — icon labels, no emoji
- *  • Text mode: type directly ON the gradient canvas (transparent textarea + visual display)
- *  • 10 rich gradient backgrounds + 8 font colors
- *  • Music: expandable card (not a bare input)
- *  • Privacy: horizontal pill row with icons
- *  • Swipe down to close (drag="y" on the sheet, disabled when keyboard open)
- *  • Rubber-band close threshold: 120px drag-down
- *  • Keyboard detection via visualViewport
- *  • All buttons carry type="button" — no accidental form submit or download
- *  • Slides in from bottom (spring animation)
+ * Layout (Facebook 2026 style):
+ *   Top bar:  [X] close | "Create Story" | [Share] button
+ *   Content:  full-screen immersive canvas (photo / video / text)
+ *   Bottom:   gradient/color pickers (text mode), music card, audience
+ *
+ * Bugs fixed:
+ *  • Upload uses Cloudinary (no Supabase bucket needed)
+ *  • Video preview: controlsList="nodownload noplaybackrate", disablePictureInPicture
+ *  • No accidental download access
  */
 import { useState, useRef, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Camera, Film, Type, Globe, Users, UserCheck, Lock,
-  Music2, ChevronDown, ChevronUp, Check, AlertCircle,
+  Music2, Check, Upload, Play, Pause, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { createPulse, uploadPulseMedia } from "@/lib/pulseClient";
 import { useAppStore } from "@/lib/store";
@@ -34,37 +31,39 @@ interface CreatePulseProps {
 }
 
 /* ── Design tokens ──────────────────────────────────────────────────────── */
-const TEXT_BG_PRESETS: { bg: string }[] = [
-  { bg: "linear-gradient(160deg,#0d0b1a 0%,#1a1040 100%)" },   // Deep space
-  { bg: "linear-gradient(135deg,#8338ec 0%,#ff006e 100%)" },    // Socia brand
-  { bg: "linear-gradient(135deg,#3a86ff 0%,#06d6a0 100%)" },    // Ocean teal
-  { bg: "linear-gradient(135deg,#fb5607 0%,#ff006e 100%)" },    // Sunset
-  { bg: "linear-gradient(160deg,#0d1b2a 0%,#1b4332 100%)" },   // Night forest
-  { bg: "linear-gradient(135deg,#240046 0%,#7b2d8b 100%)" },    // Dark violet
-  { bg: "linear-gradient(135deg,#ff0080 0%,#ffb700 100%)" },    // Candy
-  { bg: "linear-gradient(135deg,#00b4d8 0%,#023e8a 100%)" },    // Deep ocean
-  { bg: "linear-gradient(135deg,#e63946 0%,#6d6875 100%)" },    // Rose-lavender
-  { bg: "linear-gradient(160deg,#1a1a2e 0%,#e94560 100%)" },   // Midnight red
+const TEXT_BG_PRESETS = [
+  { bg: "linear-gradient(160deg,#1a0533 0%,#4a0080 100%)",   label: "Violet"   },
+  { bg: "linear-gradient(135deg,#8338ec 0%,#ff006e 100%)",   label: "Socia"    },
+  { bg: "linear-gradient(135deg,#3a86ff 0%,#06d6a0 100%)",   label: "Ocean"    },
+  { bg: "linear-gradient(135deg,#fb5607 0%,#ff006e 100%)",   label: "Sunset"   },
+  { bg: "linear-gradient(160deg,#0d1b2a 0%,#1b4332 100%)",   label: "Forest"   },
+  { bg: "linear-gradient(135deg,#240046 0%,#7b2d8b 100%)",   label: "Dark"     },
+  { bg: "linear-gradient(135deg,#ff0080 0%,#ffb700 100%)",   label: "Candy"    },
+  { bg: "linear-gradient(135deg,#00b4d8 0%,#023e8a 100%)",   label: "Blue"     },
+  { bg: "linear-gradient(135deg,#e63946 0%,#6d6875 100%)",   label: "Rose"     },
+  { bg: "linear-gradient(160deg,#1a1a2e 0%,#e94560 100%)",   label: "Night"    },
+  { bg: "linear-gradient(135deg,#2d6a4f 0%,#95d5b2 100%)",   label: "Mint"     },
+  { bg: "linear-gradient(135deg,#6a0572 0%,#f72585 100%)",   label: "Magenta"  },
 ];
 
 const TEXT_COLORS = [
   "#ffffff", "#000000", "#ffbe0b", "#06d6a0",
   "#ff006e", "#3a86ff", "#ff9f43", "#c77dff",
+  "#00f5d4", "#ef233c", "#8338ec", "#f72585",
 ];
 
 const VISIBILITY_OPTS: { value: Visibility; label: string; Icon: React.ElementType }[] = [
-  { value: "public",    label: "Public",    Icon: Globe },
-  { value: "followers", label: "Followers", Icon: Users },
+  { value: "public",    label: "Public",    Icon: Globe     },
+  { value: "followers", label: "Followers", Icon: Users     },
   { value: "friends",   label: "Friends",   Icon: UserCheck },
-  { value: "private",   label: "Only Me",   Icon: Lock },
+  { value: "private",   label: "Only Me",   Icon: Lock      },
 ];
 
-/* ── Auto font-size ────────────────────────────────────────────────────── */
 function autoFontSize(len: number): number {
-  if (len < 20)  return 34;
+  if (len < 20)  return 36;
   if (len < 50)  return 28;
   if (len < 100) return 22;
-  if (len < 180) return 18;
+  if (len < 180) return 17;
   return 14;
 }
 
@@ -72,7 +71,6 @@ function autoFontSize(len: number): number {
 export function CreatePulse({ onClose, onCreated }: CreatePulseProps) {
   const me = useAppStore((s) => s.user);
 
-  /* ── State ─────────────────────────────────────────────── */
   const [tab,        setTab]        = useState<PulseType>("image");
   const [file,       setFile]       = useState<File | null>(null);
   const [preview,    setPreview]    = useState<string | null>(null);
@@ -83,14 +81,17 @@ export function CreatePulse({ onClose, onCreated }: CreatePulseProps) {
   const [musicOpen,  setMusicOpen]  = useState(false);
   const [musicName,  setMusicName]  = useState("");
   const [uploading,  setUploading]  = useState(false);
+  const [uploadPct,  setUploadPct]  = useState(0);
   const [error,      setError]      = useState<string | null>(null);
+  const [vidPlaying, setVidPlaying] = useState(false);
   const [kbOpen,     setKbOpen]     = useState(false);
 
   const imgRef  = useRef<HTMLInputElement>(null);
   const vidRef  = useRef<HTMLInputElement>(null);
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const vidElRef = useRef<HTMLVideoElement>(null);
 
-  /* ── Keyboard detection ────────────────────────────────── */
+  /* ── Keyboard detection ─────────────────────────────────────────────── */
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
@@ -99,7 +100,7 @@ export function CreatePulse({ onClose, onCreated }: CreatePulseProps) {
     return () => vv.removeEventListener("resize", check);
   }, []);
 
-  /* ── Tab switch ────────────────────────────────────────── */
+  /* ── Tab switch ─────────────────────────────────────────────────────── */
   const switchTab = useCallback((t: PulseType) => {
     setTab(t);
     setFile(null);
@@ -109,7 +110,7 @@ export function CreatePulse({ onClose, onCreated }: CreatePulseProps) {
     if (t === "text") setTimeout(() => textRef.current?.focus(), 180);
   }, [preview]);
 
-  /* ── File pick ─────────────────────────────────────────── */
+  /* ── File pick ──────────────────────────────────────────────────────── */
   const pickFile = useCallback((f: File) => {
     if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
     setFile(f);
@@ -133,6 +134,7 @@ export function CreatePulse({ onClose, onCreated }: CreatePulseProps) {
     if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
     setFile(null);
     setPreview(null);
+    setVidPlaying(false);
   }, [preview]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -143,14 +145,40 @@ export function CreatePulse({ onClose, onCreated }: CreatePulseProps) {
     setTab(f.type.startsWith("video") ? "video" : "image");
   }, [pickFile]);
 
-  /* ── Post ──────────────────────────────────────────────── */
+  const toggleVideoPlay = useCallback(() => {
+    const v = vidElRef.current;
+    if (!v) return;
+    if (vidPlaying) { v.pause(); setVidPlaying(false); }
+    else { v.play().then(() => setVidPlaying(true)).catch(() => {}); }
+  }, [vidPlaying]);
+
+  /* ── Simulate upload progress (Cloudinary doesn't give XHR progress here) */
+  const simulateProgress = useCallback(() => {
+    setUploadPct(0);
+    const t = setInterval(() => {
+      setUploadPct((p) => {
+        if (p >= 85) { clearInterval(t); return 85; }
+        return p + Math.random() * 12;
+      });
+    }, 200);
+    return () => clearInterval(t);
+  }, []);
+
+  /* ── Post / Share ───────────────────────────────────────────────────── */
   const handlePost = useCallback(async () => {
     if (!me) return;
     setError(null);
     setUploading(true);
+    let stopProgress = () => {};
+
     try {
       if (tab === "text") {
-        if (!textVal.trim()) { setError("Write something first."); setUploading(false); return; }
+        if (!textVal.trim()) {
+          setError("Write something first.");
+          setUploading(false);
+          return;
+        }
+        setUploadPct(50);
         await createPulse({
           type:         "text",
           text_content: textVal.trim(),
@@ -160,8 +188,14 @@ export function CreatePulse({ onClose, onCreated }: CreatePulseProps) {
           music_name:   musicName.trim() || undefined,
         });
       } else {
-        if (!file) { setError("Pick a file first."); setUploading(false); return; }
+        if (!file) {
+          setError("Pick a file first.");
+          setUploading(false);
+          return;
+        }
+        stopProgress = simulateProgress();
         const mediaUrl = await uploadPulseMedia(file, me.id);
+        setUploadPct(90);
         await createPulse({
           type:       tab,
           media_url:  mediaUrl,
@@ -169,121 +203,152 @@ export function CreatePulse({ onClose, onCreated }: CreatePulseProps) {
           music_name: musicName.trim() || undefined,
         });
       }
-      onCreated();
+      setUploadPct(100);
+      setTimeout(() => { stopProgress(); onCreated(); }, 300);
     } catch (err: any) {
-      setError(err?.message ?? "Failed to post. Please try again.");
+      stopProgress();
+      setUploadPct(0);
+      const msg = err?.message ?? "Failed to post. Please try again.";
+      setError(msg);
     } finally {
       setUploading(false);
     }
-  }, [me, tab, textVal, bgIdx, textColor, visibility, musicName, file, onCreated]);
+  }, [me, tab, textVal, bgIdx, textColor, visibility, musicName, file, onCreated, simulateProgress]);
 
-  const canPost = tab === "text" ? textVal.trim().length > 0 : Boolean(file);
+  const canPost = !uploading && (tab === "text" ? textVal.trim().length > 0 : Boolean(file));
   const textBg  = TEXT_BG_PRESETS[bgIdx].bg;
 
-  /* ── Render ────────────────────────────────────────────── */
   return createPortal(
     <AnimatePresence>
       <motion.div
         key="story-creator"
-        className="fixed inset-0 z-[9999] flex flex-col overflow-hidden"
-        style={{
-          background:  tab === "text" ? textBg : "#000",
-          willChange:  "transform",
-          touchAction: kbOpen ? "auto" : "none",
-        }}
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", stiffness: 360, damping: 34, restDelta: 1 }}
+        className="fixed inset-0 z-[9999] flex flex-col"
+        style={{ background: tab === "text" ? textBg : "#0a0a0a" }}
+        initial={{ y: "100%", opacity: 0.8 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: "100%", opacity: 0 }}
+        transition={{ type: "spring", stiffness: 380, damping: 36, restDelta: 1 }}
         drag={kbOpen ? false : "y"}
         dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={{ top: 0, bottom: 0.22 }}
-        onDragEnd={(_, info) => { if (!kbOpen && info.offset.y > 120) onClose(); }}
+        dragElastic={{ top: 0, bottom: 0.2 }}
+        onDragEnd={(_, info) => { if (!kbOpen && info.offset.y > 130) onClose(); }}
       >
-        {/* Hidden file inputs */}
-        <input ref={imgRef} type="file" accept="image/*" className="hidden" onChange={handleImgChange} />
-        <input ref={vidRef} type="file" accept="video/*" className="hidden" onChange={handleVidChange} />
+        <input ref={imgRef} type="file" accept="image/*"  className="hidden" onChange={handleImgChange} />
+        <input ref={vidRef} type="file" accept="video/*"  className="hidden" onChange={handleVidChange} />
 
-        {/* ── Drag handle ─────────────────────────────────── */}
-        <div className="flex-shrink-0 flex justify-center pt-3 pb-1 pointer-events-none select-none">
-          <div className="h-1 w-10 rounded-full" style={{ background: "rgba(255,255,255,0.22)" }} />
+        {/* Drag handle */}
+        <div className="flex-shrink-0 flex justify-center pt-2.5 pb-0 pointer-events-none select-none">
+          <div className="h-[3px] w-9 rounded-full" style={{ background: "rgba(255,255,255,0.2)" }} />
         </div>
 
-        {/* ── Top bar ─────────────────────────────────────── */}
-        <div className="flex-shrink-0 flex items-center justify-between px-4 pb-3">
+        {/* ── Top bar ─────────────────────────────────────────────────── */}
+        <div
+          className="flex-shrink-0 flex items-center gap-3 px-4 pt-3 pb-3"
+          style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 12px)` }}
+        >
           {/* Close */}
           <motion.button
             type="button"
             whileTap={{ scale: 0.85 }}
             onClick={onClose}
-            className="grid h-9 w-9 place-items-center rounded-full"
-            style={{ background: "rgba(255,255,255,0.10)" }}
-            aria-label="Close"
+            className="grid h-9 w-9 place-items-center rounded-full flex-shrink-0"
+            style={{ background: "rgba(255,255,255,0.12)", backdropFilter: "blur(8px)" }}
           >
-            <X className="h-4 w-4 text-white" />
+            <X className="h-[18px] w-[18px] text-white" />
           </motion.button>
 
-          {/* Tab pills */}
-          <div
-            className="flex items-center rounded-full p-[3px]"
-            style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.06)" }}
-          >
-            {([
-              ["image", Camera, "Photo"],
-              ["video", Film,   "Video"],
-              ["text",  Type,   "Text" ],
-            ] as const).map(([t, Icon, label]) => (
-              <motion.button
-                type="button"
-                key={t}
-                whileTap={{ scale: 0.92 }}
-                onClick={() => switchTab(t as PulseType)}
-                className="flex items-center gap-1.5 px-3.5 py-[6px] rounded-full text-[12px] font-semibold"
-                style={tab === t ? {
-                  background: "linear-gradient(135deg,#8338ec,#ff006e)",
-                  color: "#fff",
-                } : { color: "rgba(255,255,255,0.42)" }}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </motion.button>
-            ))}
+          {/* Mode tabs — centered */}
+          <div className="flex-1 flex items-center justify-center">
+            <div
+              className="flex items-center rounded-full p-[3px] gap-0.5"
+              style={{ background: "rgba(255,255,255,0.10)" }}
+            >
+              {([
+                ["image", Camera, "Photo"],
+                ["video", Film,   "Video"],
+                ["text",  Type,   "Text" ],
+              ] as const).map(([t, Icon, label]) => (
+                <motion.button
+                  type="button"
+                  key={t}
+                  whileTap={{ scale: 0.90 }}
+                  onClick={() => switchTab(t as PulseType)}
+                  className="flex items-center gap-1.5 rounded-full text-[12.5px] font-bold transition-all"
+                  style={{
+                    padding: "7px 14px",
+                    ...(tab === t ? {
+                      background: "linear-gradient(135deg,#8338ec,#ff006e)",
+                      color: "#fff",
+                    } : {
+                      color: "rgba(255,255,255,0.45)",
+                    }),
+                  }}
+                >
+                  <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+                  {label}
+                </motion.button>
+              ))}
+            </div>
           </div>
 
-          {/* Share button */}
+          {/* Share */}
           <motion.button
             type="button"
-            whileTap={{ scale: 0.92 }}
+            whileTap={{ scale: 0.88 }}
             onClick={handlePost}
-            disabled={!canPost || uploading}
-            className="rounded-full px-4 py-2 text-[13px] font-bold text-white disabled:opacity-35 transition-opacity"
+            disabled={!canPost}
+            className="rounded-full px-5 py-2.5 text-[13px] font-bold text-white flex-shrink-0 transition-opacity disabled:opacity-30"
             style={{ background: "linear-gradient(135deg,#8338ec,#ff006e)" }}
           >
             {uploading ? (
               <span className="flex items-center gap-1.5">
                 <span className="inline-block h-3 w-3 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                Posting
+                {uploadPct < 100 ? `${Math.round(uploadPct)}%` : "Done"}
               </span>
             ) : "Share"}
           </motion.button>
         </div>
 
-        {/* ── Content area ────────────────────────────────── */}
+        {/* ── Progress bar (uploading) ─────────────────────────────── */}
+        <AnimatePresence>
+          {uploading && (
+            <motion.div
+              initial={{ scaleX: 0, opacity: 0 }}
+              animate={{ scaleX: 1, opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex-shrink-0 h-[2px] origin-left"
+              style={{ background: "linear-gradient(90deg,#8338ec,#ff006e)" }}
+            >
+              <motion.div
+                className="h-full"
+                style={{ background: "inherit", width: `${uploadPct}%`, transition: "width 0.3s ease" }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Content area ────────────────────────────────────────────── */}
         <div className="flex-1 relative overflow-hidden">
 
-          {/* Photo */}
+          {/* ── PHOTO mode ────────────────────────────────────────────── */}
           {tab === "image" && (
             preview ? (
               <div className="h-full relative">
-                <img src={preview} alt="" className="h-full w-full object-contain" draggable={false} />
+                <img
+                  src={preview}
+                  alt=""
+                  className="h-full w-full object-contain"
+                  draggable={false}
+                  style={{ userSelect: "none" }}
+                />
+                {/* Remove button */}
                 <button
                   type="button"
                   onClick={clearFile}
-                  className="absolute top-3 right-3 h-8 w-8 rounded-full grid place-items-center"
-                  style={{ background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.12)" }}
-                  aria-label="Remove photo"
+                  className="absolute top-3 right-3 grid h-9 w-9 place-items-center rounded-full"
+                  style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.15)" }}
                 >
-                  <X className="h-3.5 w-3.5 text-white" />
+                  <X className="h-4 w-4 text-white" />
                 </button>
               </div>
             ) : (
@@ -293,46 +358,80 @@ export function CreatePulse({ onClose, onCreated }: CreatePulseProps) {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
               >
-                <div
-                  className="grid place-items-center rounded-full"
-                  style={{
-                    width: 100, height: 100,
-                    background: "rgba(131,56,236,0.11)",
-                    border: "2.5px dashed rgba(131,56,236,0.40)",
-                  }}
+                {/* Upload area */}
+                <motion.div
+                  whileTap={{ scale: 0.96 }}
+                  className="flex flex-col items-center gap-5"
                 >
-                  <Camera className="h-10 w-10" style={{ color: "rgba(131,56,236,0.65)" }} />
-                </div>
-                <div className="text-center">
-                  <p className="text-[16px] font-semibold" style={{ color: "rgba(255,255,255,0.65)" }}>
-                    Tap to add a photo
-                  </p>
-                  <p className="mt-1.5 text-[12px]" style={{ color: "rgba(255,255,255,0.28)" }}>
-                    JPG · PNG · WEBP
-                  </p>
-                </div>
+                  <div
+                    className="grid place-items-center rounded-3xl"
+                    style={{
+                      width: 120, height: 120,
+                      background: "rgba(131,56,236,0.12)",
+                      border: "2px dashed rgba(131,56,236,0.45)",
+                    }}
+                  >
+                    <Camera className="h-12 w-12" style={{ color: "rgba(131,56,236,0.7)" }} />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[17px] font-bold text-white mb-1">Add a photo</p>
+                    <p className="text-[13px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+                      JPG · PNG · WEBP
+                    </p>
+                  </div>
+                  <div
+                    className="flex items-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-semibold text-white"
+                    style={{ background: "rgba(131,56,236,0.25)", border: "1px solid rgba(131,56,236,0.4)" }}
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    Choose from gallery
+                  </div>
+                </motion.div>
               </div>
             )
           )}
 
-          {/* Video */}
+          {/* ── VIDEO mode ────────────────────────────────────────────── */}
           {tab === "video" && (
             preview ? (
-              <div className="h-full relative">
+              <div className="h-full relative" onClick={toggleVideoPlay}>
+                {/* Custom video player — NO browser controls */}
                 <video
+                  ref={vidElRef}
                   src={preview}
                   className="h-full w-full object-contain"
-                  controls
                   playsInline
+                  loop
+                  disablePictureInPicture
+                  controlsList="nodownload noplaybackrate nofullscreen"
+                  onContextMenu={(e) => e.preventDefault()}
+                  onPlay={() => setVidPlaying(true)}
+                  onPause={() => setVidPlaying(false)}
                 />
+                {/* Custom play/pause overlay */}
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <AnimatePresence>
+                    {!vidPlaying && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.7 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.7 }}
+                        className="grid h-16 w-16 place-items-center rounded-full"
+                        style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(6px)" }}
+                      >
+                        <Play className="h-7 w-7 fill-white text-white ml-0.5" />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+                {/* Remove button */}
                 <button
                   type="button"
-                  onClick={clearFile}
-                  className="absolute top-3 right-3 h-8 w-8 rounded-full grid place-items-center"
-                  style={{ background: "rgba(0,0,0,0.6)", border: "1px solid rgba(255,255,255,0.12)" }}
-                  aria-label="Remove video"
+                  onClick={(e) => { e.stopPropagation(); clearFile(); }}
+                  className="absolute top-3 right-3 grid h-9 w-9 place-items-center rounded-full"
+                  style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.15)" }}
                 >
-                  <X className="h-3.5 w-3.5 text-white" />
+                  <X className="h-4 w-4 text-white" />
                 </button>
               </div>
             ) : (
@@ -342,133 +441,153 @@ export function CreatePulse({ onClose, onCreated }: CreatePulseProps) {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
               >
-                <div
-                  className="grid place-items-center rounded-full"
-                  style={{
-                    width: 100, height: 100,
-                    background: "rgba(131,56,236,0.11)",
-                    border: "2.5px dashed rgba(131,56,236,0.40)",
-                  }}
-                >
-                  <Film className="h-10 w-10" style={{ color: "rgba(131,56,236,0.65)" }} />
-                </div>
-                <div className="text-center">
-                  <p className="text-[16px] font-semibold" style={{ color: "rgba(255,255,255,0.65)" }}>
-                    Tap to add a video
-                  </p>
-                  <p className="mt-1.5 text-[12px]" style={{ color: "rgba(255,255,255,0.28)" }}>
-                    MP4 · MOV · WEBM
-                  </p>
-                </div>
+                <motion.div whileTap={{ scale: 0.96 }} className="flex flex-col items-center gap-5">
+                  <div
+                    className="grid place-items-center rounded-3xl"
+                    style={{
+                      width: 120, height: 120,
+                      background: "rgba(131,56,236,0.12)",
+                      border: "2px dashed rgba(131,56,236,0.45)",
+                    }}
+                  >
+                    <Film className="h-12 w-12" style={{ color: "rgba(131,56,236,0.7)" }} />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[17px] font-bold text-white mb-1">Add a video</p>
+                    <p className="text-[13px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+                      MP4 · MOV · WEBM
+                    </p>
+                  </div>
+                  <div
+                    className="flex items-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-semibold text-white"
+                    style={{ background: "rgba(131,56,236,0.25)", border: "1px solid rgba(131,56,236,0.4)" }}
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    Choose from gallery
+                  </div>
+                </motion.div>
               </div>
             )
           )}
 
-          {/* Text (canvas) */}
+          {/* ── TEXT mode — write on the gradient canvas ─────────────── */}
           {tab === "text" && (
             <div
               className="h-full relative"
               onClick={() => textRef.current?.focus()}
             >
-              {/* Visual text display — non-interactive overlay */}
+              {/* Visual text layer */}
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-10 select-none">
                 {textVal ? (
                   <p
-                    className="text-center font-bold leading-tight break-words whitespace-pre-wrap w-full"
+                    className="text-center font-bold leading-snug break-words whitespace-pre-wrap w-full"
                     style={{
                       color:      textColor,
                       fontSize:   autoFontSize(textVal.length),
-                      textShadow: "0 2px 24px rgba(0,0,0,0.35)",
+                      textShadow: "0 2px 32px rgba(0,0,0,0.40)",
                       transition: "font-size 0.12s ease",
+                      letterSpacing: "-0.01em",
                     }}
                   >
                     {textVal}
                   </p>
                 ) : (
                   <p
-                    className="text-center font-medium"
-                    style={{ color: "rgba(255,255,255,0.28)", fontSize: 19 }}
+                    className="text-center font-semibold"
+                    style={{ color: "rgba(255,255,255,0.30)", fontSize: 20 }}
                   >
                     Tap to type your story…
                   </p>
                 )}
               </div>
 
-              {/* Transparent textarea — captures all input, shows only caret */}
+              {/* Transparent textarea */}
               <textarea
                 ref={textRef}
                 value={textVal}
                 onChange={(e) => setTextVal(e.target.value)}
-                maxLength={280}
+                maxLength={300}
                 className="absolute inset-0 w-full h-full resize-none outline-none bg-transparent text-transparent"
-                style={{ caretColor: textColor, padding: "80px 40px", fontSize: 24 }}
+                style={{
+                  caretColor: textColor,
+                  padding: "80px 40px",
+                  fontSize: 24,
+                  lineHeight: 1.4,
+                }}
                 aria-label="Story text"
                 spellCheck
               />
 
               {/* Character counter */}
-              {textVal.length > 200 && (
+              {textVal.length > 220 && (
                 <div
-                  className="pointer-events-none absolute bottom-4 right-4 text-[11px] font-mono"
-                  style={{ color: textVal.length > 260 ? "#ff006e" : "rgba(255,255,255,0.35)" }}
+                  className="pointer-events-none absolute bottom-4 right-4 text-[12px] font-mono font-bold"
+                  style={{ color: textVal.length > 270 ? "#ff006e" : "rgba(255,255,255,0.40)" }}
                 >
-                  {280 - textVal.length}
+                  {300 - textVal.length}
                 </div>
               )}
             </div>
           )}
         </div>
 
-        {/* ── Bottom strip ─────────────────────────────────── */}
+        {/* ── Bottom strip ─────────────────────────────────────────────── */}
         <div
-          className="flex-shrink-0 px-4 pt-3 space-y-3"
+          className="flex-shrink-0 px-4 space-y-3"
           style={{
-            paddingBottom: "max(24px, env(safe-area-inset-bottom))",
+            paddingTop: 12,
+            paddingBottom: `max(20px, env(safe-area-inset-bottom, 20px))`,
             background: tab === "text"
-              ? "linear-gradient(to top,rgba(0,0,0,0.6) 0%,transparent 100%)"
-              : "transparent",
+              ? "linear-gradient(to top, rgba(0,0,0,0.65) 0%, transparent 100%)"
+              : "rgba(0,0,0,0.4)",
+            backdropFilter: tab !== "text" ? "blur(12px)" : undefined,
           }}
         >
-          {/* Background + color pickers (text mode only) */}
+          {/* Text background + color pickers */}
           {tab === "text" && (
-            <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar py-1">
-              {TEXT_BG_PRESETS.map((preset, i) => (
-                <motion.button
-                  type="button"
-                  key={i}
-                  whileTap={{ scale: 0.88 }}
-                  onClick={(e) => { e.stopPropagation(); setBgIdx(i); }}
-                  className="h-9 w-9 rounded-full flex-shrink-0 grid place-items-center relative"
-                  style={{
-                    background:    preset.bg,
-                    outline:       bgIdx === i ? "2.5px solid #fff" : "none",
-                    outlineOffset: 2,
-                  }}
-                  aria-label={`Background ${i + 1}`}
-                >
-                  {bgIdx === i && <Check className="h-3.5 w-3.5 text-white drop-shadow" />}
-                </motion.button>
-              ))}
+            <div className="space-y-2.5">
+              {/* Background swatches */}
+              <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar py-0.5">
+                {TEXT_BG_PRESETS.map((preset, i) => (
+                  <motion.button
+                    type="button"
+                    key={i}
+                    whileTap={{ scale: 0.85 }}
+                    onClick={(e) => { e.stopPropagation(); setBgIdx(i); }}
+                    className="h-8 w-8 rounded-full flex-shrink-0 grid place-items-center relative"
+                    style={{
+                      background:    preset.bg,
+                      outline:       bgIdx === i ? "2.5px solid #fff" : "2px solid transparent",
+                      outlineOffset: 2,
+                    }}
+                  >
+                    {bgIdx === i && <Check className="h-3 w-3 text-white drop-shadow" />}
+                  </motion.button>
+                ))}
+              </div>
 
-              <div
-                className="w-px self-stretch flex-shrink-0 mx-1"
-                style={{ background: "rgba(255,255,255,0.15)" }}
-              />
-
-              {TEXT_COLORS.map((c) => (
-                <motion.button
-                  type="button"
-                  key={c}
-                  whileTap={{ scale: 0.88 }}
-                  onClick={(e) => { e.stopPropagation(); setTextColor(c); }}
-                  className="h-8 w-8 rounded-full flex-shrink-0 border-2"
-                  style={{
-                    background:  c,
-                    borderColor: textColor === c ? "#fff" : "rgba(255,255,255,0.15)",
-                  }}
-                  aria-label={`Color ${c}`}
-                />
-              ))}
+              {/* Font color swatches */}
+              <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar py-0.5">
+                <span className="text-[10px] font-bold text-white/35 flex-shrink-0 uppercase tracking-wider pr-1">
+                  Aa
+                </span>
+                {TEXT_COLORS.map((c) => (
+                  <motion.button
+                    type="button"
+                    key={c}
+                    whileTap={{ scale: 0.85 }}
+                    onClick={(e) => { e.stopPropagation(); setTextColor(c); }}
+                    className="h-7 w-7 rounded-full flex-shrink-0 grid place-items-center"
+                    style={{
+                      background:  c,
+                      outline:       textColor === c ? "2.5px solid #fff" : "2px solid transparent",
+                      outlineOffset: 2,
+                    }}
+                  >
+                    {textColor === c && <Check className="h-2.5 w-2.5 drop-shadow" style={{ color: c === "#ffffff" ? "#000" : "#fff" }} />}
+                  </motion.button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -476,26 +595,26 @@ export function CreatePulse({ onClose, onCreated }: CreatePulseProps) {
           <motion.button
             type="button"
             whileTap={{ scale: 0.98 }}
-            onClick={(e) => { e.stopPropagation(); setMusicOpen(!musicOpen); }}
+            onClick={(e) => { e.stopPropagation(); setMusicOpen((v) => !v); }}
             className="flex items-center gap-3 w-full rounded-2xl px-4 py-3 text-left"
             style={{
-              background: "rgba(255,255,255,0.07)",
-              border:     "1px solid rgba(255,255,255,0.09)",
+              background: "rgba(255,255,255,0.08)",
+              border:     "1px solid rgba(255,255,255,0.10)",
             }}
           >
             <Music2
               className="h-4 w-4 flex-shrink-0"
-              style={{ color: musicOpen ? "#a855f7" : "rgba(255,255,255,0.40)" }}
+              style={{ color: musicName ? "#a855f7" : "rgba(255,255,255,0.40)" }}
             />
             <span
               className="flex-1 text-[13px] truncate"
-              style={{ color: musicName ? "#fff" : "rgba(255,255,255,0.35)" }}
+              style={{ color: musicName ? "#fff" : "rgba(255,255,255,0.38)" }}
             >
               {musicName || "Add a music label"}
             </span>
             {musicOpen
-              ? <ChevronUp   className="h-4 w-4 flex-shrink-0 text-white/35" />
-              : <ChevronDown className="h-4 w-4 flex-shrink-0 text-white/35" />
+              ? <ChevronUp   className="h-4 w-4 text-white/30" />
+              : <ChevronDown className="h-4 w-4 text-white/30" />
             }
           </motion.button>
 
@@ -515,15 +634,16 @@ export function CreatePulse({ onClose, onCreated }: CreatePulseProps) {
                   placeholder="Song name or artist…"
                   className="w-full rounded-xl px-4 py-3 text-[13px] text-white outline-none"
                   style={{
-                    background: "rgba(255,255,255,0.06)",
-                    border:     "1px solid rgba(255,255,255,0.09)",
+                    background: "rgba(255,255,255,0.07)",
+                    border:     "1px solid rgba(255,255,255,0.10)",
+                    caretColor: "#a855f7",
                   }}
                 />
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Privacy pills */}
+          {/* Privacy row */}
           <div className="flex gap-2">
             {VISIBILITY_OPTS.map(({ value, label, Icon }) => {
               const active = visibility === value;
@@ -531,26 +651,24 @@ export function CreatePulse({ onClose, onCreated }: CreatePulseProps) {
                 <motion.button
                   type="button"
                   key={value}
-                  whileTap={{ scale: 0.92 }}
+                  whileTap={{ scale: 0.90 }}
                   onClick={(e) => { e.stopPropagation(); setVisibility(value); }}
-                  className="flex-1 flex flex-col items-center gap-1.5 rounded-2xl py-2.5 px-1"
+                  className="flex-1 flex flex-col items-center gap-1 rounded-2xl py-2.5 px-1 transition-all"
                   style={active ? {
-                    background: "linear-gradient(135deg,rgba(131,56,236,0.28),rgba(255,0,110,0.14))",
-                    border:     "1px solid rgba(131,56,236,0.5)",
+                    background: "rgba(131,56,236,0.25)",
+                    border:     "1.5px solid rgba(131,56,236,0.6)",
                   } : {
-                    background: "rgba(255,255,255,0.05)",
-                    border:     "1px solid rgba(255,255,255,0.07)",
+                    background: "rgba(255,255,255,0.06)",
+                    border:     "1.5px solid rgba(255,255,255,0.08)",
                   }}
-                  aria-pressed={active}
-                  aria-label={label}
                 >
                   <Icon
-                    className="h-4 w-4"
-                    style={{ color: active ? "#a855f7" : "rgba(255,255,255,0.38)" }}
+                    className="h-[18px] w-[18px]"
+                    style={{ color: active ? "#c084fc" : "rgba(255,255,255,0.45)" }}
                   />
                   <span
-                    className="text-[10px] font-bold"
-                    style={{ color: active ? "#a855f7" : "rgba(255,255,255,0.38)" }}
+                    className="text-[10.5px] font-semibold"
+                    style={{ color: active ? "#c084fc" : "rgba(255,255,255,0.40)" }}
                   >
                     {label}
                   </span>
@@ -559,27 +677,24 @@ export function CreatePulse({ onClose, onCreated }: CreatePulseProps) {
             })}
           </div>
 
-          {/* Error */}
+          {/* Error message */}
           <AnimatePresence>
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="flex items-center gap-2 rounded-xl px-3 py-2.5"
-                style={{
-                  background: "rgba(239,68,68,0.12)",
-                  border:     "1px solid rgba(239,68,68,0.28)",
-                }}
+                className="flex items-center gap-2.5 rounded-2xl px-4 py-3 text-[13px] text-rose-300"
+                style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.22)" }}
               >
-                <AlertCircle className="h-3.5 w-3.5 text-red-400 flex-shrink-0" />
-                <span className="text-[12px] text-red-400">{error}</span>
+                <span className="text-rose-400 flex-shrink-0">⚠</span>
+                {error}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </motion.div>
     </AnimatePresence>,
-    document.body,
+    document.body
   );
 }

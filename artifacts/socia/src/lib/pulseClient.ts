@@ -1,9 +1,14 @@
 /**
  * pulseClient.ts — API + storage helpers for the PULSE system.
+ *
+ * File upload: Cloudinary unsigned preset (same as rest of app).
+ * No Supabase Storage bucket required.
  */
 import { supabase } from "@/lib/supabase";
 
-const API_BASE = "/api";
+const API_BASE   = "/api";
+const CLOUD_NAME = "devyx5yyk";
+const UPLOAD_PRESET = "socia_upload";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -32,9 +37,9 @@ export interface Pulse {
 }
 
 export interface PulseUser {
-  id:         string;
-  name?:      string | null;
-  username?:  string | null;
+  id:          string;
+  name?:       string | null;
+  username?:   string | null;
   avatar_url?: string | null;
 }
 
@@ -142,19 +147,27 @@ export async function adminDeletePulse(id: string): Promise<void> {
   if (!res.ok) throw new Error("Failed to delete pulse");
 }
 
-/* ── Storage ────────────────────────────────────────────────────────────── */
+/* ── Storage — Cloudinary unsigned upload ────────────────────────────────── */
 
-export async function uploadPulseMedia(file: File, userId: string): Promise<string> {
-  const ext  = file.name.split(".").pop() ?? (file.type.startsWith("video") ? "mp4" : "jpg");
-  const path = `${userId}/${Date.now()}.${ext}`;
+export async function uploadPulseMedia(file: File, _userId: string): Promise<string> {
+  const isVideo = file.type.startsWith("video");
+  const resourceType = isVideo ? "video" : "image";
 
-  const { data, error } = await supabase.storage.from("pulses").upload(path, file, {
-    cacheControl: "3600",
-    upsert: false,
-    contentType: file.type,
-  });
-  if (error) throw error;
+  const form = new FormData();
+  form.append("file", file);
+  form.append("upload_preset", UPLOAD_PRESET);
+  form.append("folder", "pulses");
 
-  const { data: { publicUrl } } = supabase.storage.from("pulses").getPublicUrl(data.path);
-  return publicUrl;
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`,
+    { method: "POST", body: form }
+  );
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({})) as any;
+    throw new Error(errData?.error?.message ?? "Media upload failed");
+  }
+
+  const data = await res.json() as { secure_url: string };
+  return data.secure_url;
 }

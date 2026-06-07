@@ -101,6 +101,9 @@ const ImmersiveVideo = memo(function ImmersiveVideo({
         loop
         playsInline
         preload="auto"
+        disablePictureInPicture
+        controlsList="nodownload noplaybackrate nofullscreen"
+        onContextMenu={(e) => e.preventDefault()}
         style={{
           width: "100%",
           height: "100%",

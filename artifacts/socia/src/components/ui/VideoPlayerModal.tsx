@@ -3,10 +3,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
 interface Props {
-  videoUrl: string;
+  videoUrl:   string;
   posterUrl?: string;
-  open: boolean;
-  onClose: () => void;
+  open:       boolean;
+  onClose:    () => void;
 }
 
 export function VideoPlayerModal({ videoUrl, posterUrl, open, onClose }: Props) {
@@ -16,8 +16,12 @@ export function VideoPlayerModal({ videoUrl, posterUrl, open, onClose }: Props) 
     const el = videoRef.current;
     if (!el) return;
     if (open) {
+      el.muted = false;
       el.load();
-      el.play().catch(() => {});
+      el.play().catch(() => {
+        el.muted = true;
+        el.play().catch(() => {});
+      });
     } else {
       el.pause();
       el.currentTime = 0;
@@ -43,7 +47,6 @@ export function VideoPlayerModal({ videoUrl, posterUrl, open, onClose }: Props) 
           style={{ background: "#000" }}
           onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
-          {/* Close button */}
           <button
             onClick={onClose}
             className="absolute right-4 z-10 grid h-10 w-10 place-items-center rounded-full text-white"
@@ -56,7 +59,6 @@ export function VideoPlayerModal({ videoUrl, posterUrl, open, onClose }: Props) 
             <X className="h-5 w-5" />
           </button>
 
-          {/* 9:16 video container — fills height, crops width */}
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -66,13 +68,7 @@ export function VideoPlayerModal({ videoUrl, posterUrl, open, onClose }: Props) 
           >
             <div
               className="relative overflow-hidden"
-              style={{
-                /* 9:16 aspect: height = container height, width = 9/16 of that */
-                height: "100%",
-                maxHeight: "100dvh",
-                aspectRatio: "9/16",
-                maxWidth: "100%",
-              }}
+              style={{ height: "100%", maxHeight: "100dvh", aspectRatio: "9/16", maxWidth: "100%" }}
             >
               <video
                 ref={videoRef}
@@ -81,12 +77,13 @@ export function VideoPlayerModal({ videoUrl, posterUrl, open, onClose }: Props) 
                 poster={posterUrl}
                 preload="auto"
                 controls
-                autoPlay
                 playsInline
                 loop
+                disablePictureInPicture
+                controlsList="nodownload noplaybackrate"
+                onContextMenu={(e) => e.preventDefault()}
                 className="absolute inset-0 h-full w-full"
                 style={{ objectFit: "cover" }}
-                onError={(e) => console.error("[Socia] Video error:", e)}
               />
             </div>
           </motion.div>

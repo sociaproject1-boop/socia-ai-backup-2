@@ -188,8 +188,16 @@ router.post("/api/pulses", requireAuth, async (req, res) => {
       .single();
 
     if (error) {
-      logger.error({ err: error, userId, type }, "[pulses] create DB error");
-      res.status(500).json({ error: error.message ?? "Failed to create pulse" });
+      logger.error({ err: error, userId, type, code: error.code }, "[pulses] create DB error");
+      // Provide actionable error messages to the client
+      const code = (error as any).code as string | undefined;
+      if (code === "42P01") {
+        res.status(500).json({ error: "Pulse tables not yet created — run migration 52 in Supabase SQL editor." });
+      } else if (code === "42501" || error.message?.includes("row-level security")) {
+        res.status(403).json({ error: "Permission denied. Please sign out and back in." });
+      } else {
+        res.status(500).json({ error: error.message ?? "Failed to create pulse" });
+      }
       return;
     }
 
