@@ -1,5 +1,13 @@
 import { create } from 'zustand';
 
+export interface PrivacySettings {
+  postsVisibility?: string;
+  whoCanMessage?:   string;
+  showLocation?:    boolean;
+  showBirthday?:    boolean;
+  showRelationship?: boolean;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -17,7 +25,19 @@ export interface User {
     facebook?:  string;
     instagram?: string;
     tiktok?:    string;
+    x?:         string;
+    youtube?:   string;
+    linkedin?:  string;
   };
+  /* Extended profile fields */
+  website?:           string;
+  location?:          string;
+  gender?:            string;
+  birthday?:          string;
+  relationshipStatus?: string;
+  work?:              string;
+  education?:         string;
+  privacySettings?:   PrivacySettings;
 }
 
 export interface Post {

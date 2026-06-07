@@ -35,15 +35,27 @@ export interface DbUser {
   following:  number;
   created_at: string;
   updated_at: string;
-  /* Added in schema §13 — present on every row after the migration runs */
+  /* Added in schema §13 */
   is_owner?:         boolean;
   is_verified?:      boolean;
   is_online?:        boolean;
   social_facebook?:  string;
   social_instagram?: string;
   social_tiktok?:    string;
-  /* Cover photo (migration 42+) */
+  /* Cover photo */
   cover_photo_url?:  string | null;
+  /* Extended profile fields */
+  website?:             string;
+  location?:            string;
+  gender?:              string;
+  birthday?:            string | null;
+  relationship_status?: string;
+  work?:                string;
+  education?:           string;
+  social_x?:            string;
+  social_youtube?:      string;
+  social_linkedin?:     string;
+  privacy_settings?:    Record<string, boolean | string>;
 }
 
 /* ── Online presence + owner badge helpers (RPCs, defined in schema §13) ── */

@@ -1055,3 +1055,20 @@ $$;
 
 REVOKE ALL ON FUNCTION public.consume_generation_quota(TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.consume_generation_quota(TEXT) TO authenticated;
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Extended profile fields — added for the profile rebuild
+───────────────────────────────────────────────────────────────────────────── */
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS website              TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS location             TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS gender               TEXT DEFAULT 'Prefer not to say',
+  ADD COLUMN IF NOT EXISTS birthday             DATE,
+  ADD COLUMN IF NOT EXISTS relationship_status  TEXT DEFAULT 'Prefer not to say',
+  ADD COLUMN IF NOT EXISTS work                 TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS education            TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS social_x             TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS social_youtube       TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS social_linkedin      TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS privacy_settings     JSONB NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS cover_photo_url      TEXT;
