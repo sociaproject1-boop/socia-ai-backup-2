@@ -66,7 +66,7 @@ router.get("/search/trending", async (_req, res) => {
 
     res.json({ hashtags: topTags, suggestedUsers: usersRes.data ?? [] });
   } catch (err) {
-    logger.error("[search/trending]", err);
+    logger.error({ err }, "[search/trending]");
     res.status(500).json({ error: "search_error" });
   }
 });
@@ -99,7 +99,7 @@ router.get("/search", async (req, res) => {
         trending: true,
       });
     } catch (err) {
-      logger.error("[search] discovery", err);
+      logger.error({ err }, "[search] discovery");
       return res.status(500).json({ error: "search_error" });
     }
   }
@@ -137,7 +137,7 @@ router.get("/search", async (req, res) => {
       trending: false,
     });
   } catch (err) {
-    logger.error("[search]", err);
+    logger.error({ err }, "[search]");
     res.status(500).json({ error: "search_error" });
   }
 });
