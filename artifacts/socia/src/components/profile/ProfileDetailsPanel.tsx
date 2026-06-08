@@ -18,6 +18,7 @@ import {
   Pencil, MapPin, Calendar, Heart, User as UserIcon,
   GraduationCap, Globe, Briefcase, School, Link as LinkIcon,
   Search, X, Mail, Phone, AtSign,
+  Sparkles, Languages, Clock, Mic2, Star,
 } from "lucide-react";
 /* ── Social-icon SVGs ──────────────────────────────────────────────────── */
 function FbIcon()  { return <svg viewBox="0 0 24 24" fill="currentColor" style={{width:14,height:14}}><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>; }
@@ -60,6 +61,15 @@ export interface ProfilePanelData {
   /* Meta */
   created_at?:          string;
   privacy_settings?:    Record<string, boolean | string>;
+  /* New extended profile fields */
+  headline?:            string;
+  pronunciation?:       string;
+  interests?:           string;   /* JSON-encoded string[] */
+  skills?:              string;   /* JSON-encoded string[] */
+  languages?:           string;   /* JSON-encoded string[] */
+  timezone?:            string;
+  mood_emoji?:          string;
+  mood_status?:         string;
 }
 
 interface Props {
@@ -67,6 +77,13 @@ interface Props {
   isOwnProfile:  boolean;
   viewerId?:     string | null;
   onEditOpen?:   () => void;
+}
+
+/* ── Array parser — handles JSON strings and raw arrays ──────────────────── */
+function parseArr(val?: string | null): string[] {
+  if (!val) return [];
+  if (Array.isArray(val)) return val as string[];
+  try { const p = JSON.parse(val); return Array.isArray(p) ? p : []; } catch { return []; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -111,6 +128,11 @@ export function ProfileDetailsPanel({ profile, isOwnProfile, onEditOpen }: Props
     }
   }
 
+  /* ── Parse new array fields ──────────────────────────────────────────── */
+  const interestsList = parseArr(profile.interests);
+  const skillsList    = parseArr(profile.skills);
+  const languagesList = parseArr(profile.languages);
+
   /* ── Derived booleans ────────────────────────────────────────────────── */
   const hasPersonalDetails = showLocation || showBirthday || showRelStatus || showGender ||
     Boolean(profile.education || profile.school || profile.college) || Boolean(profile.created_at);
@@ -122,8 +144,14 @@ export function ProfileDetailsPanel({ profile, isOwnProfile, onEditOpen }: Props
     profile.social_tiktok || profile.social_x || profile.social_youtube || profile.social_linkedin
   );
   const hasWork = Boolean(profile.work || profile.work_previous || profile.education || profile.school || profile.college);
+  const hasHeadline   = Boolean(profile.headline?.trim());
+  const hasMood       = Boolean(profile.mood_emoji?.trim() || profile.mood_status?.trim());
+  const hasInterests  = interestsList.length > 0;
+  const hasSkills     = skillsList.length > 0;
+  const hasIdentity   = languagesList.length > 0 || Boolean(profile.timezone?.trim()) || Boolean(profile.pronunciation?.trim());
 
-  const showAnySection = isOwnProfile || hasPersonalDetails || hasLinks || hasWork;
+  const showAnySection = isOwnProfile || hasPersonalDetails || hasLinks || hasWork ||
+    hasHeadline || hasMood || hasInterests || hasSkills || hasIdentity;
   if (!showAnySection) return null;
 
   /* ── Joined date ─────────────────────────────────────────────────────── */
@@ -324,6 +352,128 @@ export function ProfileDetailsPanel({ profile, isOwnProfile, onEditOpen }: Props
         </SectionCard>
       )}
 
+      {/* ═══════════════════════════════════════════════════════════════
+          5. PROFESSIONAL HEADLINE
+      ═══════════════════════════════════════════════════════════════ */}
+      {hasHeadline && (
+        <SectionCard title="Professional Headline" onEdit={isOwnProfile ? onEditOpen : undefined}>
+          <div className="flex items-start gap-3 py-0.5">
+            <span className="flex-shrink-0 mt-0.5" style={{ color: "#a855f7" }}>
+              <Briefcase style={{ width: 15, height: 15 }} />
+            </span>
+            <span className="text-[13px] app-text leading-relaxed">{profile.headline}</span>
+          </div>
+        </SectionCard>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+          6. MOOD & STATUS
+      ═══════════════════════════════════════════════════════════════ */}
+      {hasMood && (
+        <SectionCard title="Mood" onEdit={isOwnProfile ? onEditOpen : undefined}>
+          <div className="flex items-center gap-3 py-0.5">
+            <span className="flex-shrink-0" style={{ color: "#a855f7" }}>
+              <Sparkles style={{ width: 15, height: 15 }} />
+            </span>
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              {profile.mood_emoji && (
+                <span style={{ fontSize: 20, lineHeight: 1 }}>{profile.mood_emoji}</span>
+              )}
+              {profile.mood_status?.trim() && (
+                <span className="text-[13px] app-text">{profile.mood_status}</span>
+              )}
+            </div>
+          </div>
+        </SectionCard>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+          7. INTERESTS
+      ═══════════════════════════════════════════════════════════════ */}
+      {hasInterests && (
+        <SectionCard title="Interests" onEdit={isOwnProfile ? onEditOpen : undefined}>
+          <div className="flex items-center gap-2 mb-2 -mt-1">
+            <Star style={{ width: 13, height: 13, color: "#a855f7" }} />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {interestsList.map((item) => (
+              <span
+                key={item}
+                className="rounded-full px-3 py-1 text-[11px] font-semibold"
+                style={{ background: "rgba(168,85,247,0.12)", color: "#c084fc", border: "1px solid rgba(168,85,247,0.25)" }}
+              >
+                {item}
+              </span>
+            ))}
+          </div>
+        </SectionCard>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+          8. SKILLS
+      ═══════════════════════════════════════════════════════════════ */}
+      {hasSkills && (
+        <SectionCard title="Skills" onEdit={isOwnProfile ? onEditOpen : undefined}>
+          <div className="flex flex-wrap gap-1.5">
+            {skillsList.map((item) => (
+              <span
+                key={item}
+                className="rounded-full px-3 py-1 text-[11px] font-semibold"
+                style={{ background: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.25)" }}
+              >
+                {item}
+              </span>
+            ))}
+          </div>
+        </SectionCard>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════
+          9. IDENTITY — Languages · Timezone · Name Pronunciation
+      ═══════════════════════════════════════════════════════════════ */}
+      {(isOwnProfile || hasIdentity) && (
+        <SectionCard title="Identity" onEdit={isOwnProfile ? onEditOpen : undefined}>
+          {languagesList.length > 0 && (
+            <div className="flex items-start gap-3 py-0.5">
+              <span className="flex-shrink-0 mt-0.5" style={{ color: "#a855f7" }}>
+                <Languages style={{ width: 15, height: 15 }} />
+              </span>
+              <div className="flex flex-wrap gap-1.5 min-w-0">
+                {languagesList.map((lang) => (
+                  <span
+                    key={lang}
+                    className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                    style={{ background: "rgba(6,214,160,0.1)", color: "#34d399", border: "1px solid rgba(6,214,160,0.25)" }}
+                  >
+                    {lang}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {profile.timezone?.trim() && (
+            <DetailRow
+              icon={<Clock style={{ width: 15, height: 15 }} />}
+              text={profile.timezone}
+            />
+          )}
+          {profile.pronunciation?.trim() && (
+            <DetailRow
+              icon={<Mic2 style={{ width: 15, height: 15 }} />}
+              text={`Pronounced: ${profile.pronunciation}`}
+            />
+          )}
+          {isOwnProfile && languagesList.length === 0 && !profile.timezone && !profile.pronunciation && (
+            <button
+              onClick={onEditOpen}
+              className="w-full text-left text-[12px] py-1"
+              style={{ color: "var(--accent-primary)" }}
+            >
+              + Add languages, timezone & pronunciation
+            </button>
+          )}
+        </SectionCard>
+      )}
 
     </div>
   );

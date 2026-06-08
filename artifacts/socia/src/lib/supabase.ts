@@ -61,6 +61,15 @@ export interface DbUser {
   privacy_settings?:    Record<string, boolean | string>;
   public_email?:        string;
   public_phone?:        string;
+  /* New extended profile fields (schema §15) */
+  headline?:            string;
+  pronunciation?:       string;
+  interests?:           string;   /* JSON-encoded string[] */
+  skills?:              string;   /* JSON-encoded string[] */
+  languages?:           string;   /* JSON-encoded string[] */
+  timezone?:            string;
+  mood_emoji?:          string;
+  mood_status?:         string;
 }
 
 /* ── Online presence + owner badge helpers (RPCs, defined in schema §13) ── */

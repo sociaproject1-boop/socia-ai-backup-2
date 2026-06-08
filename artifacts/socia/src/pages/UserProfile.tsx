@@ -364,6 +364,14 @@ export default function UserProfile() {
                   privacy_settings:     profile.privacy_settings,
                   public_email:         profile.public_email,
                   public_phone:         profile.public_phone,
+                  headline:             profile.headline,
+                  pronunciation:        profile.pronunciation,
+                  interests:            profile.interests,
+                  skills:               profile.skills,
+                  languages:            profile.languages,
+                  timezone:             profile.timezone,
+                  mood_emoji:           profile.mood_emoji,
+                  mood_status:          profile.mood_status,
                 } satisfies ProfilePanelData}
                 isOwnProfile={false}
                 viewerId={sessionUid}
@@ -539,6 +547,14 @@ export default function UserProfile() {
                   privacy_settings:     profile.privacy_settings,
                   public_email:         profile.public_email,
                   public_phone:         profile.public_phone,
+                  headline:             profile.headline,
+                  pronunciation:        profile.pronunciation,
+                  interests:            profile.interests,
+                  skills:               profile.skills,
+                  languages:            profile.languages,
+                  timezone:             profile.timezone,
+                  mood_emoji:           profile.mood_emoji,
+                  mood_status:          profile.mood_status,
                 } satisfies ProfilePanelData}
                 isOwnProfile={false}
                 viewerId={sessionUid}

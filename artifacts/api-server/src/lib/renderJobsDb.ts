@@ -1,51 +1,12 @@
 /**
- * Render Jobs Database — service-role Supabase client for the worker.
- * All writes use the service-role key (bypasses RLS) so the background
- * worker can update any job regardless of who owns it.
+ * Render Jobs Database — Drizzle/Postgres implementation.
+ * Replaces the previous Supabase service-role client.
  */
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { readFileSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { eq, lte, inArray, and, ne, lt, count } from "drizzle-orm";
+import { db, schema } from "./db.js";
 import { logger } from "./logger.js";
 
-function getSupabaseUrl(): string {
-  return process.env["VITE_SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "";
-}
-
-function resolveServiceRole(): string {
-  const fromEnv = process.env["SUPABASE_SERVICE_ROLE_KEY"];
-  if (fromEnv && fromEnv.trim()) return fromEnv.trim();
-  const candidates = [
-    resolve(process.cwd(), ".local/secrets/SUPABASE_SERVICE_ROLE_KEY"),
-    resolve(process.cwd(), "../../.local/secrets/SUPABASE_SERVICE_ROLE_KEY"),
-  ];
-  for (const p of candidates) {
-    try {
-      if (existsSync(p)) {
-        const v = readFileSync(p, "utf8").trim();
-        if (v) return v;
-      }
-    } catch { /* ignore */ }
-  }
-  return "";
-}
-
-let _serviceClient: SupabaseClient | null = null;
-
-export function getServiceClient(): SupabaseClient {
-  if (_serviceClient) return _serviceClient;
-  const key = resolveServiceRole();
-  if (!key) {
-    logger.warn("[renderJobsDb] SUPABASE_SERVICE_ROLE_KEY missing — worker will degrade gracefully");
-    // Return anon client as fallback (RLS will block most writes)
-    _serviceClient = createClient(getSupabaseUrl(), process.env["VITE_SUPABASE_ANON_KEY"] ?? "");
-  } else {
-    _serviceClient = createClient(getSupabaseUrl(), key, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-  }
-  return _serviceClient;
-}
+const { renderJobs, studioProjects } = schema;
 
 /* ── Types ──────────────────────────────────────────────────────────── */
 export type RenderStatus =
@@ -87,6 +48,45 @@ export interface RenderJob {
   updated_at:       string;
 }
 
+function rowToJob(row: typeof renderJobs.$inferSelect): RenderJob {
+  return {
+    id:               row.id,
+    user_id:          row.userId,
+    project_id:       row.projectId ?? null,
+    status:           row.status as RenderStatus,
+    stage:            row.stage,
+    progress:         Number(row.progress ?? 0),
+    priority:         row.priority,
+    retry_count:      row.retryCount ?? 0,
+    max_retries:      row.maxRetries ?? 3,
+    failure_reason:   row.failureReason ?? null,
+    last_error:       row.lastError ?? null,
+    worker_id:        row.workerId ?? null,
+    worker_heartbeat: row.workerHeartbeat?.toISOString() ?? null,
+    render_engine:    row.renderEngine,
+    plan_code:        row.planCode ?? null,
+    output_url:       row.outputUrl ?? null,
+    thumbnail_url:    row.thumbnailUrl ?? null,
+    preview_strip_url: row.previewStripUrl ?? null,
+    duration_sec:     row.durationSec ? Number(row.durationSec) : null,
+    file_size_bytes:  row.fileSizeBytes ?? null,
+    completed_stages: (row.completedStages as string[]) ?? [],
+    input_payload:    (row.inputPayload as Record<string, unknown>) ?? {},
+    segment_meta:     (row.segmentMeta as unknown[]) ?? [],
+    encoding_state:   (row.encodingState as Record<string, unknown>) ?? {},
+    queued_at:        row.queuedAt?.toISOString() ?? new Date().toISOString(),
+    started_at:       row.startedAt?.toISOString() ?? null,
+    completed_at:     row.completedAt?.toISOString() ?? null,
+    created_at:       row.createdAt?.toISOString() ?? new Date().toISOString(),
+    updated_at:       row.updatedAt?.toISOString() ?? new Date().toISOString(),
+  };
+}
+
+/** Kept for backward compat — callers that imported getServiceClient() for other purposes */
+export function getServiceClient() {
+  return db;
+}
+
 /* ── Job creation ───────────────────────────────────────────────────── */
 export async function createRenderJob(params: {
   userId:        string;
@@ -97,58 +97,47 @@ export async function createRenderJob(params: {
   inputPayload:  Record<string, unknown>;
   thumbnailUrl?: string;
 }): Promise<RenderJob> {
-  const sb = getServiceClient();
-  const { data, error } = await sb
-    .from("render_jobs")
-    .insert({
-      user_id:       params.userId,
-      project_id:    params.projectId ?? null,
-      priority:      params.priority,
-      render_engine: params.renderEngine,
-      plan_code:     params.planCode,
-      input_payload: params.inputPayload,
-      thumbnail_url: params.thumbnailUrl ?? null,
-      status:        "queued",
-      stage:         "queued",
-    })
-    .select()
-    .single();
-  if (error) throw new Error(`createRenderJob: ${error.message}`);
-  return data as RenderJob;
+  const [row] = await db.insert(renderJobs).values({
+    userId:        params.userId,
+    projectId:     params.projectId ?? null,
+    priority:      params.priority,
+    renderEngine:  params.renderEngine,
+    planCode:      params.planCode,
+    inputPayload:  params.inputPayload,
+    thumbnailUrl:  params.thumbnailUrl ?? null,
+    status:        "queued",
+    stage:         "queued",
+  }).returning();
+  if (!row) throw new Error("createRenderJob: insert returned no row");
+  return rowToJob(row);
 }
 
 /* ── Worker job claiming ─────────────────────────────────────────────── */
 export async function claimNextJob(workerId: string): Promise<RenderJob | null> {
-  const sb = getServiceClient();
-  // Claim oldest queued job with highest priority (lowest number)
-  const { data: jobs } = await sb
-    .from("render_jobs")
-    .select("id, priority, queued_at")
-    .eq("status", "queued")
-    .order("priority", { ascending: true })
-    .order("queued_at", { ascending: true })
+  const jobs = await db
+    .select({ id: renderJobs.id, priority: renderJobs.priority, queuedAt: renderJobs.queuedAt })
+    .from(renderJobs)
+    .where(eq(renderJobs.status, "queued"))
+    .orderBy(renderJobs.priority, renderJobs.queuedAt)
     .limit(1);
 
   if (!jobs || jobs.length === 0) return null;
-  const job = jobs[0] as { id: string; priority: number; queued_at: string };
+  const job = jobs[0]!;
 
-  // Atomic claim — only update if still queued
-  const { data: claimed, error } = await sb
-    .from("render_jobs")
-    .update({
+  const [claimed] = await db
+    .update(renderJobs)
+    .set({
       status:           "preparing_assets",
       stage:            "preparing_assets",
-      worker_id:        workerId,
-      worker_heartbeat: new Date().toISOString(),
-      started_at:       new Date().toISOString(),
+      workerId:         workerId,
+      workerHeartbeat:  new Date(),
+      startedAt:        new Date(),
     })
-    .eq("id", job.id)
-    .eq("status", "queued")  // Guard against race
-    .select()
-    .single();
+    .where(and(eq(renderJobs.id, job.id), eq(renderJobs.status, "queued")))
+    .returning();
 
-  if (error || !claimed) return null;
-  return claimed as RenderJob;
+  if (!claimed) return null;
+  return rowToJob(claimed);
 }
 
 /* ── Job progress update ─────────────────────────────────────────────── */
@@ -174,9 +163,31 @@ export async function updateJobProgress(
     started_at?:      string;
   },
 ): Promise<void> {
-  const sb = getServiceClient();
-  const { error } = await sb.from("render_jobs").update(patch).eq("id", jobId);
-  if (error) logger.warn({ jobId, error: error.message }, "[renderJobsDb] updateJobProgress failed");
+  const values: Partial<typeof renderJobs.$inferInsert> = {};
+  if (patch.status          !== undefined) values.status           = patch.status;
+  if (patch.stage           !== undefined) values.stage            = patch.stage;
+  if (patch.progress        !== undefined) values.progress         = String(patch.progress);
+  if (patch.worker_heartbeat!== undefined) values.workerHeartbeat  = new Date(patch.worker_heartbeat);
+  if (patch.completed_stages!== undefined) values.completedStages  = patch.completed_stages;
+  if (patch.segment_meta    !== undefined) values.segmentMeta      = patch.segment_meta;
+  if (patch.encoding_state  !== undefined) values.encodingState    = patch.encoding_state;
+  if (patch.output_url      !== undefined) values.outputUrl        = patch.output_url;
+  if (patch.thumbnail_url   !== undefined) values.thumbnailUrl     = patch.thumbnail_url;
+  if (patch.preview_strip_url !== undefined) values.previewStripUrl = patch.preview_strip_url;
+  if (patch.duration_sec    !== undefined) values.durationSec      = String(patch.duration_sec);
+  if (patch.file_size_bytes !== undefined) values.fileSizeBytes    = patch.file_size_bytes;
+  if (patch.failure_reason  !== undefined) values.failureReason    = patch.failure_reason;
+  if (patch.last_error      !== undefined) values.lastError        = patch.last_error;
+  if (patch.completed_at    !== undefined) values.completedAt      = new Date(patch.completed_at);
+  if (patch.worker_id       !== undefined) values.workerId         = patch.worker_id;
+  if (patch.started_at      !== undefined) values.startedAt        = new Date(patch.started_at);
+  values.updatedAt = new Date();
+
+  try {
+    await db.update(renderJobs).set(values).where(eq(renderJobs.id, jobId));
+  } catch (err) {
+    logger.warn({ jobId, err: (err as Error).message }, "[renderJobsDb] updateJobProgress failed");
+  }
 }
 
 /* ── Heartbeat ───────────────────────────────────────────────────────── */
@@ -199,17 +210,11 @@ export async function failJob(
     failure_reason: reason,
     last_error:    reason,
     progress:      canRetry ? 0 : job.progress,
-    worker_id:     canRetry ? undefined : (job.worker_id ?? undefined),
     ...(canRetry ? {} : { completed_at: new Date().toISOString() }),
   });
 
   if (canRetry) {
-    // Persist retry count separately
-    const sb = getServiceClient();
-    await sb
-      .from("render_jobs")
-      .update({ retry_count: newRetry })
-      .eq("id", job.id);
+    await db.update(renderJobs).set({ retryCount: newRetry }).where(eq(renderJobs.id, job.id));
   }
 }
 
@@ -241,136 +246,124 @@ export async function completeJob(
 
 /* ── Recover stuck jobs on startup ──────────────────────────────────── */
 export async function recoverStuckJobs(workerId: string): Promise<number> {
-  const sb = getServiceClient();
-  const stuckCutoff = new Date(Date.now() - 12 * 60 * 1000).toISOString(); // 12 min
+  const stuckCutoff = new Date(Date.now() - 12 * 60 * 1000);
   const activeStatuses: RenderStatus[] = [
     "preparing_assets", "building_prompt_graph", "generating_motion",
     "voice_synthesis", "transition_rendering", "scene_blending",
     "color_grading", "audio_mixing", "encoding", "uploading",
   ];
 
-  const { data: stuck } = await sb
-    .from("render_jobs")
-    .select("id, retry_count, max_retries, failure_reason")
-    .in("status", activeStatuses)
-    .lt("worker_heartbeat", stuckCutoff);
+  const stuck = await db
+    .select({ id: renderJobs.id, retryCount: renderJobs.retryCount, maxRetries: renderJobs.maxRetries })
+    .from(renderJobs)
+    .where(and(
+      inArray(renderJobs.status, activeStatuses),
+      lt(renderJobs.workerHeartbeat, stuckCutoff),
+    ));
 
   if (!stuck || stuck.length === 0) return 0;
 
-  for (const job of stuck as RenderJob[]) {
-    const newRetry = job.retry_count + 1;
-    const canRetry = newRetry <= job.max_retries;
-    await sb.from("render_jobs").update({
+  for (const job of stuck) {
+    const newRetry = (job.retryCount ?? 0) + 1;
+    const canRetry = newRetry <= (job.maxRetries ?? 3);
+    await db.update(renderJobs).set({
       status:        canRetry ? "queued" : "failed",
       stage:         canRetry ? "queued" : "failed",
-      worker_id:     null,
-      retry_count:   newRetry,
-      failure_reason: "Worker timeout — auto-recovered",
-      progress:      0,
-    }).eq("id", job.id);
+      workerId:      null,
+      retryCount:    newRetry,
+      failureReason: "Worker timeout — auto-recovered",
+      progress:      "0",
+    }).where(eq(renderJobs.id, job.id));
   }
 
   logger.info({ count: stuck.length, workerId }, "[renderWorker] Recovered stuck jobs");
   return stuck.length;
 }
 
-/* ── User-facing queries (RLS) ───────────────────────────────────────── */
-export async function getJobForUser(
-  jobId: string,
-  userId: string,
-): Promise<RenderJob | null> {
-  const sb = getServiceClient();
-  const { data } = await sb
-    .from("render_jobs")
-    .select("*")
-    .eq("id", jobId)
-    .eq("user_id", userId)
-    .single();
-  return data as RenderJob | null;
-}
-
-export async function getUserJobs(
-  userId: string,
-  limit = 30,
-): Promise<RenderJob[]> {
-  const sb = getServiceClient();
-  const { data } = await sb
-    .from("render_jobs")
-    .select("id,status,stage,progress,render_engine,priority,retry_count,max_retries,failure_reason,output_url,thumbnail_url,duration_sec,input_payload,segment_meta,queued_at,started_at,completed_at,created_at")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  return (data ?? []) as RenderJob[];
-}
-
-/* ── Queue position (jobs ahead with same or higher priority) ──────── */
-export async function getQueuePosition(jobId: string, priority: number): Promise<number> {
-  const sb = getServiceClient();
-  const { count } = await sb
-    .from("render_jobs")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "queued")
-    .neq("id", jobId)
-    .lte("priority", priority);
-  return (count ?? 0) + 1; // 1-indexed: "you're #1 in queue"
-}
-
-/* ── Delete job (user's own completed/failed/cancelled only) ────────── */
-export async function deleteJobForUser(jobId: string, userId: string): Promise<boolean> {
-  const sb = getServiceClient();
-  const terminal: RenderStatus[] = ["completed", "failed", "cancelled"];
-  const { data, error } = await sb
-    .from("render_jobs")
-    .delete()
-    .eq("id", jobId)
-    .eq("user_id", userId)
-    .in("status", terminal)
-    .select("id")
-    .single();
-  return !error && !!data;
-}
-
-/* ── Re-queue a failed job (user's own, failed only) ────────────────── */
-export async function retryJobForUser(jobId: string, userId: string): Promise<RenderJob | null> {
-  const sb = getServiceClient();
-  // Verify ownership + failed status
-  const { data: job } = await sb
-    .from("render_jobs")
-    .select("*")
-    .eq("id", jobId)
-    .eq("user_id", userId)
-    .in("status", ["failed", "cancelled"])
-    .single();
-  if (!job) return null;
-
-  const { data: updated, error } = await sb
-    .from("render_jobs")
-    .update({
-      status:         "queued",
-      stage:          "queued",
-      progress:       0,
-      failure_reason: null,
-      last_error:     null,
-      worker_id:      null,
-      started_at:     null,
-      completed_at:   null,
-      queued_at:      new Date().toISOString(),
-    })
-    .eq("id", jobId)
+/* ── User-facing queries ─────────────────────────────────────────────── */
+export async function getJobForUser(jobId: string, userId: string): Promise<RenderJob | null> {
+  const [row] = await db
     .select()
-    .single();
-  if (error || !updated) return null;
-  return updated as RenderJob;
+    .from(renderJobs)
+    .where(and(eq(renderJobs.id, jobId), eq(renderJobs.userId, userId)))
+    .limit(1);
+  return row ? rowToJob(row) : null;
+}
+
+export async function getUserJobs(userId: string, limit = 30): Promise<RenderJob[]> {
+  const rows = await db
+    .select()
+    .from(renderJobs)
+    .where(eq(renderJobs.userId, userId))
+    .orderBy(renderJobs.createdAt)
+    .limit(limit);
+  return rows.map(rowToJob);
+}
+
+/* ── Queue position ─────────────────────────────────────────────────── */
+export async function getQueuePosition(jobId: string, priority: number): Promise<number> {
+  const [result] = await db
+    .select({ cnt: count() })
+    .from(renderJobs)
+    .where(and(
+      eq(renderJobs.status, "queued"),
+      ne(renderJobs.id, jobId),
+      lte(renderJobs.priority, priority),
+    ));
+  return ((result?.cnt as unknown as number) ?? 0) + 1;
+}
+
+/* ── Delete job ─────────────────────────────────────────────────────── */
+export async function deleteJobForUser(jobId: string, userId: string): Promise<boolean> {
+  const terminal: RenderStatus[] = ["completed", "failed", "cancelled"];
+  const [row] = await db
+    .delete(renderJobs)
+    .where(and(
+      eq(renderJobs.id, jobId),
+      eq(renderJobs.userId, userId),
+      inArray(renderJobs.status, terminal),
+    ))
+    .returning({ id: renderJobs.id });
+  return !!row;
+}
+
+/* ── Re-queue a failed job ───────────────────────────────────────────── */
+export async function retryJobForUser(jobId: string, userId: string): Promise<RenderJob | null> {
+  const [existing] = await db
+    .select()
+    .from(renderJobs)
+    .where(and(
+      eq(renderJobs.id, jobId),
+      eq(renderJobs.userId, userId),
+      inArray(renderJobs.status, ["failed", "cancelled"]),
+    ))
+    .limit(1);
+  if (!existing) return null;
+
+  const [updated] = await db
+    .update(renderJobs)
+    .set({
+      status:        "queued",
+      stage:         "queued",
+      progress:      "0",
+      failureReason: null,
+      lastError:     null,
+      workerId:      null,
+      startedAt:     null,
+      completedAt:   null,
+      queuedAt:      new Date(),
+    })
+    .where(eq(renderJobs.id, jobId))
+    .returning();
+  if (!updated) return null;
+  return rowToJob(updated);
 }
 
 /* ── Admin queries ───────────────────────────────────────────────────── */
 export async function getAdminQueueStats(): Promise<{
   queued: number; active: number; completed: number; failed: number; cancelled: number;
 }> {
-  const sb = getServiceClient();
-  const { data } = await sb
-    .from("render_jobs")
-    .select("status");
+  const rows = await db.select({ status: renderJobs.status }).from(renderJobs);
 
   const counts = { queued: 0, active: 0, completed: 0, failed: 0, cancelled: 0 };
   const activeStatuses = new Set([
@@ -378,7 +371,7 @@ export async function getAdminQueueStats(): Promise<{
     "voice_synthesis","transition_rendering","scene_blending",
     "color_grading","audio_mixing","encoding","uploading",
   ]);
-  for (const row of (data ?? []) as { status: string }[]) {
+  for (const row of rows) {
     if (row.status === "queued") counts.queued++;
     else if (row.status === "completed") counts.completed++;
     else if (row.status === "failed") counts.failed++;

@@ -485,6 +485,14 @@ export default function Profile() {
                 privacy_settings:     user.privacySettings as Record<string, boolean | string>,
                 public_email:         (user as any).public_email,
                 public_phone:         (user as any).public_phone,
+                headline:             (user as any).headline,
+                pronunciation:        (user as any).pronunciation,
+                interests:            (user as any).interests,
+                skills:               (user as any).skills,
+                languages:            (user as any).languages,
+                timezone:             (user as any).timezone,
+                mood_emoji:           (user as any).mood_emoji,
+                mood_status:          (user as any).mood_status,
               } satisfies ProfilePanelData}
               isOwnProfile
               viewerId={user.id}
