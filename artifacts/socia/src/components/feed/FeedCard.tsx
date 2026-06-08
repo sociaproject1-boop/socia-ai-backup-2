@@ -8,7 +8,7 @@
  *   Action bar: Like · Comment · Share · Save  (standardised)
  *   View count (inline, right-aligned)
  *
- * Phase 5: Standardised action bar, caption always above media.
+ * Guest gate: onGuestAction prop intercepts engagement for non-logged-in users.
  */
 import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -33,6 +33,8 @@ interface Props {
   onDelete?: (postId: string) => void;
   onCommentCountChange?: (postId: string, delta: number) => void;
   onOpenViewer?: (post: SocialPost) => void;
+  /** Called when a guest taps an engagement action — shows auth modal */
+  onGuestAction?: (label?: string) => void;
 }
 
 function relTime(iso: string): string {
@@ -50,9 +52,10 @@ function fmtCount(n: number): string {
   return String(n);
 }
 
-export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenViewer, onCommentCountChange }: Props) {
+export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenViewer, onCommentCountChange, onGuestAction }: Props) {
   const [, navigate]   = useLocation();
   const me             = useAppStore((s) => s.user);
+  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
   const followedIds    = useAppStore((s) => s.followedUserIds);
   const setFollowedIds = useAppStore((s) => s.setFollowedUserIds);
 
@@ -73,6 +76,15 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
   const media = post.media ?? [];
   const currentMedia = media[mediaIndex];
   const hasMulti = media.length > 1;
+
+  /* ── Guest gate helper ───────────────────────────────────────────── */
+  const requireAuth = useCallback((action: () => void, label?: string) => {
+    if (isAuthenticated) {
+      action();
+    } else {
+      onGuestAction?.(label);
+    }
+  }, [isAuthenticated, onGuestAction]);
 
   /* ── Swipe left/right to change media frame ─────────────────────────── */
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -97,9 +109,11 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
     const now = Date.now();
     if (now - lastTap.current < 300) {
       if (!post.has_liked) {
-        onLike(post.id);
-        setHeartBurst(true);
-        setTimeout(() => setHeartBurst(false), 900);
+        requireAuth(() => {
+          onLike(post.id);
+          setHeartBurst(true);
+          setTimeout(() => setHeartBurst(false), 900);
+        }, "like posts");
       }
       lastTap.current = 0;
     } else {
@@ -112,12 +126,12 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
         }
       }, 310);
     }
-  }, [post, onLike, onOpenViewer, navigate]);
+  }, [post, onLike, onOpenViewer, navigate, requireAuth]);
 
   const handleCommentClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    onComment?.(post.id);
-  }, [onComment, post.id]);
+    requireAuth(() => onComment?.(post.id), "comment on posts");
+  }, [onComment, post.id, requireAuth]);
 
   const handleShare = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -131,20 +145,22 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
 
   const handleFollow = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (followWorking || isMe) return;
-    setFollowWorking(true);
-    try {
-      if (isFollowing) {
-        const { error } = await supabase.rpc("unfollow_user", { target_id: post.author_id });
-        if (!error) setFollowedIds(followedIds.filter((id) => id !== post.author_id));
-      } else {
-        const { error } = await supabase.rpc("follow_user", { target_id: post.author_id });
-        if (!error) setFollowedIds([...followedIds, post.author_id]);
+    requireAuth(async () => {
+      if (followWorking || isMe) return;
+      setFollowWorking(true);
+      try {
+        if (isFollowing) {
+          const { error } = await supabase.rpc("unfollow_user", { target_id: post.author_id });
+          if (!error) setFollowedIds(followedIds.filter((id) => id !== post.author_id));
+        } else {
+          const { error } = await supabase.rpc("follow_user", { target_id: post.author_id });
+          if (!error) setFollowedIds([...followedIds, post.author_id]);
+        }
+      } finally {
+        setFollowWorking(false);
       }
-    } finally {
-      setFollowWorking(false);
-    }
-  }, [followWorking, isMe, isFollowing, post.author_id, followedIds, setFollowedIds]);
+    }, "follow creators");
+  }, [followWorking, isMe, isFollowing, post.author_id, followedIds, setFollowedIds, requireAuth]);
 
   const handleReport = useCallback(async () => {
     setShowMenu(false);
@@ -390,7 +406,7 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
         {/* Like */}
         <motion.button
           whileTap={{ scale: 0.82 }}
-          onClick={() => onLike(post.id)}
+          onClick={() => requireAuth(() => onLike(post.id), "like posts")}
           className="flex items-center gap-1.5 rounded-full px-3 py-2.5 min-w-[52px]"
         >
           <Heart
@@ -418,7 +434,7 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
           )}
         </motion.button>
 
-        {/* Share */}
+        {/* Share — always allowed */}
         <motion.button
           whileTap={{ scale: 0.82 }}
           onClick={handleShare}
@@ -430,7 +446,7 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
         {/* Save */}
         <motion.button
           whileTap={{ scale: 0.82 }}
-          onClick={() => onSave(post.id)}
+          onClick={() => requireAuth(() => onSave(post.id), "save posts")}
           className="flex items-center gap-1.5 rounded-full px-3 py-2.5"
         >
           <Bookmark

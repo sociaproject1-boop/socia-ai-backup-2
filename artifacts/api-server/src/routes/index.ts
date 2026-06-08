@@ -48,6 +48,7 @@ import streamsRouter             from "./streams.js";
 import starsRouter               from "./stars.js";
 import pulsesRouter              from "./pulses.js";
 import soundsRouter              from "./sounds.js";
+import exploreRouter             from "./explore.js";
 
 const router: IRouter = Router();
 
@@ -100,5 +101,6 @@ router.use(streamsRouter);
 router.use(starsRouter);
 router.use(soundsRouter);
 router.use(pulsesRouter);
+router.use(exploreRouter);
 
 export default router;

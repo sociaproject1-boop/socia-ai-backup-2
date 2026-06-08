@@ -20,9 +20,15 @@ const HIDE_TOPBAR    = [/^\/messages\/[^/]+$/, /^\/post\//, /^\/create\/[^/]+$/,
    creator subpages, legal pages, etc.). Using an allowlist instead of a
    hide-list guarantees new subroutes don't accidentally show the tab bar. */
 const ROOT_TAB_PATHS = new Set(["/", "/create", "/messages", "/profile"]);
-const isRootTab = (loc: string) => {
-  /* Normalize trailing slash so /create/ matches /create. Keep "/" as-is. */
+/* Guest public pages that should also show the bottom nav */
+const GUEST_ROOT_PATHS = new Set(["/explore", "/search"]);
+const isRootTab = (loc: string, isAuthenticated: boolean) => {
   const normalized = loc.length > 1 && loc.endsWith("/") ? loc.slice(0, -1) : loc;
+  if (!isAuthenticated) {
+    return GUEST_ROOT_PATHS.has(normalized)
+      || normalized.startsWith("/explore")
+      || normalized.startsWith("/hashtag");
+  }
   return ROOT_TAB_PATHS.has(normalized);
 };
 
@@ -84,9 +90,11 @@ export function AppShell({ children }: Props) {
   }
   useEffect(() => { prevLoc.current = location; }, [location]);
 
+  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+
   const hideAll       = HIDE_CHROME.some((r) => r.test(location));
   const hideTopBar    = hideAll || HIDE_TOPBAR.some((r) => r.test(location));
-  const hideBottomNav = hideAll || !isRootTab(location);
+  const hideBottomNav = hideAll || !isRootTab(location, isAuthenticated);
   const isModal       = /^\/(post|create\/[^/]+|messages\/[^/]+|profile\/settings)/.test(location);
 
   /*

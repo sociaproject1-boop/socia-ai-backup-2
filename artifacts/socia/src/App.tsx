@@ -81,6 +81,8 @@ const FriendsPage            = lazy(() => import("@/pages/Friends"));
 const PulseAdminPage         = lazy(() => import("@/pages/PulseAdmin"));
 const SoundPage              = lazy(() => import("@/pages/SoundPage"));
 const CameraCreator          = lazy(() => import("@/pages/CameraCreator"));
+const ExplorePage            = lazy(() => import("@/pages/Explore"));
+const HashtagFeedPage        = lazy(() => import("@/pages/HashtagFeed"));
 
 // Stable wrapper components defined outside Router to avoid remounts on re-render.
 // They reference lazy components which are resolved by the nearest Suspense boundary.
@@ -121,16 +123,29 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     /* Public routes: signed-in users can also reach /reset-password (they  *
      * land here from the recovery email with a valid session).             */
     const isPublic = location === "/auth"
-      || location === "/auth/callback"   // OAuth return — must be public before session exists
+      || location === "/auth/callback"
       || location === "/forgot-password"
       || location === "/reset-password"
-      || location === "/status"          // public status page — no auth required
+      || location === "/status"
+      || location === "/explore"
+      || location.startsWith("/explore")
+      || location.startsWith("/hashtag/")
+      || location.startsWith("/post/")
+      || location.startsWith("/user/")
+      || location.startsWith("/@")
+      || location.startsWith("/profile/")
+      || location.startsWith("/search")
       || location.startsWith("/legal/")
       || location.startsWith("/sys-admin")
       || location.startsWith("/admin")
       || location.startsWith("/creator/");
-    if (!isAuthenticated && !isPublic) navigate("/auth");
+    /* Guests on root → send to explore instead of auth */
+    if (!isAuthenticated && !isPublic) {
+      if (location === "/") navigate("/explore");
+      else navigate("/auth");
+    }
     if (isAuthenticated && location === "/auth") navigate("/");
+    if (isAuthenticated && location === "/explore") navigate("/");
   }, [isAuthenticated, loading, location, navigate]);
 
   if (loading) {
@@ -226,6 +241,9 @@ function Router() {
       <Route path="/upload"               component={UploadPage} />
       <Route path="/sounds/:id"           component={SoundPage} />
       <Route path="/camera"               component={CameraCreator} />
+      <Route path="/explore"              component={ExplorePage} />
+      <Route path="/hashtag/:tag"         component={HashtagFeedPage} />
+      <Route path="/@:username"           component={UserByUsername} />
       <Route path="/support-hub"          component={SupportHub} />
       <Route path="/notifications"        component={SocialNotifications} />
       <Route path="/status"               component={PublicStatus} />

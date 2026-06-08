@@ -1,21 +1,31 @@
 import { useLocation } from "wouter";
-import { Home, Search, MessageCircle, User } from "lucide-react";
+import { Home, Search, MessageCircle, User, Compass, LogIn } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
+import { useState } from "react";
+import { GuestAuthModal } from "@/components/guest/GuestAuthModal";
 import markUrl from "@assets/splash2/mark.png";
 
-const SIDE_TABS = [
+const AUTH_TABS = [
   { path: "/",        label: "Home",   icon: Home,          match: (l: string) => l === "/" },
   { path: "/search",  label: "Explore",icon: Search,        match: (l: string) => l.startsWith("/search") },
   { path: "/messages",label: "Inbox",  icon: MessageCircle, match: (l: string) => l.startsWith("/messages") },
   { path: "/profile", label: "Me",     icon: User,          match: (l: string) => l.startsWith("/profile") },
 ] as const;
 
+const GUEST_TABS = [
+  { path: "/explore", label: "Explore", icon: Compass, match: (l: string) => l === "/explore" || l.startsWith("/explore") || l.startsWith("/hashtag") },
+  { path: "/search",  label: "Search",  icon: Search,  match: (l: string) => l.startsWith("/search") },
+  { path: "/auth",    label: "Sign In", icon: LogIn,   match: (_l: string) => false },
+] as const;
+
 const TAB_COLOR: Record<string, string> = {
   "/":         "#a855f7",
   "/search":   "#ec4899",
+  "/explore":  "#a855f7",
   "/messages": "#60a5fa",
   "/profile":  "#a855f7",
+  "/auth":     "#a855f7",
 };
 
 const GPU: React.CSSProperties = {
@@ -26,7 +36,124 @@ const GPU: React.CSSProperties = {
 
 export function BottomNav() {
   const [location, navigate] = useLocation();
+  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
   const unreadCount = useAppStore((s) => s.unreadMessageCount);
+  const [showGuestModal, setShowGuestModal] = useState(false);
+
+  if (!isAuthenticated) {
+    return (
+      <>
+        <nav
+          style={{
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            background: "#0a0a0a",
+            borderTop: "1px solid rgba(255,255,255,0.07)",
+            paddingBottom: "env(safe-area-inset-bottom, 0px)",
+            zIndex: 50,
+            ...GPU,
+          }}
+        >
+          <ul
+            style={{
+              display: "flex",
+              alignItems: "center",
+              padding: "4px 0 6px",
+              position: "relative",
+            }}
+          >
+            {/* Left tabs */}
+            {GUEST_TABS.slice(0, 2).map((tab) => {
+              const active = tab.match(location);
+              const Icon   = tab.icon;
+              const color  = TAB_COLOR[tab.path] ?? "#a855f7";
+              return (
+                <li key={tab.path} style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+                  <NavTab
+                    active={active}
+                    color={color}
+                    label={tab.label}
+                    onClick={() => navigate(tab.path)}
+                  >
+                    <Icon
+                      style={{
+                        width: 22, height: 22,
+                        color: active ? color : "rgba(255,255,255,0.35)",
+                        strokeWidth: active ? 2.2 : 1.6,
+                        transition: "color 0.18s ease",
+                      }}
+                    />
+                  </NavTab>
+                </li>
+              );
+            })}
+
+            {/* Center — Join CTA */}
+            <li style={{ flex: "0 0 72px", display: "flex", justifyContent: "center", alignItems: "center" }}>
+              <motion.button
+                whileTap={{ scale: 0.88 }}
+                transition={{ type: "spring", stiffness: 480, damping: 22 }}
+                onClick={() => setShowGuestModal(true)}
+                aria-label="Join Socia"
+                style={{
+                  width: 54,
+                  height: 54,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg,#a855f7,#ec4899)",
+                  display: "grid",
+                  placeItems: "center",
+                  flexShrink: 0,
+                  marginBottom: 2,
+                  boxShadow: "0 0 16px rgba(168,85,247,0.4)",
+                }}
+              >
+                <img
+                  src={markUrl}
+                  alt=""
+                  draggable={false}
+                  style={{
+                    width: 40,
+                    height: 40,
+                    objectFit: "contain",
+                    userSelect: "none",
+                    pointerEvents: "none",
+                  }}
+                />
+              </motion.button>
+            </li>
+
+            {/* Right: Sign In tab */}
+            <li style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+              <NavTab
+                active={false}
+                color="#a855f7"
+                label="Sign In"
+                onClick={() => navigate("/auth")}
+              >
+                <LogIn
+                  style={{
+                    width: 22, height: 22,
+                    color: "rgba(255,255,255,0.35)",
+                    strokeWidth: 1.6,
+                  }}
+                />
+              </NavTab>
+            </li>
+
+            {/* Empty right slot for symmetry */}
+            <li style={{ flex: 1 }} />
+          </ul>
+        </nav>
+
+        <GuestAuthModal
+          open={showGuestModal}
+          onClose={() => setShowGuestModal(false)}
+        />
+      </>
+    );
+  }
 
   return (
     <nav
@@ -51,7 +178,7 @@ export function BottomNav() {
         }}
       >
         {/* Left two tabs */}
-        {SIDE_TABS.slice(0, 2).map((tab) => {
+        {AUTH_TABS.slice(0, 2).map((tab) => {
           const active  = tab.match(location);
           const Icon    = tab.icon;
           const color   = TAB_COLOR[tab.path];
@@ -112,7 +239,7 @@ export function BottomNav() {
         </li>
 
         {/* Right two tabs */}
-        {SIDE_TABS.slice(2).map((tab) => {
+        {AUTH_TABS.slice(2).map((tab) => {
           const active  = tab.match(location);
           const isInbox = tab.path === "/messages";
           const Icon    = tab.icon;
