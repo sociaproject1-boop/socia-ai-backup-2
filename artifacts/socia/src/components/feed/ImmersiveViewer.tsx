@@ -356,7 +356,7 @@ const PostCard = memo(function PostCard({
     <div className="absolute inset-0" style={{ background: "black" }}>
       {/* ── Media layer ─────────────────────────────────────────────── */}
       {isVideo
-        ? <ImmersiveVideo url={firstMedia!.url} />
+        ? <ImmersiveVideo url={firstMedia!.url} isActive={isActive} />
         : <ImmersiveImages media={post.media} onHorizontalSwipe={onHSwipe} />}
 
       {/* ── Bottom gradient ──────────────────────────────────────────── */}
@@ -788,6 +788,7 @@ export function ImmersiveViewer({
 
   const makeCardProps = (post: SocialPost, isCurrent: boolean): PostCardProps => ({
     post,
+    isActive:     isCurrent,
     commentCount: (post.comment_count ?? 0) + (commentCounts[post.id] ?? 0),
     onLike:    () => onLike(post.id),
     onSave:    () => onSave(post.id),
@@ -825,17 +826,17 @@ export function ImmersiveViewer({
       >
         {/* Slot 0 — previous post */}
         <div style={{ position: "relative", height: "100dvh", overflow: "hidden" }}>
-          {prevPost && <PostCard key={`prev-${prevPost.id}`} {...makeCardProps(prevPost, false)} />}
+          {prevPost && <PostCard key={prevPost.id} {...makeCardProps(prevPost, false)} />}
         </div>
 
         {/* Slot 1 — current post */}
         <div style={{ position: "relative", height: "100dvh", overflow: "hidden" }}>
-          <PostCard key={`curr-${currPost.id}`} {...makeCardProps(currPost, true)} />
+          <PostCard key={currPost.id} {...makeCardProps(currPost, true)} />
         </div>
 
         {/* Slot 2 — next post */}
         <div style={{ position: "relative", height: "100dvh", overflow: "hidden" }}>
-          {nextPost && <PostCard key={`next-${nextPost.id}`} {...makeCardProps(nextPost, false)} />}
+          {nextPost && <PostCard key={nextPost.id} {...makeCardProps(nextPost, false)} />}
         </div>
       </div>
 

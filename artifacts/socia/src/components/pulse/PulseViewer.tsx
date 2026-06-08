@@ -145,8 +145,27 @@ export function PulseViewer({
   useEffect(() => {
     const v = videoRef.current;
     if (!v || pulse?.type !== "video") return;
-    v.muted = false;
-    v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+    let cancelled = false;
+    const doPlay = async () => {
+      v.muted = false;
+      try {
+        await v.play();
+        if (cancelled) { v.pause(); v.muted = true; }
+      } catch {
+        if (cancelled) return;
+        v.muted = true;
+        try {
+          await v.play();
+          if (cancelled) { v.pause(); }
+        } catch { /* fully blocked */ }
+      }
+    };
+    doPlay();
+    return () => {
+      cancelled = true;
+      v.pause();
+      v.muted = true;
+    };
   }, [pulse?.id]);
 
   /* ── Progress animation ──────────────────────────────────────────────── */
