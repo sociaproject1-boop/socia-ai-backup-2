@@ -4,6 +4,18 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
+/* Ensure VITE_SUPABASE_ANON_KEY is complete. The Replit secret is sometimes
+ * stored truncated; SUPABASE_ANON_KEY (no VITE_ prefix) holds the full value.
+ * Patching process.env here, before Vite reads env vars, means import.meta.env
+ * will always expose the correct 208-char JWT to the browser bundle. */
+{
+  const full = (process.env["SUPABASE_ANON_KEY"] ?? "").replace(/\s/g, "");
+  const vite = (process.env["VITE_SUPABASE_ANON_KEY"] ?? "").replace(/\s/g, "");
+  if (full && (!vite || vite.length < full.length)) {
+    process.env["VITE_SUPABASE_ANON_KEY"] = full;
+  }
+}
+
 /* PORT and BASE_PATH default for standalone (out-of-Replit) usage so a plain
  * `vite` / `vite build` works without any env setup. Replit & Capacitor builds
  * still override them via the workflow / build:cap script. */
@@ -24,6 +36,7 @@ const enableReplitPlugins =
 
 export default defineConfig({
   base: basePath,
+  cacheDir: `node_modules/.vite-${port}`,
   plugins: [
     react(),
     tailwindcss(),

@@ -2,10 +2,10 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Request, RequestHandler } from "express";
 
 function getSupabaseUrl(): string {
-  return process.env["VITE_SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "";
+  return process.env["SUPABASE_URL"] ?? process.env["VITE_SUPABASE_URL"] ?? "";
 }
 function getSupabaseAnon(): string {
-  return process.env["VITE_SUPABASE_ANON_KEY"] ?? process.env["SUPABASE_ANON_KEY"] ?? "";
+  return process.env["SUPABASE_ANON_KEY"] ?? process.env["VITE_SUPABASE_ANON_KEY"] ?? "";
 }
 
 export interface AuthedUser {

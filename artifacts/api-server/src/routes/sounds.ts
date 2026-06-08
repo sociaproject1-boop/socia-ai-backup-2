@@ -22,7 +22,7 @@ import { logger } from "../lib/logger.js";
 
 function db() {
   const url = process.env["VITE_SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "";
-  const key = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? process.env["VITE_SUPABASE_ANON_KEY"] ?? "";
+  const key = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? process.env["SUPABASE_ANON_KEY"] ?? "";
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -31,7 +31,7 @@ function db() {
 function userDb(req: any) {
   const token = ((req.headers["authorization"] as string) ?? "").replace(/^Bearer\s+/i, "");
   const url  = process.env["VITE_SUPABASE_URL"]      ?? process.env["SUPABASE_URL"]      ?? "";
-  const anon = process.env["VITE_SUPABASE_ANON_KEY"] ?? process.env["SUPABASE_ANON_KEY"] ?? "";
+  const anon = process.env["SUPABASE_ANON_KEY"] ?? process.env["VITE_SUPABASE_ANON_KEY"] ?? "";
   return createClient(url, anon, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: `Bearer ${token}` } },
