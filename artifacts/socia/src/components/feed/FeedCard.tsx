@@ -17,6 +17,7 @@ import {
   Heart, MessageCircle, Bookmark, Share2, Eye, MoreHorizontal, BadgeCheck, Flag, Music2,
 } from "lucide-react";
 import { VideoPostPlayer } from "./VideoPostPlayer";
+import { RichCaption } from "./RichCaption";
 import { reportPost } from "@/lib/postsClient";
 import type { SocialPost } from "@/lib/postsClient";
 import { useAppStore } from "@/lib/store";
@@ -368,7 +369,7 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
               overflow: captionExpand ? "visible" : "hidden",
             } as React.CSSProperties}
           >
-            {post.caption}
+            <RichCaption text={post.caption} />
           </p>
           {post.caption.length > CAPTION_LIMIT && !captionExpand && (
             <button

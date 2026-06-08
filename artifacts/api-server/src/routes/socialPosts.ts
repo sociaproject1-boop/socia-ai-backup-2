@@ -341,6 +341,39 @@ router.post("/posts", requireAuth as any, async (req, res) => {
       })();
     }
 
+    /* Fire mention notifications — non-blocking */
+    if (trimmedCaption) {
+      void (async () => {
+        try {
+          const handles = [
+            ...new Set(
+              (trimmedCaption.match(/@([\w.]+)/g) ?? []).map((m) =>
+                m.slice(1).toLowerCase(),
+              ),
+            ),
+          ];
+          for (const handle of handles) {
+            const { data: mu } = await svc
+              .from("users")
+              .select("id")
+              .ilike("username", handle)
+              .limit(1)
+              .maybeSingle();
+            if (mu) {
+              void fireNotification({
+                user_id:  (mu as any).id,
+                actor_id: user.id,
+                post_id:  (post as any).id,
+                type:     "mention",
+              });
+            }
+          }
+        } catch (e) {
+          logger.warn({ e }, "[posts] mention notifications failed (non-critical)");
+        }
+      })();
+    }
+
     /* Return full enriched post */
     const { data: fullPost } = await svc
       .from("posts")

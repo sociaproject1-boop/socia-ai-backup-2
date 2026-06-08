@@ -13,6 +13,7 @@
  */
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useLocation, useRoute } from "wouter";
+import { RichCaption } from "@/components/feed/RichCaption";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Heart, MessageCircle, Bookmark, Share2,
@@ -435,7 +436,7 @@ export default function PostDetail() {
                 overflow: captionExpand ? "visible" : "hidden",
               } as React.CSSProperties}
             >
-              {post.caption}
+              <RichCaption text={post.caption} />
             </p>
             {post.caption.length > 280 && !captionExpand && (
               <button

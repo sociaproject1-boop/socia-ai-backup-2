@@ -13,6 +13,7 @@ import {
 import { useAppStore } from "@/lib/store";
 import { uploadPostMedia, createPost } from "@/lib/postsClient";
 import { SoundBrowser } from "@/components/sounds/SoundBrowser";
+import { MentionInput } from "@/components/feed/MentionInput";
 import { fetchSound } from "@/lib/soundsClient";
 import type { Sound } from "@/lib/soundsClient";
 
@@ -296,10 +297,10 @@ export default function UploadPage() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-3"
           >
-            <textarea
+            <MentionInput
               value={caption}
-              onChange={(e) => setCaption(e.target.value.slice(0, 2200))}
-              placeholder="Write a caption…"
+              onChange={setCaption}
+              placeholder="Write a caption… Use @ to mention people, # for hashtags"
               rows={4}
               disabled={publishing}
               className="w-full rounded-2xl px-4 py-3 text-sm app-text placeholder:app-text-muted resize-none outline-none focus:border-white/25 disabled:opacity-50"

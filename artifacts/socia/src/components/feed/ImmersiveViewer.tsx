@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import type { SocialPost } from "@/lib/postsClient";
+import { RichCaption } from "./RichCaption";
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 function fmtCount(n: number): string {
@@ -220,7 +221,7 @@ function CaptionText({ caption }: { caption: string }) {
           overflow: "hidden",
         } as React.CSSProperties}
       >
-        {caption}
+        <RichCaption text={caption} />
       </p>
       {isLong && !expanded && (
         <button
