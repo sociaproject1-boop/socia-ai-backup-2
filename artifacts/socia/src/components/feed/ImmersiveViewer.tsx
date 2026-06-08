@@ -1,24 +1,23 @@
 /**
  * ImmersiveViewer.tsx — TikTok-grade fullscreen media viewer.
  *
- * Swipe system:
- *  - Finger drag moves the ENTIRE card (media + all overlays) in real time
- *  - Uses direct DOM style.transform — zero React re-renders during drag
- *  - Velocity-based snap: fast flick OR 80px threshold commits navigation
+ * Swipe system (3-slot sliding window — zero black screen):
+ *  - A 300dvh container holds 3 cards: prev | current | next
+ *  - Container starts at -100dvh (showing current in center)
+ *  - Finger drag moves the ENTIRE container — no React re-renders during drag
+ *  - On commit: container snaps to -200dvh (next) or 0dvh (prev)
+ *  - flushSync + instant container reset = atomic swap, no flash
  *  - Spring-back if gesture cancelled
- *  - Next/prev card enters from below/above with CSS transition
  *
  * Video:
  *  - Auto-plays on mount, auto-pauses on unmount
  *  - object-contain: never stretches or crops any aspect ratio
  *  - No controls, no mute button, no chrome — tap to pause/resume
- *
- * Overlays (username, caption, like, comment, share) are INSIDE the card
- * wrapper so they translate with the card during swipe.
  */
 import {
   useState, useRef, useCallback, useEffect, memo,
 } from "react";
+import { flushSync } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Heart, MessageCircle, Bookmark, Share2,
@@ -270,27 +269,25 @@ function CaptionText({ caption }: { caption: string }) {
 
 /* ─────────────────────────────────────────────────────────────────────────
    PostCard — one full-screen card.
-   Contains media + gradient + all overlays.
-   enterFrom: "bottom" | "top" | "none" — for enter animation
+   Fills its slot container (absolute inset-0).
+   No enter/exit animation — the parent container handles all motion.
 ───────────────────────────────────────────────────────────────────────── */
 interface PostCardProps {
-  post:           SocialPost;
-  enterFrom:      "bottom" | "top" | "none";
-  cardRef:        React.RefObject<HTMLDivElement | null>;
-  heartBurst:     boolean;
-  commentCount:   number;
-  onLike:         () => void;
-  onSave:         () => void;
-  onComment:      () => void;
-  onShare:        () => void;
-  onClose:        () => void;
-  onDoubleTap:    () => void;
-  onHSwipe:       (v: boolean) => void;
-  navigate:       (path: string) => void;
+  post:         SocialPost;
+  heartBurst:   boolean;
+  commentCount: number;
+  onLike:       () => void;
+  onSave:       () => void;
+  onComment:    () => void;
+  onShare:      () => void;
+  onClose:      () => void;
+  onDoubleTap:  () => void;
+  onHSwipe:     (v: boolean) => void;
+  navigate:     (path: string) => void;
 }
 
 const PostCard = memo(function PostCard({
-  post, enterFrom, cardRef, heartBurst,
+  post, heartBurst,
   commentCount, onLike, onSave, onComment, onShare, onClose,
   onDoubleTap, onHSwipe, navigate,
 }: PostCardProps) {
@@ -299,28 +296,9 @@ const PostCard = memo(function PostCard({
   const isVideo    = firstMedia?.type === "video";
   const safeBottom = "env(safe-area-inset-bottom, 0px)";
 
-  /* Enter animation via CSS: start translated off-screen, then transition to 0 */
-  useEffect(() => {
-    const el = cardRef.current;
-    if (!el || enterFrom === "none") return;
-    const startY = enterFrom === "bottom" ? "100%" : "-100%";
-    el.style.transform = `translate3d(0, ${startY}, 0)`;
-    el.style.transition = "none";
-    /* Force reflow before animating */
-    void el.offsetHeight;
-    el.style.transition = "transform 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
-    el.style.transform  = "translate3d(0, 0, 0)";
-    const cleanup = () => {
-      if (el) el.style.transition = "";
-    };
-    const t = setTimeout(cleanup, 300);
-    return () => clearTimeout(t);
-  }, []); // run once on mount
-
   return (
     <div
-      ref={cardRef}
-      className="absolute inset-0 will-change-transform"
+      className="absolute inset-0"
       style={{ background: "black" }}
     >
       {/* ── Media layer ─────────────────────────────────────────────── */}
@@ -551,14 +529,22 @@ const PostCard = memo(function PostCard({
 
 /* ─────────────────────────────────────────────────────────────────────────
    ImmersiveViewer — main orchestrator.
-   Renders via portal into document.body.
 
-   Swipe system:
-    - touchstart: capture y0, timestamp
-    - touchmove: directly update cardRef.current.style.transform (no setState)
-    - touchend: velocity = dy/dt
-        • if |dy|>80 or velocity>0.35 → commit navigation
-        • else → CSS spring back to 0
+   3-slot sliding-window approach (zero black screen):
+   ┌─────────────┐ ← slot 0: prev post (off-screen above)
+   │  prev post  │
+   ├─────────────┤ ← container starts here at -100dvh
+   │ curr post ✓ │   this slot is always visible
+   ├─────────────┤
+   │  next post  │ ← slot 2: next post (off-screen below)
+   └─────────────┘
+
+   On swipe-up commit (go to next):
+     1. Container animates to -200dvh (next slides up into view)
+     2. flushSync(() => setPostIdx(idx+1)) — React re-renders synchronously
+        - slot1 now has new current (old next), slot2 has new next
+     3. container.style.transform = -100dvh instantly (no animation)
+     → No black screen: the content swap and position reset are atomic
 ───────────────────────────────────────────────────────────────────────── */
 export function ImmersiveViewer({
   posts,
@@ -571,19 +557,22 @@ export function ImmersiveViewer({
 }: ImmersiveViewerProps) {
   const [, navigate]  = useLocation();
   const [postIdx, setPostIdx]       = useState(startIndex);
-  const [enterFrom, setEnterFrom]   = useState<"bottom" | "top" | "none">("none");
   const [heartBurst, setHeartBurst] = useState(false);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
 
-  const cardRef         = useRef<HTMLDivElement>(null);
+  const containerRef    = useRef<HTMLDivElement>(null);
   const touchStartY     = useRef<number | null>(null);
   const touchStartTime  = useRef<number>(0);
   const touchStartX     = useRef<number | null>(null);
   const hSwipeCaptured  = useRef(false);
   const navigating      = useRef(false);
 
-  const post         = posts[postIdx];
-  const commentCount = (post?.comment_count ?? 0) + (commentCounts[post?.id] ?? 0);
+  /* Derive the three visible slots */
+  const prevPost = posts[postIdx - 1] ?? null;
+  const currPost = posts[postIdx];
+  const nextPost = posts[postIdx + 1] ?? null;
+
+  const commentCount = (currPost?.comment_count ?? 0) + (commentCounts[currPost?.id] ?? 0);
 
   /* ── Escape + browser back ─────────────────────────────────────────── */
   useEffect(() => {
@@ -610,8 +599,8 @@ export function ImmersiveViewer({
   const handleDoubleTap = useCallback(() => {
     const now = Date.now();
     if (now - lastTap.current < 300) {
-      if (!post?.has_liked) {
-        onLike(post.id);
+      if (!currPost?.has_liked) {
+        onLike(currPost.id);
         setHeartBurst(true);
         setTimeout(() => setHeartBurst(false), 900);
       }
@@ -619,20 +608,10 @@ export function ImmersiveViewer({
     } else {
       lastTap.current = now;
     }
-  }, [post, onLike]);
+  }, [currPost, onLike]);
 
-  /* ── Navigate to a post index ──────────────────────────────────────── */
-  const navigateTo = useCallback((nextIdx: number, direction: "bottom" | "top") => {
-    if (nextIdx < 0) { onClose(); return; }
-    if (nextIdx >= posts.length) return;
-    setEnterFrom(direction);
-    setPostIdx(nextIdx);
-    navigating.current = false;
-  }, [posts.length, onClose]);
-
-  /* ── Touch handlers — real-time drag + velocity snap ──────────────── */
+  /* ── Touch: start ──────────────────────────────────────────────────── */
   const onTouchStart = useCallback((e: React.TouchEvent) => {
-    /* Don't intercept touches on interactive overlays */
     const target = e.target as HTMLElement;
     if (target.closest("button") || target.closest("[data-no-swipe]")) return;
 
@@ -640,91 +619,137 @@ export function ImmersiveViewer({
     touchStartX.current    = e.touches[0].clientX;
     touchStartTime.current = Date.now();
     hSwipeCaptured.current = false;
-    navigating.current     = false;
 
-    const el = cardRef.current;
-    if (el) {
-      el.style.transition = "none";
-    }
+    const c = containerRef.current;
+    if (c) c.style.transition = "none";
   }, []);
 
+  /* ── Touch: move — translate the whole 3-slot container ────────────── */
   const onTouchMove = useCallback((e: React.TouchEvent) => {
     if (touchStartY.current === null || hSwipeCaptured.current || navigating.current) return;
 
     const dy = e.touches[0].clientY - touchStartY.current;
     const dx = Math.abs(e.touches[0].clientX - (touchStartX.current ?? 0));
 
-    /* If clearly a horizontal swipe (for image carousels), don't move card */
+    /* If this is a horizontal swipe (image carousels), don't move container */
     if (dx > Math.abs(dy) * 1.5 && dx > 20) {
       hSwipeCaptured.current = true;
+      /* Spring container back to center in case we moved it slightly */
+      const c = containerRef.current;
+      if (c) {
+        c.style.transition = "transform 0.18s ease-out";
+        c.style.transform  = `translate3d(0, ${-window.innerHeight}px, 0)`;
+      }
       return;
     }
 
-    const el = cardRef.current;
-    if (!el) return;
+    const c = containerRef.current;
+    if (!c) return;
 
-    /* Add resistance at the edges */
+    /* Rubber-band resistance at the edges */
     let resistedDy = dy;
-    if ((dy < 0 && postIdx >= posts.length - 1) ||
-        (dy > 0 && postIdx <= 0)) {
-      resistedDy = dy * 0.25;
-    }
+    if (dy < 0 && postIdx >= posts.length - 1) resistedDy = dy * 0.18;
+    if (dy > 0 && postIdx <= 0)               resistedDy = dy * 0.18;
 
-    el.style.transform = `translate3d(0, ${resistedDy}px, 0)`;
+    c.style.transform = `translate3d(0, ${-window.innerHeight + resistedDy}px, 0)`;
   }, [postIdx, posts.length]);
 
+  /* ── Touch: end — snap or spring-back ─────────────────────────────── */
   const onTouchEnd = useCallback((e: React.TouchEvent) => {
     if (touchStartY.current === null || hSwipeCaptured.current || navigating.current) return;
 
-    const dy        = e.changedTouches[0].clientY - touchStartY.current;
-    const dt        = Date.now() - touchStartTime.current;
-    const velocity  = Math.abs(dy) / Math.max(dt, 1); /* px/ms */
-    const el        = cardRef.current;
+    const dy       = e.changedTouches[0].clientY - touchStartY.current;
+    const dt       = Date.now() - touchStartTime.current;
+    const velocity = Math.abs(dy) / Math.max(dt, 1); /* px/ms */
+    const c        = containerRef.current;
 
-    const shouldNav = (Math.abs(dy) > 80 || velocity > 0.35) &&
-                      Math.abs(dy) > Math.abs(e.changedTouches[0].clientX - (touchStartX.current ?? 0));
+    /* Vertical dominance check */
+    const dxAbs = Math.abs(e.changedTouches[0].clientX - (touchStartX.current ?? 0));
+    const shouldNav = (Math.abs(dy) > 80 || velocity > 0.35) && Math.abs(dy) > dxAbs;
 
     touchStartY.current = null;
     touchStartX.current = null;
 
-    if (!shouldNav || !el) {
-      /* Spring back */
-      if (el) {
-        el.style.transition = "transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)";
-        el.style.transform  = "translate3d(0, 0, 0)";
+    if (!shouldNav) {
+      /* Spring back to center */
+      if (c) {
+        c.style.transition = "transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)";
+        c.style.transform  = `translate3d(0, ${-window.innerHeight}px, 0)`;
+      }
+      return;
+    }
+
+    const goingToNext = dy < 0;
+    const nextIdx     = goingToNext ? postIdx + 1 : postIdx - 1;
+
+    /* Edge: swiping up past first post closes viewer */
+    if (nextIdx < 0) {
+      if (c) {
+        c.style.transition = "transform 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
+        c.style.transform  = `translate3d(0, 0, 0)`;
+      }
+      setTimeout(onClose, 220);
+      return;
+    }
+
+    /* Edge: can't go past last post */
+    if (nextIdx >= posts.length) {
+      if (c) {
+        c.style.transition = "transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)";
+        c.style.transform  = `translate3d(0, ${-window.innerHeight}px, 0)`;
       }
       return;
     }
 
     navigating.current = true;
 
-    /* Snap card off-screen in the swipe direction */
-    const targetY = dy > 0 ? window.innerHeight : -window.innerHeight;
-    el.style.transition = "transform 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
-    el.style.transform  = `translate3d(0, ${targetY}px, 0)`;
+    /* Snap container to the adjacent slot */
+    const targetY = goingToNext ? -2 * window.innerHeight : 0;
+    if (c) {
+      c.style.transition = "transform 0.26s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
+      c.style.transform  = `translate3d(0, ${targetY}px, 0)`;
+    }
 
-    /* After snap animation, switch post */
+    /* After animation:
+       1. flushSync → React re-renders synchronously (slot 1 gets correct post)
+       2. Instantly reset container to -100vh
+       → Both DOM mutations happen before the next browser paint → zero flash */
     setTimeout(() => {
-      if (dy > 0) {
-        /* Swipe down → previous post */
-        navigateTo(postIdx - 1, "top");
-      } else {
-        /* Swipe up → next post */
-        navigateTo(postIdx + 1, "bottom");
+      flushSync(() => setPostIdx(nextIdx));
+      const c2 = containerRef.current;
+      if (c2) {
+        c2.style.transition = "none";
+        c2.style.transform  = `translate3d(0, ${-window.innerHeight}px, 0)`;
       }
-    }, 200);
-  }, [postIdx, navigateTo]);
+      navigating.current = false;
+    }, 280);
+  }, [postIdx, posts.length, onClose]);
 
-  if (!post) { onClose(); return null; }
+  if (!currPost) { onClose(); return null; }
 
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
-        title: post.caption ?? "Check this out on Socia",
-        url:   `${window.location.origin}/post/${post.id}`,
+        title: currPost.caption ?? "Check this out on Socia",
+        url:   `${window.location.origin}/post/${currPost.id}`,
       }).catch(() => {});
     }
   };
+
+  /* Shared action helpers for side-slot cards */
+  const makeCardProps = (post: SocialPost, isCurrent: boolean) => ({
+    post,
+    heartBurst:   isCurrent ? heartBurst : false,
+    commentCount: (post.comment_count ?? 0) + (commentCounts[post.id] ?? 0),
+    onLike:       () => onLike(post.id),
+    onSave:       () => onSave(post.id),
+    onComment:    () => onComment(post.id),
+    onShare:      isCurrent ? handleShare : () => {},
+    onClose,
+    onDoubleTap:  isCurrent ? handleDoubleTap : () => {},
+    onHSwipe:     (v: boolean) => { hSwipeCaptured.current = v; },
+    navigate,
+  });
 
   return (
     <motion.div
@@ -733,13 +758,48 @@ export function ImmersiveViewer({
       exit={{ opacity: 0 }}
       transition={{ duration: 0.15 }}
       className="fixed inset-0 bg-black overflow-hidden"
-      style={{ zIndex: 99999, touchAction: "pan-x" }}
+      style={{ zIndex: 99999, touchAction: "none" }}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
-      {/* Adjacent post preloaders */}
-      {[-1, 1].map((offset) => {
+      {/* ── 3-slot sliding container ──────────────────────────────────────
+           300dvh tall, always centered at -100dvh so slot 1 is on screen.
+           Direct DOM transform on drag — zero React re-renders mid-swipe. */}
+      <div
+        ref={containerRef}
+        style={{
+          position:  "absolute",
+          top:       0,
+          left:      0,
+          width:     "100%",
+          height:    "300dvh",
+          transform: `translate3d(0, ${-window.innerHeight}px, 0)`,
+          willChange: "transform",
+        }}
+      >
+        {/* Slot 0 — previous post (sits above viewport) */}
+        <div style={{ position: "relative", height: "100dvh", overflow: "hidden" }}>
+          {prevPost
+            ? <PostCard key={`prev-${prevPost.id}`} {...makeCardProps(prevPost, false)} />
+            : null}
+        </div>
+
+        {/* Slot 1 — current post (in viewport) */}
+        <div style={{ position: "relative", height: "100dvh", overflow: "hidden" }}>
+          <PostCard key={`curr-${currPost.id}`} {...makeCardProps(currPost, true)} />
+        </div>
+
+        {/* Slot 2 — next post (sits below viewport) */}
+        <div style={{ position: "relative", height: "100dvh", overflow: "hidden" }}>
+          {nextPost
+            ? <PostCard key={`next-${nextPost.id}`} {...makeCardProps(nextPost, false)} />
+            : null}
+        </div>
+      </div>
+
+      {/* Hidden preloaders for posts ±2 away (warm up network cache) */}
+      {[-2, 2].map((offset) => {
         const adj      = posts[postIdx + offset];
         const adjMedia = adj?.media?.[0];
         if (!adj || !adjMedia) return null;
@@ -747,7 +807,7 @@ export function ImmersiveViewer({
           <video
             key={`preload-${adj.id}`}
             src={adjMedia.url}
-            preload="auto"
+            preload="metadata"
             muted
             playsInline
             aria-hidden
@@ -762,24 +822,6 @@ export function ImmersiveViewer({
           />
         );
       })}
-
-      {/* The card — remounts on postIdx change, enters from correct direction */}
-      <PostCard
-        key={`card-${postIdx}`}
-        post={post}
-        enterFrom={enterFrom}
-        cardRef={cardRef}
-        heartBurst={heartBurst}
-        commentCount={commentCount}
-        onLike={() => onLike(post.id)}
-        onSave={() => onSave(post.id)}
-        onComment={() => onComment(post.id)}
-        onShare={handleShare}
-        onClose={onClose}
-        onDoubleTap={handleDoubleTap}
-        onHSwipe={(v) => { hSwipeCaptured.current = v; }}
-        navigate={navigate}
-      />
     </motion.div>
   );
 }
