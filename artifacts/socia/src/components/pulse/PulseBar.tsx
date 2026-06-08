@@ -1,126 +1,273 @@
 /**
- * PulseBar.tsx — Horizontal stories row for the home feed (v2).
+ * PulseBar.tsx — Facebook-style tall story cards for the home feed.
  *
- * Changes from v1:
- *  • Owner circle always shows a "+" overlay even when stories exist
- *    (multi-story support — tap ring area to view, tap "+" to add more)
- *  • Avatar and username are independently tappable
+ * Each card is ~88 × 148 px with:
+ *  • Background: first story media (or blurred avatar, or gradient)
+ *  • Avatar at top-left with gradient ring when unviewed
+ *  • Username label at bottom
+ *  • "Add Story" card first (animated + badge)
  */
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import { motion } from "framer-motion";
 import { Plus, Zap } from "lucide-react";
-import { PulseRing } from "./PulseRing";
 import { CreatePulse } from "./CreatePulse";
 import { openPulseViewer } from "./PulseViewer";
 import { usePulseFeed } from "@/lib/usePulse";
 import { useAppStore } from "@/lib/store";
+import { useState } from "react";
 import type { PulseFeedGroup } from "@/lib/pulseClient";
 
-/* ── Single circle ──────────────────────────────────────────────────────── */
-interface PulseCircleProps {
-  group:      PulseFeedGroup;
-  allGroups:  PulseFeedGroup[];
-  groupIdx:   number;
-  isMe?:      boolean;
+/* ── Dimensions ─────────────────────────────────────────────────────────── */
+const CARD_W = 88;
+const CARD_H = 148;
+
+/* ── Single story card ──────────────────────────────────────────────────── */
+interface StoryCardProps {
+  group:     PulseFeedGroup;
+  allGroups: PulseFeedGroup[];
+  groupIdx:  number;
+  isMe?:     boolean;
   onAddPulse?: () => void;
 }
 
-function PulseCircle({ group, allGroups, groupIdx, isMe, onAddPulse }: PulseCircleProps) {
+function StoryCard({ group, allGroups, groupIdx, isMe, onAddPulse }: StoryCardProps) {
   const { user, has_unviewed } = group;
   const hasAny  = group.pulses.length > 0;
   const viewed  = !has_unviewed;
   const initials = (user.name ?? user.username ?? "?").charAt(0).toUpperCase();
 
-  /* Tap the ring/avatar area → open viewer (if stories exist) */
-  const handleAvatarTap = useCallback(() => {
+  const firstPulse = group.pulses[0] ?? null;
+  const bgMedia    = (firstPulse?.type === "image" || firstPulse?.type === "video")
+    ? (firstPulse.media_url ?? null)
+    : null;
+  const isVideo = firstPulse?.type === "video";
+
+  const handleTap = useCallback(() => {
     if (!hasAny) { onAddPulse?.(); return; }
     const firstUnviewed = group.pulses.findIndex((p) => !p.is_viewed);
     openPulseViewer(allGroups, groupIdx, firstUnviewed >= 0 ? firstUnviewed : 0);
   }, [hasAny, group.pulses, allGroups, groupIdx, onAddPulse]);
 
+  const ringGradient = hasAny && !viewed
+    ? "linear-gradient(135deg,#8338ec,#ff006e)"
+    : "rgba(255,255,255,0.22)";
+
   return (
     <motion.div
-      whileTap={{ scale: 0.93 }}
-      className="flex flex-col items-center gap-1.5 flex-shrink-0 cursor-pointer"
+      whileTap={{ scale: 0.95 }}
+      onClick={handleTap}
+      className="flex-shrink-0 cursor-pointer"
+      style={{ width: CARD_W, height: CARD_H }}
     >
-      {/* Avatar + optional add-more badge */}
-      <div className="relative" onClick={handleAvatarTap}>
-        {isMe && !hasAny ? (
-          /* Empty state — dashed ring */
+      <div
+        className="relative w-full h-full overflow-hidden"
+        style={{ borderRadius: 16, background: "#1c1c1e" }}
+      >
+        {/* ── Background layer ── */}
+        {bgMedia ? (
+          isVideo ? (
+            <video
+              src={bgMedia}
+              className="absolute inset-0 h-full w-full object-cover"
+              muted
+              playsInline
+              preload="metadata"
+            />
+          ) : (
+            <img
+              src={bgMedia}
+              className="absolute inset-0 h-full w-full object-cover"
+              alt=""
+              loading="lazy"
+            />
+          )
+        ) : isMe ? (
           <div
-            className="h-[60px] w-[60px] rounded-full overflow-hidden flex items-center justify-center"
-            style={{
-              background: "linear-gradient(135deg,rgba(131,56,236,0.25),rgba(255,0,110,0.15))",
-              border: "2px dashed rgba(131,56,236,0.5)",
-            }}
-          >
-            {user.avatar_url
-              ? <img src={user.avatar_url} className="h-full w-full object-cover opacity-50" alt="" />
-              : <span className="text-[22px] font-bold text-purple-400">{initials}</span>
-            }
-          </div>
+            className="absolute inset-0"
+            style={{ background: "linear-gradient(160deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)" }}
+          />
+        ) : user.avatar_url ? (
+          <img
+            src={user.avatar_url}
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ filter: "blur(10px) brightness(0.45)", transform: "scale(1.15)" }}
+            alt=""
+            loading="lazy"
+          />
         ) : (
-          <PulseRing hasActivePulse={hasAny} size={60} viewed={viewed}>
-            <div className="h-full w-full rounded-full overflow-hidden">
-              {user.avatar_url
-                ? <img src={user.avatar_url} className="h-full w-full object-cover" alt="" />
-                : <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 flex items-center justify-center text-lg font-bold text-white">
+          <div
+            className="absolute inset-0"
+            style={{ background: "linear-gradient(160deg,rgba(131,56,236,0.35),rgba(255,0,110,0.25))" }}
+          />
+        )}
+
+        {/* ── Bottom gradient scrim ── */}
+        <div
+          className="absolute inset-0"
+          style={{ background: "linear-gradient(to bottom, transparent 35%, rgba(0,0,0,0.72) 100%)" }}
+        />
+
+        {/* ── "Create Story" card center content ── */}
+        {isMe && !hasAny && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+            {user.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt=""
+                className="h-[50px] w-[50px] rounded-full object-cover"
+                style={{ border: "2px solid rgba(255,255,255,0.25)" }}
+              />
+            ) : (
+              <div
+                className="h-[50px] w-[50px] rounded-full flex items-center justify-center text-xl font-bold text-white"
+                style={{ background: "linear-gradient(135deg,#8338ec,#ff006e)" }}
+              >
+                {initials}
+              </div>
+            )}
+            <div
+              className="flex h-6 w-6 items-center justify-center rounded-full"
+              style={{
+                background: "linear-gradient(135deg,#8338ec,#ff006e)",
+                border: "2.5px solid #0a0a0a",
+                marginTop: -6,
+              }}
+            >
+              <Plus className="h-3.5 w-3.5 text-white" strokeWidth={2.8} />
+            </div>
+          </div>
+        )}
+
+        {/* ── Avatar ring (top-left, for other users or self-with-stories) ── */}
+        {(!isMe || hasAny) && (
+          <div className="absolute top-2 left-2">
+            <div
+              style={{
+                background: ringGradient,
+                borderRadius: "50%",
+                padding: 2,
+                display: "inline-flex",
+              }}
+            >
+              <div
+                style={{
+                  borderRadius: "50%",
+                  overflow: "hidden",
+                  width: 34,
+                  height: 34,
+                  border: "1.5px solid #0a0a0a",
+                  background: "#0a0a0a",
+                  flexShrink: 0,
+                }}
+              >
+                {user.avatar_url ? (
+                  <img
+                    src={user.avatar_url}
+                    alt=""
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    loading="lazy"
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      background: "linear-gradient(135deg,#8338ec,#ff006e)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: "#fff",
+                    }}
+                  >
                     {initials}
                   </div>
-              }
+                )}
+              </div>
             </div>
-          </PulseRing>
+
+            {/* Add-more badge for self with existing stories */}
+            {isMe && hasAny && (
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.85 }}
+                onClick={(e) => { e.stopPropagation(); onAddPulse?.(); }}
+                style={{
+                  position: "absolute",
+                  bottom: -2,
+                  right: -2,
+                  width: 17,
+                  height: 17,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg,#8338ec,#ff006e)",
+                  border: "1.5px solid #0a0a0a",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                aria-label="Add story"
+              >
+                <Plus style={{ width: 9, height: 9, color: "#fff" }} strokeWidth={3} />
+              </motion.button>
+            )}
+          </div>
         )}
 
-        {/* "+" badge — show for own story always (add more) */}
-        {isMe && (
-          <motion.button
-            type="button"
-            whileTap={{ scale: 0.85 }}
-            onClick={(e) => { e.stopPropagation(); onAddPulse?.(); }}
-            className="absolute -bottom-0.5 -right-0.5 h-5 w-5 rounded-full flex items-center justify-center z-10"
-            style={{ background: "linear-gradient(135deg,#8338ec,#ff006e)" }}
-            aria-label="Add story"
+        {/* ── Bottom label ── */}
+        <div
+          className="absolute bottom-0 left-0 right-0"
+          style={{ padding: "0 7px 7px" }}
+        >
+          <span
+            style={{
+              display: "block",
+              fontSize: 10.5,
+              fontWeight: 600,
+              color: "#fff",
+              lineHeight: 1.3,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              textShadow: "0 1px 4px rgba(0,0,0,0.9)",
+            }}
           >
-            <Plus className="h-3 w-3 text-white" strokeWidth={2.5} />
-          </motion.button>
-        )}
+            {isMe
+              ? hasAny ? "Your Story" : "Add Story"
+              : (user.name ?? user.username ?? "Unknown")}
+          </span>
+        </div>
       </div>
-
-      {/* Label */}
-      <span
-        className="text-[10px] font-medium max-w-[64px] truncate"
-        style={{ color: (isMe && !hasAny) || viewed ? "var(--s-text-muted)" : "hsl(var(--foreground))" }}
-      >
-        {isMe ? "Your Story" : (user.name ?? user.username ?? "Unknown")}
-      </span>
     </motion.div>
   );
 }
 
-/* ── PulseBar ────────────────────────────────────────────────────────────── */
+/* ── Loading skeleton ───────────────────────────────────────────────────── */
+function StorySkeleton() {
+  return (
+    <div
+      className="flex-shrink-0 shimmer"
+      style={{ width: CARD_W, height: CARD_H, borderRadius: 16 }}
+    />
+  );
+}
 
+/* ── PulseBar ────────────────────────────────────────────────────────────── */
 export function PulseBar() {
   const me = useAppStore((s) => s.user);
-  const { groups, loading, refresh, markViewed } = usePulseFeed();
+  const { groups, loading, refresh } = usePulseFeed();
   const [showCreate, setShowCreate] = useState(false);
 
   if (loading && groups.length === 0) {
     return (
-      <div className="flex gap-4 overflow-x-auto hide-scrollbar px-4 py-3">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="flex flex-col items-center gap-1.5 flex-shrink-0">
-            <div className="h-[68px] w-[68px] rounded-full shimmer" />
-            <div className="h-2 w-12 rounded shimmer" />
-          </div>
-        ))}
+      <div className="flex gap-2.5 overflow-x-auto hide-scrollbar px-4 py-3">
+        {[1, 2, 3, 4].map((i) => <StorySkeleton key={i} />)}
       </div>
     );
   }
 
-  /* Ensure "my group" appears first */
-  const myGroup = groups.find((g) => g.user.id === me?.id);
-  const others  = groups.filter((g) => g.user.id !== me?.id);
+  const myGroup  = groups.find((g) => g.user.id === me?.id);
+  const others   = groups.filter((g) => g.user.id !== me?.id);
 
   const orderedGroups: PulseFeedGroup[] = [];
   if (myGroup) {
@@ -140,20 +287,24 @@ export function PulseBar() {
 
   return (
     <>
-      {/* Header label */}
-      <div className="flex items-center gap-1.5 px-4 pt-3 pb-1">
+      {/* Label row */}
+      <div className="flex items-center gap-1.5 px-4 pt-3 pb-1.5">
         <Zap className="h-3.5 w-3.5" style={{ color: "var(--accent-primary)" }} fill="currentColor" />
-        <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--accent-primary)" }}>
+        <span
+          className="text-[11px] font-bold uppercase tracking-widest"
+          style={{ color: "var(--accent-primary)" }}
+        >
           Stories
         </span>
       </div>
 
-      <div className="flex gap-4 overflow-x-auto hide-scrollbar px-4 pb-3">
+      {/* Cards row */}
+      <div className="flex gap-2.5 overflow-x-auto hide-scrollbar px-4 pb-3">
         {orderedGroups.map((group, i) => {
-          const isMe = group.user.id === me?.id;
+          const isMe      = group.user.id === me?.id;
           const viewerIdx = viewerGroups.findIndex((g) => g.user.id === group.user.id);
           return (
-            <PulseCircle
+            <StoryCard
               key={group.user.id}
               group={group}
               allGroups={viewerGroups.length > 0 ? viewerGroups : orderedGroups}

@@ -38,7 +38,13 @@ export function BottomNav() {
   const [location, navigate] = useLocation();
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
   const unreadCount = useAppStore((s) => s.unreadMessageCount);
+  const navHidden = useAppStore((s) => s.navHidden);
   const [showGuestModal, setShowGuestModal] = useState(false);
+
+  const slideStyle: React.CSSProperties = {
+    transform:  navHidden ? "translateY(100%)" : "translateY(0)",
+    transition: "transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94)",
+  };
 
   if (!isAuthenticated) {
     return (
@@ -54,6 +60,7 @@ export function BottomNav() {
             paddingBottom: "env(safe-area-inset-bottom, 0px)",
             zIndex: 50,
             ...GPU,
+            ...slideStyle,
           }}
         >
           <ul
@@ -167,6 +174,7 @@ export function BottomNav() {
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
         zIndex: 50,
         ...GPU,
+        ...slideStyle,
       }}
     >
       <ul

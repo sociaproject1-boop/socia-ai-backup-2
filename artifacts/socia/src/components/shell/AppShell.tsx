@@ -91,6 +91,10 @@ export function AppShell({ children }: Props) {
   useEffect(() => { prevLoc.current = location; }, [location]);
 
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+  const setNavHidden    = useAppStore((s) => s.setNavHidden);
+
+  /* Reset nav-hide state on every route change */
+  useEffect(() => { setNavHidden(false); }, [location, setNavHidden]);
 
   const hideAll       = HIDE_CHROME.some((r) => r.test(location));
   const hideTopBar    = hideAll || HIDE_TOPBAR.some((r) => r.test(location));

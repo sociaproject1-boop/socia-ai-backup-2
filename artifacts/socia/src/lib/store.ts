@@ -85,12 +85,14 @@ interface AppState {
   followedUserIds: string[];
   activePrompt: string;
   unreadMessageCount: number;
+  navHidden: boolean;
 
   login: () => void;
   logout: () => void;
   setUser: (user: User) => void;
   setActivePrompt: (prompt: string) => void;
   setUnreadMessageCount: (n: number) => void;
+  setNavHidden: (v: boolean) => void;
   toggleLike: (postId: string) => void;
   toggleSavePost: (postId: string) => void;
   setFollowedUserIds: (ids: string[]) => void;
@@ -110,12 +112,14 @@ export const useAppStore = create<AppState>((set) => ({
   followedUserIds: [],
   activePrompt: '',
   unreadMessageCount: 0,
+  navHidden: false,
 
   login: () => set({ isAuthenticated: true }),
   logout: () => set({ isAuthenticated: false, user: null, posts: [], chats: [], savedPrompts: [], savedPostIds: [], followedUserIds: [], activePrompt: '', unreadMessageCount: 0 }),
   setUser: (user) => set({ user }),
   setActivePrompt: (prompt) => set({ activePrompt: prompt }),
   setUnreadMessageCount: (n) => set({ unreadMessageCount: n }),
+  setNavHidden: (v) => set({ navHidden: v }),
 
   toggleLike: (postId) => set((state) => ({
     posts: state.posts.map(p => {

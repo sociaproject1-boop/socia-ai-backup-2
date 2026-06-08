@@ -9,6 +9,7 @@
  * 5. Compact SupportSociaCard (after posts, not blocking feed)
  */
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useNavHide } from "@/hooks/useNavHide";
 import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -133,9 +134,12 @@ export default function Home() {
     navigate("/create/prompt-image");
   };
 
+  const feedRef = useRef<HTMLDivElement>(null);
+  useNavHide(feedRef);
+
   return (
     <>
-    <div className="app-bg pb-28 scroll-native h-full overflow-y-auto hide-scrollbar">
+    <div ref={feedRef} className="app-bg pb-28 scroll-native h-full overflow-y-auto hide-scrollbar">
 
       {/* ── Sticky tab header ─────────────────────────────────────────── */}
       <div className="app-header sticky top-0 z-20 flex items-center gap-1 px-4 py-2">

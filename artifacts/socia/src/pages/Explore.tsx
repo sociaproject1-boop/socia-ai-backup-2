@@ -5,6 +5,7 @@
  * No authentication required. Engagement actions show GuestAuthModal.
  */
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useNavHide } from "@/hooks/useNavHide";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { TrendingUp, Hash, Users, RefreshCw, Search, ChevronRight } from "lucide-react";
@@ -189,8 +190,11 @@ export default function Explore() {
     gateAction(() => navigate(`/post/${postId}`), "comment on posts");
   }, [gateAction, navigate]);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  useNavHide(containerRef);
+
   return (
-    <div className="h-full overflow-y-auto app-bg">
+    <div ref={containerRef} className="h-full overflow-y-auto app-bg">
       {/* ── Guest banner (non-authenticated only) ────────────────────── */}
       {!isAuthenticated && (
         <div

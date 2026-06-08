@@ -12,6 +12,7 @@ export function TopBar() {
   const user   = useAppStore((s) => s.user);
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
   const unread = useAppStore((s) => s.chats.some((c) => c.unread));
+  const navHidden = useAppStore((s) => s.navHidden);
   const isHome    = location === "/";
   const isExplore = location === "/explore" || location.startsWith("/explore");
   const [notifUnread, setNotifUnread] = useState(0);
@@ -37,8 +38,15 @@ export function TopBar() {
   };
 
   return (
+    <div
+      style={{
+        transform:  navHidden ? "translateY(-100%)" : "translateY(0)",
+        transition: "transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94)",
+        willChange: "transform",
+      }}
+    >
     <header
-      className="app-header sticky top-0 z-30 flex items-center justify-between px-4"
+      className="app-header flex items-center justify-between px-4"
       style={{
         paddingTop:    `calc(env(safe-area-inset-top, 0px) + 12px)`,
         paddingBottom: 12,
@@ -194,6 +202,7 @@ export function TopBar() {
         )}
       </div>
     </header>
+    </div>
   );
 }
 
