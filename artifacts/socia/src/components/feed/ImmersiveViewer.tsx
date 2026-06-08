@@ -9,10 +9,11 @@
  *  - flushSync + instant container reset = atomic swap, no flash
  *  - Spring-back if gesture cancelled
  *
- * Video:
- *  - Auto-plays on mount, auto-pauses on unmount
- *  - object-contain: never stretches or crops any aspect ratio
- *  - No controls, no mute button, no chrome — tap to pause/resume
+ * Double-tap hearts:
+ *  - Detected in onTouchEnd (small movement + fast timing + repeat)
+ *  - Each heart spawns at exact tap coordinates (clientX/Y)
+ *  - Multiple independent hearts supported
+ *  - Hearts are fixed-position so they're never clipped by slot overflow:hidden
  */
 import {
   useState, useRef, useCallback, useEffect, memo,
@@ -33,6 +34,13 @@ function fmtCount(n: number): string {
   return String(n);
 }
 
+/* ── Heart item for floating tap-position hearts ─────────────────────────── */
+interface HeartItem {
+  id:   number;
+  x:    number; /* clientX of double-tap */
+  y:    number; /* clientY of double-tap */
+}
+
 /* ── Props ───────────────────────────────────────────────────────────────── */
 export interface ImmersiveViewerProps {
   posts:      SocialPost[];
@@ -46,16 +54,8 @@ export interface ImmersiveViewerProps {
 
 /* ─────────────────────────────────────────────────────────────────────────
    ImmersiveVideo — auto-plays on mount, auto-pauses on unmount.
-   • Attempts unmuted autoplay first; falls back to muted silently
-   • object-contain → NEVER stretches or crops
-   • No browser chrome, no controls
-   • Tap anywhere on video to pause/resume
 ───────────────────────────────────────────────────────────────────────── */
-const ImmersiveVideo = memo(function ImmersiveVideo({
-  url,
-}: {
-  url: string;
-}) {
+const ImmersiveVideo = memo(function ImmersiveVideo({ url }: { url: string }) {
   const videoRef    = useRef<HTMLVideoElement>(null);
   const [playing,   setPlaying]   = useState(false);
   const [buffering, setBuffering] = useState(true);
@@ -64,36 +64,23 @@ const ImmersiveVideo = memo(function ImmersiveVideo({
     const v = videoRef.current;
     if (!v) return;
     v.currentTime = 0;
-
     const tryPlay = () => {
       v.muted = false;
-      return v.play().catch(() => {
-        v.muted = true;
-        return v.play().catch(() => {});
-      });
+      return v.play().catch(() => { v.muted = true; return v.play().catch(() => {}); });
     };
     tryPlay();
-
-    return () => {
-      v.pause();
-      v.removeAttribute("src");
-      v.load();
-    };
+    return () => { v.pause(); v.removeAttribute("src"); v.load(); };
   }, [url]);
 
   const togglePlay = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     const v = videoRef.current;
     if (!v) return;
-    if (v.paused) v.play().catch(() => {});
-    else          v.pause();
+    if (v.paused) v.play().catch(() => {}); else v.pause();
   }, []);
 
   return (
-    <div
-      className="absolute inset-0 flex items-center justify-center bg-black"
-      onClick={togglePlay}
-    >
+    <div className="absolute inset-0 flex items-center justify-center bg-black" onClick={togglePlay}>
       <video
         ref={videoRef}
         src={url}
@@ -103,27 +90,17 @@ const ImmersiveVideo = memo(function ImmersiveVideo({
         disablePictureInPicture
         controlsList="nodownload noplaybackrate nofullscreen"
         onContextMenu={(e) => e.preventDefault()}
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "contain",
-          display: "block",
-          background: "black",
-        }}
+        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", background: "black" }}
         onWaiting={() => setBuffering(true)}
         onCanPlay={() => setBuffering(false)}
         onPlay={() => { setPlaying(true); setBuffering(false); }}
         onPause={() => setPlaying(false)}
       />
-
-      {/* Buffering spinner */}
       {buffering && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="h-10 w-10 rounded-full border-2 border-white/25 border-t-white animate-spin" />
         </div>
       )}
-
-      {/* Paused indicator */}
       <AnimatePresence>
         {!playing && !buffering && (
           <motion.div
@@ -185,7 +162,6 @@ const ImmersiveImages = memo(function ImmersiveImages({
   };
 
   const current = media?.[idx];
-
   return (
     <div
       className="absolute inset-0 flex items-center justify-center bg-black overflow-hidden"
@@ -202,17 +178,9 @@ const ImmersiveImages = memo(function ImmersiveImages({
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: dir * 40, opacity: 0 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
-          style={{
-            maxWidth: "100%",
-            maxHeight: "100%",
-            width: "auto",
-            height: "auto",
-            objectFit: "contain",
-            display: "block",
-          }}
+          style={{ maxWidth: "100%", maxHeight: "100%", width: "auto", height: "auto", objectFit: "contain", display: "block" }}
         />
       </AnimatePresence>
-
       {idx > 0 && (
         <button
           aria-label="Previous image"
@@ -241,7 +209,6 @@ const ImmersiveImages = memo(function ImmersiveImages({
 function CaptionText({ caption }: { caption: string }) {
   const [expanded, setExpanded] = useState(false);
   const isLong = caption.length > 90;
-
   return (
     <div onClick={(e) => e.stopPropagation()}>
       <p
@@ -270,26 +237,23 @@ function CaptionText({ caption }: { caption: string }) {
 /* ─────────────────────────────────────────────────────────────────────────
    PostCard — one full-screen card.
    Fills its slot container (absolute inset-0).
-   No enter/exit animation — the parent container handles all motion.
+   The parent container handles all motion — no enter/exit animations here.
 ───────────────────────────────────────────────────────────────────────── */
 interface PostCardProps {
   post:         SocialPost;
-  heartBurst:   boolean;
   commentCount: number;
   onLike:       () => void;
   onSave:       () => void;
   onComment:    () => void;
   onShare:      () => void;
   onClose:      () => void;
-  onDoubleTap:  () => void;
   onHSwipe:     (v: boolean) => void;
   navigate:     (path: string) => void;
 }
 
 const PostCard = memo(function PostCard({
-  post, heartBurst,
-  commentCount, onLike, onSave, onComment, onShare, onClose,
-  onDoubleTap, onHSwipe, navigate,
+  post, commentCount, onLike, onSave, onComment, onShare, onClose,
+  onHSwipe, navigate,
 }: PostCardProps) {
   const author     = post.author;
   const firstMedia = post.media?.[0];
@@ -297,36 +261,25 @@ const PostCard = memo(function PostCard({
   const safeBottom = "env(safe-area-inset-bottom, 0px)";
 
   return (
-    <div
-      className="absolute inset-0"
-      style={{ background: "black" }}
-    >
+    <div className="absolute inset-0" style={{ background: "black" }}>
       {/* ── Media layer ─────────────────────────────────────────────── */}
-      {isVideo ? (
-        <ImmersiveVideo url={firstMedia!.url} />
-      ) : (
-        <ImmersiveImages media={post.media} onHorizontalSwipe={onHSwipe} />
-      )}
+      {isVideo
+        ? <ImmersiveVideo url={firstMedia!.url} />
+        : <ImmersiveImages media={post.media} onHorizontalSwipe={onHSwipe} />}
 
-      {/* ── Bottom gradient — protects readability ───────────────────── */}
+      {/* ── Bottom gradient ──────────────────────────────────────────── */}
       <div
         className="pointer-events-none absolute inset-x-0 bottom-0 z-10"
-        style={{
-          height: 380,
-          background: "linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.55) 45%, transparent 100%)",
-        }}
+        style={{ height: 380, background: "linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.55) 45%, transparent 100%)" }}
       />
 
-      {/* ── Top gradient — for close button ─────────────────────────── */}
+      {/* ── Top gradient ─────────────────────────────────────────────── */}
       <div
         className="pointer-events-none absolute inset-x-0 top-0 z-10"
-        style={{
-          height: 120,
-          background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)",
-        }}
+        style={{ height: 120, background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)" }}
       />
 
-      {/* ── Close button ────────────────────────────────────────────── */}
+      {/* ── Close button ─────────────────────────────────────────────── */}
       <button
         className="absolute top-4 left-4 z-40 grid h-9 w-9 place-items-center rounded-full bg-black/40 backdrop-blur-sm"
         onClick={(e) => { e.stopPropagation(); onClose(); }}
@@ -359,10 +312,7 @@ const PostCard = memo(function PostCard({
           ) : (
             <div
               className="rounded-full grid place-items-center text-sm font-bold text-white"
-              style={{
-                width: 46, height: 46,
-                background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))",
-              }}
+              style={{ width: 46, height: 46, background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))" }}
             >
               {(author?.name || "?").charAt(0).toUpperCase()}
             </div>
@@ -437,16 +387,9 @@ const PostCard = memo(function PostCard({
       {/* ── Bottom-left — author + caption + views ───────────────────── */}
       <div
         className="absolute left-0 z-20 flex flex-col gap-2"
-        style={{
-          bottom: 0,
-          right: 78,
-          paddingLeft: 14,
-          paddingRight: 10,
-          paddingBottom: `calc(${safeBottom} + 20px)`,
-        }}
+        style={{ bottom: 0, right: 78, paddingLeft: 14, paddingRight: 10, paddingBottom: `calc(${safeBottom} + 20px)` }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Author row */}
         <div className="flex items-center gap-2.5">
           {author?.avatar_url ? (
             <img
@@ -459,10 +402,7 @@ const PostCard = memo(function PostCard({
           ) : (
             <div
               className="rounded-full grid place-items-center text-sm font-bold text-white flex-shrink-0 cursor-pointer"
-              style={{
-                width: 36, height: 36,
-                background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))",
-              }}
+              style={{ width: 36, height: 36, background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))" }}
               onClick={() => { onClose(); navigate(`/profile/${author?.id}`); }}
             >
               {(author?.name || "?").charAt(0).toUpperCase()}
@@ -488,63 +428,60 @@ const PostCard = memo(function PostCard({
             )}
           </div>
         </div>
-
-        {/* Caption */}
         {post.caption && <CaptionText caption={post.caption} />}
-
-        {/* View count */}
         <div className="flex items-center gap-1.5">
           <Eye className="h-3 w-3 text-white/40 flex-shrink-0" />
           <span className="text-[11px] text-white/40">{fmtCount(post.view_count ?? 0)} views</span>
         </div>
       </div>
-
-      {/* ── Double-tap heart burst ────────────────────────────────────── */}
-      <AnimatePresence>
-        {heartBurst && (
-          <motion.div
-            key="heart-burst"
-            className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center"
-            initial={{ opacity: 0, scale: 0.4 }}
-            animate={{ opacity: 1, scale: 1.3 }}
-            exit={{ opacity: 0, scale: 1.9 }}
-            transition={{ duration: 0.7, ease: "easeOut" }}
-          >
-            <Heart className="h-28 w-28 fill-rose-500 text-rose-500 drop-shadow-2xl" />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Tap capture for double-tap-to-like ──────────────────────── */}
-      <div
-        className="absolute inset-0 z-[5]"
-        onClick={onDoubleTap}
-        onTouchStart={(e) => e.stopPropagation()}
-        onTouchEnd={(e) => e.stopPropagation()}
-        style={{ pointerEvents: "none" }}
-      />
     </div>
   );
 });
 
 /* ─────────────────────────────────────────────────────────────────────────
+   FloatingHeart — a single heart that appears at tap coords and fades out.
+   Uses position:fixed so it's never clipped by slot overflow:hidden.
+───────────────────────────────────────────────────────────────────────── */
+function FloatingHeart({ x, y, onDone }: { x: number; y: number; onDone: () => void }) {
+  return (
+    <motion.div
+      className="pointer-events-none"
+      style={{
+        position: "fixed",
+        left:     x - 56, /* center 112px heart on tap point */
+        top:      y - 56,
+        zIndex:   999999,
+      }}
+      initial={{ opacity: 0, scale: 0.2 }}
+      animate={{
+        opacity: [0, 1,   1,   1,   0],
+        scale:   [0.2, 1.5, 1.2, 1.2, 1.4],
+      }}
+      transition={{ duration: 0.85, ease: "easeOut", times: [0, 0.2, 0.35, 0.6, 1] }}
+      onAnimationComplete={onDone}
+    >
+      <Heart className="h-28 w-28 fill-rose-500 text-rose-500 drop-shadow-2xl" />
+    </motion.div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
    ImmersiveViewer — main orchestrator.
 
    3-slot sliding-window approach (zero black screen):
-   ┌─────────────┐ ← slot 0: prev post (off-screen above)
+   ┌─────────────┐ ← slot 0: prev post (above viewport)
    │  prev post  │
-   ├─────────────┤ ← container starts here at -100dvh
-   │ curr post ✓ │   this slot is always visible
+   ├─────────────┤ ← container held at -100dvh → slot 1 always on screen
+   │ curr post ✓ │
    ├─────────────┤
-   │  next post  │ ← slot 2: next post (off-screen below)
+   │  next post  │ ← slot 2: next post (below viewport)
    └─────────────┘
 
-   On swipe-up commit (go to next):
-     1. Container animates to -200dvh (next slides up into view)
-     2. flushSync(() => setPostIdx(idx+1)) — React re-renders synchronously
-        - slot1 now has new current (old next), slot2 has new next
-     3. container.style.transform = -100dvh instantly (no animation)
-     → No black screen: the content swap and position reset are atomic
+   Double-tap hearts:
+   - Detected inside onTouchEnd (small dy + fast timing + quick repeat)
+   - Spawned at exact (clientX, clientY) of the tap
+   - Rendered as fixed-position FloatingHeart elements
+   - Multiple hearts supported (rapid double-taps each spawn a new one)
 ───────────────────────────────────────────────────────────────────────── */
 export function ImmersiveViewer({
   posts,
@@ -557,7 +494,7 @@ export function ImmersiveViewer({
 }: ImmersiveViewerProps) {
   const [, navigate]  = useLocation();
   const [postIdx, setPostIdx]       = useState(startIndex);
-  const [heartBurst, setHeartBurst] = useState(false);
+  const [hearts, setHearts]         = useState<HeartItem[]>([]);
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
 
   const containerRef    = useRef<HTMLDivElement>(null);
@@ -566,8 +503,11 @@ export function ImmersiveViewer({
   const touchStartX     = useRef<number | null>(null);
   const hSwipeCaptured  = useRef(false);
   const navigating      = useRef(false);
+  /* Double-tap detection */
+  const lastTapTime     = useRef(0);
+  const lastTapX        = useRef(0);
+  const lastTapY        = useRef(0);
 
-  /* Derive the three visible slots */
   const prevPost = posts[postIdx - 1] ?? null;
   const currPost = posts[postIdx];
   const nextPost = posts[postIdx + 1] ?? null;
@@ -594,21 +534,15 @@ export function ImmersiveViewer({
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  /* ── Double-tap to like ────────────────────────────────────────────── */
-  const lastTap = useRef(0);
-  const handleDoubleTap = useCallback(() => {
-    const now = Date.now();
-    if (now - lastTap.current < 300) {
-      if (!currPost?.has_liked) {
-        onLike(currPost.id);
-        setHeartBurst(true);
-        setTimeout(() => setHeartBurst(false), 900);
-      }
-      lastTap.current = 0;
-    } else {
-      lastTap.current = now;
-    }
-  }, [currPost, onLike]);
+  /* ── Spawn a floating heart at tap coords ──────────────────────────── */
+  const spawnHeart = useCallback((x: number, y: number) => {
+    const id = Date.now() + Math.random();
+    setHearts((h) => [...h, { id, x, y }]);
+  }, []);
+
+  const removeHeart = useCallback((id: number) => {
+    setHearts((h) => h.filter((item) => item.id !== id));
+  }, []);
 
   /* ── Touch: start ──────────────────────────────────────────────────── */
   const onTouchStart = useCallback((e: React.TouchEvent) => {
@@ -631,10 +565,8 @@ export function ImmersiveViewer({
     const dy = e.touches[0].clientY - touchStartY.current;
     const dx = Math.abs(e.touches[0].clientX - (touchStartX.current ?? 0));
 
-    /* If this is a horizontal swipe (image carousels), don't move container */
     if (dx > Math.abs(dy) * 1.5 && dx > 20) {
       hSwipeCaptured.current = true;
-      /* Spring container back to center in case we moved it slightly */
       const c = containerRef.current;
       if (c) {
         c.style.transition = "transform 0.18s ease-out";
@@ -646,7 +578,6 @@ export function ImmersiveViewer({
     const c = containerRef.current;
     if (!c) return;
 
-    /* Rubber-band resistance at the edges */
     let resistedDy = dy;
     if (dy < 0 && postIdx >= posts.length - 1) resistedDy = dy * 0.18;
     if (dy > 0 && postIdx <= 0)               resistedDy = dy * 0.18;
@@ -654,24 +585,53 @@ export function ImmersiveViewer({
     c.style.transform = `translate3d(0, ${-window.innerHeight + resistedDy}px, 0)`;
   }, [postIdx, posts.length]);
 
-  /* ── Touch: end — snap or spring-back ─────────────────────────────── */
+  /* ── Touch: end — snap, spring-back, or double-tap ────────────────── */
   const onTouchEnd = useCallback((e: React.TouchEvent) => {
     if (touchStartY.current === null || hSwipeCaptured.current || navigating.current) return;
 
-    const dy       = e.changedTouches[0].clientY - touchStartY.current;
-    const dt       = Date.now() - touchStartTime.current;
-    const velocity = Math.abs(dy) / Math.max(dt, 1); /* px/ms */
-    const c        = containerRef.current;
+    const endX  = e.changedTouches[0].clientX;
+    const endY  = e.changedTouches[0].clientY;
+    const dy    = endY - touchStartY.current;
+    const dx    = endX - (touchStartX.current ?? 0);
+    const dt    = Date.now() - touchStartTime.current;
+    const velocity = Math.abs(dy) / Math.max(dt, 1);
+    const c     = containerRef.current;
 
-    /* Vertical dominance check */
-    const dxAbs = Math.abs(e.changedTouches[0].clientX - (touchStartX.current ?? 0));
-    const shouldNav = (Math.abs(dy) > 80 || velocity > 0.35) && Math.abs(dy) > dxAbs;
+    const isTap   = Math.abs(dy) < 18 && Math.abs(dx) < 18 && dt < 220;
+    const shouldNav = !isTap &&
+                      (Math.abs(dy) > 80 || velocity > 0.35) &&
+                      Math.abs(dy) > Math.abs(dx);
 
+    const startX = touchStartX.current;
+    const startY = touchStartY.current;
     touchStartY.current = null;
     touchStartX.current = null;
 
+    /* ── Double-tap detection ──────────────────────────────────────── */
+    if (isTap) {
+      const now   = Date.now();
+      const tapX  = (startX ?? endX + endX) / 2; /* midpoint of touch */
+      const tapY  = (startY ?? endY + endY) / 2;
+
+      if (now - lastTapTime.current < 320 &&
+          Math.abs(tapX - lastTapX.current) < 60 &&
+          Math.abs(tapY - lastTapY.current) < 60) {
+        /* Double-tap! */
+        spawnHeart(endX, endY);
+        if (currPost && !currPost.has_liked) {
+          onLike(currPost.id);
+        }
+        lastTapTime.current = 0; /* reset so triple-tap doesn't re-trigger */
+      } else {
+        lastTapTime.current = now;
+        lastTapX.current    = tapX;
+        lastTapY.current    = tapY;
+      }
+      return;
+    }
+
+    /* ── Spring-back ───────────────────────────────────────────────── */
     if (!shouldNav) {
-      /* Spring back to center */
       if (c) {
         c.style.transition = "transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)";
         c.style.transform  = `translate3d(0, ${-window.innerHeight}px, 0)`;
@@ -679,11 +639,12 @@ export function ImmersiveViewer({
       return;
     }
 
+    /* ── Commit navigation ─────────────────────────────────────────── */
     const goingToNext = dy < 0;
     const nextIdx     = goingToNext ? postIdx + 1 : postIdx - 1;
 
-    /* Edge: swiping up past first post closes viewer */
     if (nextIdx < 0) {
+      /* Swipe past first → close */
       if (c) {
         c.style.transition = "transform 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
         c.style.transform  = `translate3d(0, 0, 0)`;
@@ -692,8 +653,8 @@ export function ImmersiveViewer({
       return;
     }
 
-    /* Edge: can't go past last post */
     if (nextIdx >= posts.length) {
+      /* Can't go past last post — spring back */
       if (c) {
         c.style.transition = "transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1)";
         c.style.transform  = `translate3d(0, ${-window.innerHeight}px, 0)`;
@@ -703,17 +664,14 @@ export function ImmersiveViewer({
 
     navigating.current = true;
 
-    /* Snap container to the adjacent slot */
     const targetY = goingToNext ? -2 * window.innerHeight : 0;
     if (c) {
       c.style.transition = "transform 0.26s cubic-bezier(0.25, 0.46, 0.45, 0.94)";
       c.style.transform  = `translate3d(0, ${targetY}px, 0)`;
     }
 
-    /* After animation:
-       1. flushSync → React re-renders synchronously (slot 1 gets correct post)
-       2. Instantly reset container to -100vh
-       → Both DOM mutations happen before the next browser paint → zero flash */
+    /* flushSync: React re-renders synchronously → slot 1 has correct post
+       before container resets → zero black screen / zero flash           */
     setTimeout(() => {
       flushSync(() => setPostIdx(nextIdx));
       const c2 = containerRef.current;
@@ -723,7 +681,7 @@ export function ImmersiveViewer({
       }
       navigating.current = false;
     }, 280);
-  }, [postIdx, posts.length, onClose]);
+  }, [postIdx, posts.length, onClose, currPost, onLike, spawnHeart]);
 
   if (!currPost) { onClose(); return null; }
 
@@ -736,18 +694,15 @@ export function ImmersiveViewer({
     }
   };
 
-  /* Shared action helpers for side-slot cards */
-  const makeCardProps = (post: SocialPost, isCurrent: boolean) => ({
+  const makeCardProps = (post: SocialPost, isCurrent: boolean): PostCardProps => ({
     post,
-    heartBurst:   isCurrent ? heartBurst : false,
     commentCount: (post.comment_count ?? 0) + (commentCounts[post.id] ?? 0),
-    onLike:       () => onLike(post.id),
-    onSave:       () => onSave(post.id),
-    onComment:    () => onComment(post.id),
-    onShare:      isCurrent ? handleShare : () => {},
+    onLike:    () => onLike(post.id),
+    onSave:    () => onSave(post.id),
+    onComment: () => onComment(post.id),
+    onShare:   isCurrent ? handleShare : () => {},
     onClose,
-    onDoubleTap:  isCurrent ? handleDoubleTap : () => {},
-    onHSwipe:     (v: boolean) => { hSwipeCaptured.current = v; },
+    onHSwipe:  (v: boolean) => { hSwipeCaptured.current = v; },
     navigate,
   });
 
@@ -763,42 +718,48 @@ export function ImmersiveViewer({
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
-      {/* ── 3-slot sliding container ──────────────────────────────────────
-           300dvh tall, always centered at -100dvh so slot 1 is on screen.
-           Direct DOM transform on drag — zero React re-renders mid-swipe. */}
+      {/* ── 3-slot sliding container ──────────────────────────────────── */}
       <div
         ref={containerRef}
         style={{
-          position:  "absolute",
-          top:       0,
-          left:      0,
-          width:     "100%",
-          height:    "300dvh",
-          transform: `translate3d(0, ${-window.innerHeight}px, 0)`,
+          position:   "absolute",
+          top:        0,
+          left:       0,
+          width:      "100%",
+          height:     "300dvh",
+          transform:  `translate3d(0, ${-window.innerHeight}px, 0)`,
           willChange: "transform",
         }}
       >
-        {/* Slot 0 — previous post (sits above viewport) */}
+        {/* Slot 0 — previous post */}
         <div style={{ position: "relative", height: "100dvh", overflow: "hidden" }}>
-          {prevPost
-            ? <PostCard key={`prev-${prevPost.id}`} {...makeCardProps(prevPost, false)} />
-            : null}
+          {prevPost && <PostCard key={`prev-${prevPost.id}`} {...makeCardProps(prevPost, false)} />}
         </div>
 
-        {/* Slot 1 — current post (in viewport) */}
+        {/* Slot 1 — current post */}
         <div style={{ position: "relative", height: "100dvh", overflow: "hidden" }}>
           <PostCard key={`curr-${currPost.id}`} {...makeCardProps(currPost, true)} />
         </div>
 
-        {/* Slot 2 — next post (sits below viewport) */}
+        {/* Slot 2 — next post */}
         <div style={{ position: "relative", height: "100dvh", overflow: "hidden" }}>
-          {nextPost
-            ? <PostCard key={`next-${nextPost.id}`} {...makeCardProps(nextPost, false)} />
-            : null}
+          {nextPost && <PostCard key={`next-${nextPost.id}`} {...makeCardProps(nextPost, false)} />}
         </div>
       </div>
 
-      {/* Hidden preloaders for posts ±2 away (warm up network cache) */}
+      {/* ── Floating hearts — fixed-position, never clipped ──────────── */}
+      <AnimatePresence>
+        {hearts.map((heart) => (
+          <FloatingHeart
+            key={heart.id}
+            x={heart.x}
+            y={heart.y}
+            onDone={() => removeHeart(heart.id)}
+          />
+        ))}
+      </AnimatePresence>
+
+      {/* ── Hidden preloaders (±2 from current) ──────────────────────── */}
       {[-2, 2].map((offset) => {
         const adj      = posts[postIdx + offset];
         const adjMedia = adj?.media?.[0];
