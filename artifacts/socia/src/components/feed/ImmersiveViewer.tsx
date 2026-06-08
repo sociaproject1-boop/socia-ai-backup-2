@@ -16,7 +16,7 @@
  *  - Hearts are fixed-position so they're never clipped by slot overflow:hidden
  */
 import {
-  useState, useRef, useCallback, useEffect, memo,
+  useState, useRef, useCallback, useEffect, useLayoutEffect, memo,
 } from "react";
 import { flushSync } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -54,25 +54,108 @@ export interface ImmersiveViewerProps {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   ImmersiveVideo — auto-plays on mount, auto-pauses on unmount.
+   ImmersiveVideo — one fullscreen video slot.
+
+   AUDIO / PLAYBACK CONTRACT
+   ─────────────────────────
+   • isActive = true  → reset to 0:00, unmute, play (with cancelled-flag so
+                         a fast swipe cannot leave a ghost audio track).
+   • isActive = false → pause + mute IMMEDIATELY via useLayoutEffect, which
+                         fires synchronously after React commits the prop
+                         change but BEFORE the browser paints. This means
+                         the old slot's audio is silenced in the same frame
+                         as the new slot starts — zero audible overlap.
+   • On unmount       → full resource release (src cleared, load() called).
+
+   BLACK-SCREEN ELIMINATION
+   ─────────────────────────
+   This component is keyed by post.id (not by slot position) in the parent,
+   so React REUSES the same DOM <video> element when the post moves from the
+   "next" slot to the "current" slot. Its buffered data is preserved and the
+   first frame is already decoded — no black frame on navigation.
 ───────────────────────────────────────────────────────────────────────── */
-const ImmersiveVideo = memo(function ImmersiveVideo({ url }: { url: string }) {
+const ImmersiveVideo = memo(function ImmersiveVideo({
+  url,
+  isActive,
+}: {
+  url:      string;
+  isActive: boolean;
+}) {
   const videoRef    = useRef<HTMLVideoElement>(null);
   const [playing,   setPlaying]   = useState(false);
   const [buffering, setBuffering] = useState(true);
 
-  useEffect(() => {
+  /* ── Play / pause driven by isActive ─────────────────────────────────
+     useLayoutEffect fires synchronously before paint:
+       - Old active slot is PAUSED before the new active slot PLAYS.
+       - No two videos can ever have audio at the same time.
+     The `cancelled` flag prevents a resolved play()-Promise from unmuting
+     a slot that was already deactivated by a rapid swipe.
+  ─────────────────────────────────────────────────────────────────────── */
+  useLayoutEffect(() => {
     const v = videoRef.current;
     if (!v) return;
+
+    if (!isActive) {
+      /* Immediately silence and pause — happens before browser paints */
+      v.pause();
+      v.muted = true;
+      return;
+    }
+
+    /* Active: reset to start, unmute, play */
     v.currentTime = 0;
-    const tryPlay = () => {
+    let cancelled = false;
+
+    const doPlay = async () => {
       v.muted = false;
-      return v.play().catch(() => { v.muted = true; return v.play().catch(() => {}); });
+      try {
+        await v.play();
+        if (cancelled) { v.pause(); }
+      } catch {
+        /* Browser blocked unmuted autoplay — fall back to muted */
+        if (cancelled) return;
+        v.muted = true;
+        try {
+          await v.play();
+          if (cancelled) { v.pause(); }
+        } catch { /* fully blocked — stay paused */ }
+      }
     };
-    tryPlay();
-    return () => { v.pause(); v.removeAttribute("src"); v.load(); };
+
+    doPlay();
+
+    return () => {
+      /* Cancel any in-flight play and silence BEFORE the next effect runs */
+      cancelled = true;
+      v.pause();
+      v.muted = true;
+    };
+  }, [isActive]);
+
+  /* ── URL change while inactive: reset so new content is ready ───────── */
+  useLayoutEffect(() => {
+    const v = videoRef.current;
+    if (!v || isActive) return;
+    v.currentTime = 0;
+    v.pause();
+    v.muted = true;
+  // isActive intentionally omitted — handled by the effect above
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
 
+  /* ── Full resource release on unmount ─────────────────────────────── */
+  useEffect(() => {
+    return () => {
+      const v = videoRef.current;
+      if (!v) return;
+      v.pause();
+      v.removeAttribute("src");
+      v.load();
+    };
+  }, []);
+
+  /* ── Manual tap-to-toggle (only meaningful when active) ──────────── */
   const togglePlay = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     const v = videoRef.current;
@@ -81,7 +164,10 @@ const ImmersiveVideo = memo(function ImmersiveVideo({ url }: { url: string }) {
   }, []);
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-black" onClick={togglePlay}>
+    <div
+      className="absolute inset-0 flex items-center justify-center bg-black"
+      onClick={togglePlay}
+    >
       <video
         ref={videoRef}
         src={url}
@@ -91,7 +177,11 @@ const ImmersiveVideo = memo(function ImmersiveVideo({ url }: { url: string }) {
         disablePictureInPicture
         controlsList="nodownload noplaybackrate nofullscreen"
         onContextMenu={(e) => e.preventDefault()}
-        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", background: "black" }}
+        style={{
+          width: "100%", height: "100%",
+          objectFit: "contain", display: "block",
+          background: "black",
+        }}
         onWaiting={() => setBuffering(true)}
         onCanPlay={() => setBuffering(false)}
         onPlay={() => { setPlaying(true); setBuffering(false); }}
@@ -243,6 +333,7 @@ function CaptionText({ caption }: { caption: string }) {
 interface PostCardProps {
   post:         SocialPost;
   commentCount: number;
+  isActive:     boolean;
   onLike:       () => void;
   onSave:       () => void;
   onComment:    () => void;
@@ -253,7 +344,7 @@ interface PostCardProps {
 }
 
 const PostCard = memo(function PostCard({
-  post, commentCount, onLike, onSave, onComment, onShare, onClose,
+  post, commentCount, isActive, onLike, onSave, onComment, onShare, onClose,
   onHSwipe, navigate,
 }: PostCardProps) {
   const author     = post.author;
