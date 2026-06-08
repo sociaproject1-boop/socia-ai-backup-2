@@ -44,23 +44,34 @@ function isOwnerUser(req: any): boolean {
 
 const BASE_POST_SELECT = `
   id, author_id, caption, type, view_count, created_at, updated_at,
+  sound_id,
   author:users!posts_author_id_fkey(id, name, username, avatar_url, is_verified, is_owner, subscription_status),
   media:post_media(id, url, type, width, height, duration, position)
 `;
 
-/** Enrich posts with real aggregate counts + viewer like/save status. */
+/** Enrich posts with real aggregate counts + viewer like/save status + sound metadata. */
 async function enrichPosts(posts: any[], viewerId: string | null) {
   if (!posts.length) return [];
 
   const svc = db();
   const postIds = posts.map((p: any) => p.id);
 
+  /* Collect distinct sound IDs from this batch */
+  const soundIds = [...new Set(posts.map((p: any) => p.sound_id).filter(Boolean))];
+
   /* Real aggregate counts (more accurate than cached, used for display) */
-  const [likesRes, commentsRes, savesRes] = await Promise.all([
+  const [likesRes, commentsRes, savesRes, soundsRes] = await Promise.all([
     svc.from("likes").select("post_id").in("post_id", postIds),
     svc.from("comments").select("post_id").in("post_id", postIds),
     svc.from("saves").select("post_id").in("post_id", postIds),
+    soundIds.length > 0
+      ? svc.from("sounds").select("id, title, cover_image, audio_url, usage_count, creator_id").in("id", soundIds)
+      : Promise.resolve({ data: [] as any[] }),
   ]);
+
+  /* Build sound lookup map */
+  const soundMap = new Map<string, any>();
+  (soundsRes.data ?? []).forEach((s: any) => soundMap.set(s.id, s));
 
   const likeMap = new Map<string, number>();
   const commentMap = new Map<string, number>();
@@ -88,7 +99,8 @@ async function enrichPosts(posts: any[], viewerId: string | null) {
     save_count:    saveMap.get(p.id) ?? 0,
     has_liked:     likedSet.has(p.id),
     has_saved:     savedSet.has(p.id),
-    media: (p.media ?? []).sort((a: any, b: any) => a.position - b.position),
+    media:         (p.media ?? []).sort((a: any, b: any) => a.position - b.position),
+    sound:         p.sound_id ? (soundMap.get(p.sound_id) ?? null) : null,
   }));
 }
 

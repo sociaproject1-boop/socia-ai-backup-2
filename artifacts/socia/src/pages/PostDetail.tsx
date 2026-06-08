@@ -19,6 +19,7 @@ import {
   Send, BadgeCheck, MoreHorizontal, Trash2, Flag, Eye, Star, X,
 } from "lucide-react";
 import { VideoPostPlayer } from "@/components/feed/VideoPostPlayer";
+import { MusicDisc } from "@/components/feed/MusicDisc";
 import {
   fetchSinglePost, fetchComments, addComment, deleteComment, editComment,
   toggleLike, toggleSave, reportPost, reportComment, recordView,
@@ -452,7 +453,7 @@ export default function PostDetail() {
         {media.length > 0 && (
           <div className="relative">
             {currentMedia?.type === "video" ? (
-              <VideoPostPlayer url={currentMedia.url} aspectRatio="4/5" />
+              <VideoPostPlayer url={currentMedia.url} aspectRatio="4/5" sound={post.sound as any} />
             ) : (
               <div style={{ aspectRatio: "4/5", background: "#0a0a0a" }}>
                 <img src={currentMedia?.url} alt={post.caption ?? ""} className="h-full w-full object-cover" />
@@ -476,6 +477,11 @@ export default function PostDetail() {
             {media.length > 1 && mediaIndex < media.length - 1 && (
               <button onClick={() => setMediaIndex((i) => i + 1)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 grid h-9 w-9 place-items-center rounded-full bg-black/50 backdrop-blur-sm text-white text-lg font-bold">›</button>
+            )}
+
+            {/* ── TikTok music disc overlay ─────────────────────────── */}
+            {post.sound_id && post.sound && currentMedia?.type !== "video" && (
+              <MusicDisc sound={post.sound as any} playing={false} size={50} />
             )}
           </div>
         )}
@@ -533,6 +539,31 @@ export default function PostDetail() {
             <span className="text-[13px] font-semibold" style={{ color: post.has_saved ? "#a855f7" : "rgba(255,255,255,0.7)" }}>Save</span>
           </motion.button>
         </div>
+
+        {/* ── Sound chip (text-only posts — disc is overlaid on media posts) ── */}
+        {post.sound_id && media.length === 0 && (
+          <motion.button
+            whileTap={{ scale: 0.97 }}
+            onClick={() => navigate(`/sounds/${post.sound_id}`)}
+            className="mx-4 mt-1 mb-1 flex items-center gap-2.5 rounded-2xl px-3 py-2"
+            style={{ background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)" }}
+          >
+            <div className="relative flex-shrink-0" style={{ width: 32, height: 32 }}>
+              <span className="absolute inset-0 rounded-full" style={{ border: "1.5px solid rgba(255,255,255,0.2)" }} />
+              <span className="absolute inset-[2px] rounded-full overflow-hidden grid place-items-center"
+                style={{ background: "linear-gradient(135deg,#1a1a2e,#2d0a5e)", animation: "discSpin 4s linear infinite", willChange: "transform" }}>
+                {post.sound?.cover_image
+                  ? <img src={post.sound.cover_image} alt="" className="h-full w-full object-cover rounded-full" draggable={false} />
+                  : <span style={{ fontSize: 13 }}>🎵</span>}
+              </span>
+              <span className="absolute rounded-full" style={{ width: 8, height: 8, top: "50%", left: "50%", transform: "translate(-50%,-50%)", background: "#111" }} />
+            </div>
+            <div className="flex flex-col items-start min-w-0">
+              <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: "rgba(168,85,247,0.8)" }}>Sound</span>
+              <span className="text-[12px] font-bold app-text truncate max-w-[180px]">{post.sound?.title ?? "Unknown sound"}</span>
+            </div>
+          </motion.button>
+        )}
 
         {/* ── Support Creator button (monetised only) ──────────────── */}
         {showSupportButton && (

@@ -19,7 +19,7 @@ function db() {
 }
 
 const POST_SELECT = `
-  id, author_id, caption, type, view_count, created_at,
+  id, author_id, caption, type, view_count, created_at, sound_id,
   author:users!posts_author_id_fkey(id, name, username, avatar_url, is_verified, is_owner, subscription_status),
   media:post_media(id, url, type, width, height, duration, position)
 `;
@@ -87,12 +87,24 @@ router.get("/explore", async (_req, res) => {
       (commentsRes.data ?? []).forEach((r: any) => commentMap.set(r.post_id, (commentMap.get(r.post_id) ?? 0) + 1));
     }
 
+    /* Fetch sound metadata for posts that have a sound_id */
+    const soundIds = [...new Set(rawPosts.map((p: any) => p.sound_id).filter(Boolean))];
+    const soundMap = new Map<string, any>();
+    if (soundIds.length > 0) {
+      const { data: soundData } = await svc
+        .from("sounds")
+        .select("id, title, cover_image, audio_url, usage_count, creator_id")
+        .in("id", soundIds);
+      (soundData ?? []).forEach((s: any) => soundMap.set(s.id, s));
+    }
+
     /* Rank posts by trending score */
     const rankedPosts = rawPosts
       .map((p: any) => ({
         ...p,
-        like_count: likeMap.get(p.id) ?? 0,
+        like_count:    likeMap.get(p.id) ?? 0,
         comment_count: commentMap.get(p.id) ?? 0,
+        sound:         p.sound_id ? (soundMap.get(p.sound_id) ?? null) : null,
       }))
       .sort((a: any, b: any) => trendingScore(b, likeMap.get(b.id) ?? 0, commentMap.get(b.id) ?? 0) - trendingScore(a, likeMap.get(a.id) ?? 0, commentMap.get(a.id) ?? 0))
       .slice(0, 40);

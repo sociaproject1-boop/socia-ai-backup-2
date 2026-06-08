@@ -473,3 +473,8 @@ html.light {
   animation: legendaryRingHue 6s linear infinite;
   will-change: filter;
 }
+
+@keyframes discSpin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}

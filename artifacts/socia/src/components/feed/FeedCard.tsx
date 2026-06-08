@@ -14,7 +14,7 @@ import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import {
-  Heart, MessageCircle, Bookmark, Share2, Eye, MoreHorizontal, BadgeCheck, Flag,
+  Heart, MessageCircle, Bookmark, Share2, Eye, MoreHorizontal, BadgeCheck, Flag, Music2,
 } from "lucide-react";
 import { VideoPostPlayer } from "./VideoPostPlayer";
 import { reportPost } from "@/lib/postsClient";
@@ -35,6 +35,70 @@ interface Props {
   onOpenViewer?: (post: SocialPost) => void;
   /** Called when a guest taps an engagement action — shows auth modal */
   onGuestAction?: (label?: string) => void;
+}
+
+/* ── Spinning music disc — TikTok-style ───────────────────────────────── */
+const DISC_SPIN_STYLE: React.CSSProperties = {
+  animation: "feedcard-disc-spin 4s linear infinite",
+  willChange: "transform",
+};
+
+function MusicDisc({ sound, soundId, navigate, size = 44 }: {
+  sound?: { cover_image?: string | null; title?: string } | null;
+  soundId: string;
+  navigate: (to: string) => void;
+  size?: number;
+}) {
+  return (
+    <>
+      <style>{`
+        @keyframes feedcard-disc-spin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+      `}</style>
+      <motion.button
+        whileTap={{ scale: 0.88 }}
+        onClick={(e) => { e.stopPropagation(); navigate(`/sounds/${soundId}`); }}
+        aria-label="View sound"
+        style={{ width: size, height: size, borderRadius: "50%", flexShrink: 0 }}
+        className="relative"
+      >
+        {/* outer ring */}
+        <span
+          className="absolute inset-0 rounded-full"
+          style={{ border: "2px solid rgba(255,255,255,0.22)", boxShadow: "0 0 8px rgba(168,85,247,0.4)" }}
+        />
+        {/* spinning thumbnail / fallback */}
+        <span
+          className="absolute inset-[3px] rounded-full overflow-hidden grid place-items-center"
+          style={{ background: "linear-gradient(135deg,#1a1a2e,#2d0a5e)", ...DISC_SPIN_STYLE }}
+        >
+          {sound?.cover_image ? (
+            <img
+              src={sound.cover_image}
+              alt={sound.title ?? "Sound"}
+              className="h-full w-full object-cover rounded-full"
+              draggable={false}
+            />
+          ) : (
+            <Music2 className="text-purple-300" style={{ width: size * 0.38, height: size * 0.38 }} />
+          )}
+        </span>
+        {/* centre hole — static */}
+        <span
+          className="absolute rounded-full"
+          style={{
+            width: size * 0.24, height: size * 0.24,
+            top: "50%", left: "50%",
+            transform: "translate(-50%,-50%)",
+            background: "#111",
+            border: "1.5px solid rgba(255,255,255,0.18)",
+          }}
+        />
+      </motion.button>
+    </>
+  );
 }
 
 function relTime(iso: string): string {
@@ -395,6 +459,29 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* ── TikTok music disc — photo/multi only; video handled by VideoPostPlayer ── */}
+          {post.sound_id && currentMedia?.type !== "video" && (
+            <div
+              className="absolute right-3 bottom-3 z-20 flex flex-col items-center gap-1"
+              style={{ pointerEvents: "auto" }}
+            >
+              <MusicDisc
+                sound={post.sound}
+                soundId={post.sound_id}
+                navigate={navigate}
+                size={46}
+              />
+              {post.sound?.title && (
+                <span
+                  className="text-white font-medium px-1.5 py-0.5 rounded text-[9px] max-w-[72px] truncate"
+                  style={{ background: "rgba(0,0,0,0.55)" }}
+                >
+                  {post.sound.title}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -457,11 +544,22 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
 
         {/* View count right-aligned */}
         <div className="flex-1" />
-        <div className="flex items-center gap-1 px-2 opacity-50">
-          <Eye className="h-3.5 w-3.5" style={{ color: "rgba(255,255,255,0.45)" }} />
-          <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.45)" }}>
-            {fmtCount(post.view_count ?? 0)}
-          </span>
+        <div className="flex items-center gap-2 px-2">
+          <div className="flex items-center gap-1 opacity-50">
+            <Eye className="h-3.5 w-3.5" style={{ color: "rgba(255,255,255,0.45)" }} />
+            <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.45)" }}>
+              {fmtCount(post.view_count ?? 0)}
+            </span>
+          </div>
+          {/* Music disc for text-only posts (media posts show it overlaid on media) */}
+          {post.sound_id && media.length === 0 && (
+            <MusicDisc
+              sound={post.sound}
+              soundId={post.sound_id}
+              navigate={navigate}
+              size={36}
+            />
+          )}
         </div>
       </div>
     </article>
