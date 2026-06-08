@@ -11,11 +11,9 @@
  *
  * Used by both Profile.tsx (self) and UserProfile.tsx (others).
  */
-import { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-  LayoutList, LayoutGrid, Video, ImageIcon, FileText, Award,
-} from "lucide-react";
+import { LayoutList, LayoutGrid, Video, ImageIcon, FileText, Award } from "lucide-react";
 import { fetchUserPosts, type SocialPost } from "@/lib/postsClient";
 import type { SupporterTier } from "@/components/profile/FoundingSupporterBadge";
 import { ProfilePostGrid } from "./ProfilePostGrid";
@@ -23,13 +21,13 @@ import { MilestoneTimeline } from "./MilestoneTimeline";
 
 export type ProfileTabId = "all" | "spotlight" | "motion" | "gallery" | "moments" | "milestones";
 
-const TABS: { id: ProfileTabId; label: string; icon: typeof LayoutGrid }[] = [
-  { id: "all",        label: "All",        icon: LayoutList },
-  { id: "spotlight",  label: "Spotlight",  icon: LayoutGrid },
-  { id: "motion",     label: "Motion",     icon: Video      },
-  { id: "gallery",    label: "Gallery",    icon: ImageIcon  },
-  { id: "moments",    label: "Moments",    icon: FileText   },
-  { id: "milestones", label: "Milestones", icon: Award      },
+const TABS: { id: ProfileTabId; label: string }[] = [
+  { id: "all",        label: "All"        },
+  { id: "spotlight",  label: "Spotlight"  },
+  { id: "motion",     label: "Motion"     },
+  { id: "gallery",    label: "Gallery"    },
+  { id: "moments",    label: "Moments"    },
+  { id: "milestones", label: "Milestones" },
 ];
 
 const PAGE = 20;
@@ -84,6 +82,35 @@ export function ProfileTabs({
 }: Props) {
   const [activeTab, setActiveTab] = useState<ProfileTabId>(defaultTab);
   const tabBarRef = useRef<HTMLDivElement>(null);
+
+  /* ── Touch swipe ─────────────────────────────────────────────────────── */
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const swipeAxis = useRef<"h" | "v" | null>(null);
+
+  function onTouchStart(e: React.TouchEvent) {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    swipeAxis.current = null;
+  }
+
+  function onTouchMove(e: React.TouchEvent) {
+    if (swipeAxis.current) return;
+    const dx = Math.abs(e.touches[0].clientX - touchStartX.current);
+    const dy = Math.abs(e.touches[0].clientY - touchStartY.current);
+    if (dx > 6 || dy > 6) swipeAxis.current = dx > dy ? "h" : "v";
+  }
+
+  function onTouchEnd(e: React.TouchEvent) {
+    if (swipeAxis.current === "v") return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+    if (Math.abs(dx) < 55 || dy > Math.abs(dx) * 0.75) return;
+    const tabIds = TABS.map(t => t.id);
+    const idx = tabIds.indexOf(activeTab);
+    if (dx < 0 && idx < tabIds.length - 1) handleTabChange(tabIds[idx + 1]);
+    if (dx > 0 && idx > 0) handleTabChange(tabIds[idx - 1]);
+  }
 
   const [allPosts, setAllPosts]         = useState<SocialPost[]>([]);
   const [loading, setLoading]           = useState(true);
@@ -178,8 +205,13 @@ export function ProfileTabs({
         </div>
       </div>
 
-      {/* ── Tab content ─────────────────────────────────────────────────── */}
-      <div className={isAllTab ? "" : "px-4 pt-4"}>
+      {/* ── Tab content (swipe-enabled) ──────────────────────────────────── */}
+      <div
+        className={isAllTab ? "" : "px-4 pt-4"}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={activeTab}
@@ -265,22 +297,25 @@ function TabButton({
   active,
   onClick,
 }: {
-  tab: { id: ProfileTabId; label: string; icon: typeof LayoutGrid };
+  tab: { id: ProfileTabId; label: string };
   active: boolean;
   onClick: () => void;
 }) {
-  const Icon = tab.icon;
-
   return (
     <motion.button
       data-tab={tab.id}
       whileTap={{ scale: 0.93 }}
       onClick={onClick}
-      className="relative flex items-center gap-1.5 px-4 py-3.5 rounded-none text-[12.5px] font-semibold transition-colors whitespace-nowrap"
-      style={{ color: active ? "white" : "rgba(255,255,255,0.38)", minWidth: 44 }}
+      className="relative px-4 py-3.5 rounded-none whitespace-nowrap transition-colors"
+      style={{
+        fontSize: active ? 15 : 14,
+        fontWeight: active ? 700 : 500,
+        color: active ? "white" : "rgba(255,255,255,0.40)",
+        minWidth: 44,
+        letterSpacing: active ? "-0.01em" : "0em",
+      }}
     >
-      <Icon style={{ width: 13, height: 13, flexShrink: 0 }} />
-      <span>{tab.label}</span>
+      {tab.label}
 
       {/* Active underline indicator */}
       {active && (

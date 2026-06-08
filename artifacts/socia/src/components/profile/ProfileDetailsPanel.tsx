@@ -12,16 +12,13 @@
  *  4. Friends          — mutual-follow grid + count + "See all"
  *  5. (Followers/Following stats live in the existing StatBtn row)
  */
-import { useEffect, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
   Pencil, MapPin, Calendar, Heart, User as UserIcon,
   GraduationCap, Globe, Briefcase, School, Link as LinkIcon,
-  Users, ChevronRight, Search, X, Mail, Phone, AtSign,
+  Search, X, Mail, Phone, AtSign,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-
 /* ── Social-icon SVGs ──────────────────────────────────────────────────── */
 function FbIcon()  { return <svg viewBox="0 0 24 24" fill="currentColor" style={{width:14,height:14}}><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>; }
 function IgIcon()  { return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{width:14,height:14}}><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg>; }
@@ -65,13 +62,6 @@ export interface ProfilePanelData {
   privacy_settings?:    Record<string, boolean | string>;
 }
 
-interface FriendUser {
-  id:         string;
-  name:       string;
-  username:   string;
-  avatar_url: string;
-}
-
 interface Props {
   profile:       ProfilePanelData;
   isOwnProfile:  boolean;
@@ -82,37 +72,8 @@ interface Props {
 /* ══════════════════════════════════════════════════════════════════════════
    Main component
 ══════════════════════════════════════════════════════════════════════════ */
-export function ProfileDetailsPanel({ profile, isOwnProfile, viewerId, onEditOpen }: Props) {
+export function ProfileDetailsPanel({ profile, isOwnProfile, onEditOpen }: Props) {
   const [, navigate] = useLocation();
-
-  /* ── Friends (mutual follows) ────────────────────────────────────────── */
-  const [friends,      setFriends]      = useState<FriendUser[]>([]);
-  const [friendCount,  setFriendCount]  = useState(0);
-  const [friendsLoaded, setFriendsLoaded] = useState(false);
-
-  const loadFriends = useCallback(async () => {
-    if (!profile.id || friendsLoaded) return;
-    try {
-      const [flrsRes, flngRes] = await Promise.all([
-        supabase.from("follows").select("follower_id").eq("following_id", profile.id),
-        supabase.from("follows").select("following_id").eq("follower_id", profile.id),
-      ]);
-      const followerIds  = new Set((flrsRes.data ?? []).map((r: any) => r.follower_id as string));
-      const followingIds = new Set((flngRes.data ?? []).map((r: any) => r.following_id as string));
-      const mutualIds    = [...followerIds].filter((id) => followingIds.has(id));
-      setFriendCount(mutualIds.length);
-      if (mutualIds.length === 0) { setFriendsLoaded(true); return; }
-      const preview = mutualIds.slice(0, 9);
-      const { data: users } = await supabase
-        .from("users")
-        .select("id,name,username,avatar_url")
-        .in("id", preview);
-      setFriends((users ?? []) as FriendUser[]);
-    } catch { /* ignore */ }
-    finally { setFriendsLoaded(true); }
-  }, [profile.id, friendsLoaded]);
-
-  useEffect(() => { loadFriends(); }, [loadFriends]);
 
   /* ── Privacy helpers ─────────────────────────────────────────────────── */
   const priv = profile.privacy_settings ?? {};
@@ -162,7 +123,7 @@ export function ProfileDetailsPanel({ profile, isOwnProfile, viewerId, onEditOpe
   );
   const hasWork = Boolean(profile.work || profile.work_previous || profile.education || profile.school || profile.college);
 
-  const showAnySection = isOwnProfile || hasPersonalDetails || hasLinks || hasWork || friends.length > 0;
+  const showAnySection = isOwnProfile || hasPersonalDetails || hasLinks || hasWork;
   if (!showAnySection) return null;
 
   /* ── Joined date ─────────────────────────────────────────────────────── */
@@ -363,107 +324,6 @@ export function ProfileDetailsPanel({ profile, isOwnProfile, viewerId, onEditOpe
         </SectionCard>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════
-          5. FRIENDS
-      ═══════════════════════════════════════════════════════════════ */}
-      {(isOwnProfile || friends.length > 0) && (
-        <SectionCard
-          title="Friends"
-          badge={friendCount > 0 ? String(friendCount) : undefined}
-          action={
-            friendCount > 0 ? (
-              <button
-                onClick={() => navigate(`/friends/${profile.id}`)}
-                className="text-[12px] font-semibold"
-                style={{ color: "var(--accent-primary)" }}
-              >
-                See all
-              </button>
-            ) : undefined
-          }
-        >
-          {!friendsLoaded && (
-            <div className="grid grid-cols-3 gap-2">
-              {[1,2,3].map((i) => (
-                <div key={i} className="rounded-[12px] overflow-hidden" style={{ aspectRatio: "1" }}>
-                  <div className="h-full w-full shimmer" />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {friendsLoaded && friends.length === 0 && (
-            <p className="text-[12px] app-text-muted py-1">
-              {isOwnProfile ? "No mutual connections yet. Follow and get followed back to make friends." : "No mutual friends."}
-            </p>
-          )}
-
-          {friendsLoaded && friends.length > 0 && (
-            <div className="grid grid-cols-3 gap-2">
-              {friends.slice(0, 9).map((f) => (
-                <motion.button
-                  key={f.id}
-                  whileTap={{ scale: 0.96 }}
-                  onClick={() => navigate(`/profile/${f.id}`)}
-                  className="flex flex-col items-center gap-1"
-                >
-                  <div className="w-full overflow-hidden rounded-[12px]" style={{ aspectRatio: "1" }}>
-                    {f.avatar_url ? (
-                      <img src={f.avatar_url} alt={f.name} className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-base font-bold text-white">
-                        {(f.name || f.username || "?").charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  <span className="w-full truncate text-center text-[10px] font-semibold app-text-muted">
-                    {f.name || f.username || "User"}
-                  </span>
-                </motion.button>
-              ))}
-            </div>
-          )}
-
-          {friendsLoaded && friends.length > 0 && (
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              onClick={() => navigate(`/friends/${profile.id}`)}
-              className="mt-2 w-full rounded-[12px] py-2.5 text-[13px] font-semibold app-surface app-text"
-            >
-              <Users style={{width:14,height:14,display:"inline",marginRight:6}} />
-              See all {friendCount} friend{friendCount !== 1 ? "s" : ""}
-            </motion.button>
-          )}
-        </SectionCard>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════
-          6. FOLLOWERS & FOLLOWING
-      ═══════════════════════════════════════════════════════════════ */}
-      <SectionCard
-        title="Followers"
-        action={
-          <button
-            onClick={() => navigate(`/followers/${profile.id}`)}
-            className="flex items-center gap-1 text-[12px] font-semibold"
-            style={{ color: "var(--accent-primary)" }}
-          >
-            See all <ChevronRight style={{width:12,height:12}} />
-          </button>
-        }
-      >
-        <div className="flex gap-4">
-          <button onClick={() => navigate(`/followers/${profile.id}`)} className="flex flex-col items-center gap-0.5">
-            <span className="text-[17px] font-bold app-text">{compact(profile.followers ?? 0)}</span>
-            <span className="text-[10px] font-semibold uppercase tracking-[0.1em] app-text-muted">Followers</span>
-          </button>
-          <div className="w-px self-stretch" style={{ background: "var(--s-border-a)" }} />
-          <button onClick={() => navigate(`/following/${profile.id}`)} className="flex flex-col items-center gap-0.5">
-            <span className="text-[17px] font-bold app-text">{compact(profile.following ?? 0)}</span>
-            <span className="text-[10px] font-semibold uppercase tracking-[0.1em] app-text-muted">Following</span>
-          </button>
-        </div>
-      </SectionCard>
 
     </div>
   );
@@ -558,12 +418,6 @@ function WorkRow({ icon, primary, secondary, muted }: {
       </div>
     </div>
   );
-}
-
-function compact(n: number) {
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K";
-  return (n / 1_000_000).toFixed(1) + "M";
 }
 
 /* ── Re-export Search icon for Friends page ── */
