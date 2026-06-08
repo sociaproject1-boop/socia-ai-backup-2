@@ -36,9 +36,10 @@ const TRENDING_PROMPTS = [
 /* ── Feed skeleton loader ────────────────────────────────────────────────── */
 function FeedSkeleton() {
   return (
-    <div className="space-y-0">
+    <div className="space-y-2 px-3 pt-1">
       {[1, 2, 3].map((i) => (
-        <div key={i} className="border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <div key={i} className="overflow-hidden rounded-[18px]"
+          style={{ background: "rgba(14,14,14,1)", border: "1px solid rgba(255,255,255,0.07)" }}>
           <div className="flex items-center gap-3 px-4 py-3">
             <div className="h-10 w-10 rounded-full shimmer flex-shrink-0" />
             <div className="flex-1 space-y-1.5">
@@ -262,7 +263,7 @@ export default function Home() {
         </div>
       ) : (
         <>
-          <div>
+          <div className="pt-1">
             {posts.map((post) => (
               <FeedCard
                 key={post.id}

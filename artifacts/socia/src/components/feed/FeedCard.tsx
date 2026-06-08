@@ -236,8 +236,8 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
 
   return (
     <article
-      className="border-b"
-      style={{ borderColor: "rgba(255,255,255,0.06)" }}
+      className="mx-3 my-2 overflow-hidden rounded-[18px]"
+      style={{ background: "rgba(14,14,14,1)", border: "1px solid rgba(255,255,255,0.07)" }}
     >
       {/* ── Header ────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 px-4 pt-3 pb-2">
@@ -363,6 +363,7 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
           <p
             className="text-[14px] leading-relaxed app-text"
             style={{
+              textAlign: "left",
               display: captionExpand ? "block" : "-webkit-box",
               WebkitLineClamp: captionExpand ? undefined : (media.length > 0 ? 3 : 8),
               WebkitBoxOrient: "vertical",

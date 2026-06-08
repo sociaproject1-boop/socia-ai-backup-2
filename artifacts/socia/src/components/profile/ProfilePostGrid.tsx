@@ -137,8 +137,8 @@ function FeedPostCard({ post, index }: { post: SocialPost; index: number }) {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.18) }}
-      className="border-b"
-      style={{ borderColor: "rgba(255,255,255,0.06)" }}
+      className="mx-3 my-2 overflow-hidden rounded-[18px]"
+      style={{ background: "rgba(14,14,14,1)", border: "1px solid rgba(255,255,255,0.07)" }}
     >
       {/* Author row */}
       <div className="flex items-center gap-3 px-4 pt-3.5 pb-2">
@@ -171,7 +171,7 @@ function FeedPostCard({ post, index }: { post: SocialPost; index: number }) {
           className="px-4 pb-2 cursor-pointer"
           onClick={() => navigate(`/post/${post.id}`)}
         >
-          <p className="text-[14px] leading-relaxed app-text line-clamp-5 whitespace-pre-line">
+          <p className="text-[14px] leading-relaxed app-text line-clamp-5 whitespace-pre-line" style={{ textAlign: "left" }}>
             {post.caption}
           </p>
         </div>

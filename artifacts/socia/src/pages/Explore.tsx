@@ -116,7 +116,8 @@ function HashtagChip({ tag, count }: { tag: string; count: number }) {
 
 function ShimmerCard() {
   return (
-    <div className="border-b px-4 py-4 space-y-3" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+    <div className="mx-3 my-2 overflow-hidden rounded-[18px] px-4 py-4 space-y-3"
+      style={{ background: "rgba(14,14,14,1)", border: "1px solid rgba(255,255,255,0.07)" }}>
       <div className="flex items-center gap-3">
         <div className="h-10 w-10 rounded-full shimmer" />
         <div className="flex-1 space-y-1.5">
