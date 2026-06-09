@@ -58,6 +58,13 @@ app.use(
       // Allow requests with no Origin header (server-to-server, curl, native mobile)
       if (!origin) return callback(null, true);
       if (ALLOWED_ORIGINS.has(origin)) return callback(null, true);
+      // Vite dev server includes the port in the Origin header (e.g. https://xxx.replit.dev:5000).
+      // Strip the port and re-check so the dev domain still matches.
+      try {
+        const stripped = new URL(origin);
+        stripped.port = "";
+        if (ALLOWED_ORIGINS.has(stripped.origin)) return callback(null, true);
+      } catch { /* invalid URL — fall through to reject */ }
       logger.warn({ origin }, "CORS: rejected request from unlisted origin");
       callback(new Error(`CORS: origin not allowed: ${origin}`));
     },
