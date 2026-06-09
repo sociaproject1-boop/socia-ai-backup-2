@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { Home, Search, MessageCircle, User, Compass, LogIn } from "lucide-react";
+import { Home, Search, MessageCircle, User, Compass, LogIn, UserPlus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 import { useState } from "react";
@@ -13,10 +13,14 @@ const AUTH_TABS = [
   { path: "/profile", label: "Me",     icon: User,          match: (l: string) => l.startsWith("/profile") },
 ] as const;
 
-const GUEST_TABS = [
+const GUEST_TABS_LEFT = [
   { path: "/explore", label: "Explore", icon: Compass, match: (l: string) => l === "/explore" || l.startsWith("/explore") || l.startsWith("/hashtag") },
   { path: "/search",  label: "Search",  icon: Search,  match: (l: string) => l.startsWith("/search") },
-  { path: "/auth",    label: "Sign In", icon: LogIn,   match: (_l: string) => false },
+] as const;
+
+const GUEST_TABS_RIGHT = [
+  { path: "/auth",             label: "Log In",  icon: LogIn,    match: (_l: string) => false },
+  { path: "/auth?mode=signup", label: "Sign Up", icon: UserPlus, match: (_l: string) => false },
 ] as const;
 
 const TAB_COLOR: Record<string, string> = {
@@ -28,10 +32,29 @@ const TAB_COLOR: Record<string, string> = {
   "/auth":     "#a855f7",
 };
 
-const GPU: React.CSSProperties = {
-  willChange: "transform, opacity",
+/* Shared nav container styles — no position:fixed; the AppShell wrapper
+ * (absolute inset-x-0 bottom-0 z-30) already anchors the nav to the
+ * bottom of the 480-px app column. Using position:fixed here caused the
+ * bar to span the full viewport width instead of the app container. */
+const NAV_BASE: React.CSSProperties = {
+  width: "100%",
+  background: "#0a0a0a",
+  borderTop: "1px solid rgba(255,255,255,0.07)",
+  paddingBottom: "env(safe-area-inset-bottom, 0px)",
+  /* GPU compositing for smooth slide animation */
+  willChange: "transform",
   transform: "translateZ(0)",
   backfaceVisibility: "hidden",
+};
+
+const UL_BASE: React.CSSProperties = {
+  display: "flex",
+  alignItems: "stretch",
+  padding: "0",
+  margin: "0",
+  listStyle: "none",
+  width: "100%",
+  position: "relative",
 };
 
 export function BottomNav() {
@@ -42,42 +65,24 @@ export function BottomNav() {
   const [showGuestModal, setShowGuestModal] = useState(false);
 
   const slideStyle: React.CSSProperties = {
-    transform:  navHidden ? "translateY(100%)" : "translateY(0)",
+    transform: navHidden
+      ? "translateY(100%) translateZ(0)"
+      : "translateY(0) translateZ(0)",
     transition: "transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94)",
   };
 
   if (!isAuthenticated) {
     return (
       <>
-        <nav
-          style={{
-            position: "fixed",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            background: "#0a0a0a",
-            borderTop: "1px solid rgba(255,255,255,0.07)",
-            paddingBottom: "env(safe-area-inset-bottom, 0px)",
-            zIndex: 50,
-            ...GPU,
-            ...slideStyle,
-          }}
-        >
-          <ul
-            style={{
-              display: "flex",
-              alignItems: "center",
-              padding: "4px 0 6px",
-              position: "relative",
-            }}
-          >
-            {/* Left tabs */}
-            {GUEST_TABS.slice(0, 2).map((tab) => {
+        <nav style={{ ...NAV_BASE, ...slideStyle }}>
+          <ul style={UL_BASE}>
+            {/* Left: Explore + Search */}
+            {GUEST_TABS_LEFT.map((tab) => {
               const active = tab.match(location);
               const Icon   = tab.icon;
               const color  = TAB_COLOR[tab.path] ?? "#a855f7";
               return (
-                <li key={tab.path} style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+                <li key={tab.path} style={{ flex: 1 }}>
                   <NavTab
                     active={active}
                     color={color}
@@ -98,21 +103,20 @@ export function BottomNav() {
             })}
 
             {/* Center — Join CTA */}
-            <li style={{ flex: "0 0 72px", display: "flex", justifyContent: "center", alignItems: "center" }}>
+            <li style={{ flex: "0 0 72px", display: "flex", justifyContent: "center", alignItems: "center", paddingTop: 4, paddingBottom: 6 }}>
               <motion.button
                 whileTap={{ scale: 0.88 }}
                 transition={{ type: "spring", stiffness: 480, damping: 22 }}
                 onClick={() => setShowGuestModal(true)}
                 aria-label="Join Socia"
                 style={{
-                  width: 54,
-                  height: 54,
+                  width: 50,
+                  height: 50,
                   borderRadius: "50%",
                   background: "linear-gradient(135deg,#a855f7,#ec4899)",
                   display: "grid",
                   placeItems: "center",
                   flexShrink: 0,
-                  marginBottom: 2,
                   boxShadow: "0 0 16px rgba(168,85,247,0.4)",
                 }}
               >
@@ -121,8 +125,8 @@ export function BottomNav() {
                   alt=""
                   draggable={false}
                   style={{
-                    width: 40,
-                    height: 40,
+                    width: 36,
+                    height: 36,
                     objectFit: "contain",
                     userSelect: "none",
                     pointerEvents: "none",
@@ -131,26 +135,28 @@ export function BottomNav() {
               </motion.button>
             </li>
 
-            {/* Right: Sign In tab */}
-            <li style={{ flex: 1, display: "flex", justifyContent: "center" }}>
-              <NavTab
-                active={false}
-                color="#a855f7"
-                label="Sign In"
-                onClick={() => navigate("/auth")}
-              >
-                <LogIn
-                  style={{
-                    width: 22, height: 22,
-                    color: "rgba(255,255,255,0.35)",
-                    strokeWidth: 1.6,
-                  }}
-                />
-              </NavTab>
-            </li>
-
-            {/* Empty right slot for symmetry */}
-            <li style={{ flex: 1 }} />
+            {/* Right: Log In + Sign Up (mirrors the 2-tab left side) */}
+            {GUEST_TABS_RIGHT.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <li key={tab.path} style={{ flex: 1 }}>
+                  <NavTab
+                    active={false}
+                    color="#a855f7"
+                    label={tab.label}
+                    onClick={() => navigate(tab.path)}
+                  >
+                    <Icon
+                      style={{
+                        width: 22, height: 22,
+                        color: "rgba(255,255,255,0.35)",
+                        strokeWidth: 1.6,
+                      }}
+                    />
+                  </NavTab>
+                </li>
+              );
+            })}
           </ul>
         </nav>
 
@@ -163,35 +169,15 @@ export function BottomNav() {
   }
 
   return (
-    <nav
-      style={{
-        position: "fixed",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        background: "#0a0a0a",
-        borderTop: "1px solid rgba(255,255,255,0.07)",
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
-        zIndex: 50,
-        ...GPU,
-        ...slideStyle,
-      }}
-    >
-      <ul
-        style={{
-          display: "flex",
-          alignItems: "center",
-          padding: "4px 0 6px",
-          position: "relative",
-        }}
-      >
+    <nav style={{ ...NAV_BASE, ...slideStyle }}>
+      <ul style={UL_BASE}>
         {/* Left two tabs */}
         {AUTH_TABS.slice(0, 2).map((tab) => {
           const active  = tab.match(location);
           const Icon    = tab.icon;
           const color   = TAB_COLOR[tab.path];
           return (
-            <li key={tab.path} style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+            <li key={tab.path} style={{ flex: 1 }}>
               <NavTab
                 active={active}
                 color={color}
@@ -211,23 +197,22 @@ export function BottomNav() {
           );
         })}
 
-        {/* Center — Socia "S" brand mark */}
-        <li style={{ flex: "0 0 72px", display: "flex", justifyContent: "center", alignItems: "center" }}>
+        {/* Center — Socia brand mark / new post */}
+        <li style={{ flex: "0 0 72px", display: "flex", justifyContent: "center", alignItems: "center", paddingTop: 4, paddingBottom: 6 }}>
           <motion.button
             whileTap={{ scale: 0.88 }}
             transition={{ type: "spring", stiffness: 480, damping: 22 }}
             onClick={() => navigate("/upload")}
             aria-label="New Post"
             style={{
-              width: 54,
-              height: 54,
+              width: 50,
+              height: 50,
               borderRadius: "50%",
               background: "#0c0c0e",
               border: "1px solid rgba(255,255,255,0.08)",
               display: "grid",
               placeItems: "center",
               flexShrink: 0,
-              marginBottom: 2,
               boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
             }}
           >
@@ -236,8 +221,8 @@ export function BottomNav() {
               alt=""
               draggable={false}
               style={{
-                width: 40,
-                height: 40,
+                width: 36,
+                height: 36,
                 objectFit: "contain",
                 userSelect: "none",
                 pointerEvents: "none",
@@ -253,7 +238,7 @@ export function BottomNav() {
           const Icon    = tab.icon;
           const color   = TAB_COLOR[tab.path];
           return (
-            <li key={tab.path} style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+            <li key={tab.path} style={{ flex: 1 }}>
               <NavTab
                 active={active}
                 color={color}
@@ -312,7 +297,22 @@ function NavTab({
       onClick={onClick}
       aria-label={label}
       aria-current={active ? "page" : undefined}
-      className="relative flex w-full flex-col items-center justify-center gap-0.5 py-2 select-none"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 2,
+        paddingTop: 6,
+        paddingBottom: 6,
+        width: "100%",
+        userSelect: "none",
+        position: "relative",
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        minWidth: 0,
+      }}
     >
       {active && (
         <motion.span
@@ -320,8 +320,8 @@ function NavTab({
           style={{
             position: "absolute",
             top: 0,
-            left: "28%",
-            right: "28%",
+            left: "25%",
+            right: "25%",
             height: 2,
             borderRadius: "0 0 3px 3px",
             background: color,
@@ -335,8 +335,18 @@ function NavTab({
         {children}
       </motion.span>
       <span
-        className="text-[10px] font-medium tracking-wide transition-colors duration-200"
-        style={{ color: active ? color : "rgba(255,255,255,0.30)" }}
+        style={{
+          fontSize: 10,
+          fontWeight: 500,
+          letterSpacing: "0.02em",
+          color: active ? color : "rgba(255,255,255,0.30)",
+          transition: "color 0.2s",
+          lineHeight: 1.2,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          maxWidth: "100%",
+        }}
       >
         {label}
       </span>
