@@ -11,6 +11,7 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { useLoginGate } from "@/lib/useLoginGate";
+import { PresetLibrary } from "@/components/create/PresetLibrary";
 
 const MODES = [
   {
@@ -167,23 +168,29 @@ export default function CreateHub() {
     <div className="scroll-native gpu h-full overflow-y-auto pb-28 hide-scrollbar">
       <CreateHubStyles />
 
-      <div className="px-4 pt-5 pb-2">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="mb-6"
-        >
-          <h2 className="font-display text-[28px] font-bold leading-[1.05] text-white">
-            AI Studio{" "}
-            <span className="text-gradient">Hub</span>
-          </h2>
-          <p className="mt-1.5 text-[13px] text-white/50">
-            11 AI tools. One creative home.
-          </p>
-        </motion.div>
+      <div className="pt-5 pb-2">
+        <div className="px-4">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="mb-4"
+          >
+            <h2 className="font-display text-[28px] font-bold leading-[1.05] text-white">
+              AI Studio{" "}
+              <span className="text-gradient">Hub</span>
+            </h2>
+            <p className="mt-1.5 text-[13px] text-white/50">
+              11 AI tools. One creative home.
+            </p>
+          </motion.div>
+        </div>
 
-        <div className="flex flex-col gap-2.5">
+        {/* ── AI Preset Studio — above all tools ── */}
+        <PresetLibrary />
+
+        <div className="px-4">
+          <div className="flex flex-col gap-2.5">
           {MODES.map((m, i) => {
             const Icon = m.icon;
             const premiumLocked    = m.premium && !isPaid;
@@ -317,6 +324,7 @@ export default function CreateHub() {
               </motion.button>
             );
           })}
+          </div>
         </div>
       </div>
     </div>
