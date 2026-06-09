@@ -30,7 +30,7 @@ export function TopBar() {
     location.startsWith("/create")   ? "Create"   :
     location.startsWith("/messages") ? "Messages" :
     location.startsWith("/profile")  ? "Profile"  :
-    isExplore                        ? "Explore"  :
+    (isExplore && isAuthenticated)   ? "Explore"  :
     null;
 
   const handleRefresh = () => {
@@ -70,8 +70,8 @@ export function TopBar() {
       {/* ── Right: Action buttons ── */}
       <div className="flex items-center" style={{ gap: 8 }}>
 
-        {/* Guest CTAs — shown only when NOT authenticated */}
-        {!isAuthenticated && (
+        {/* Guest CTAs — hidden on Explore (search icon replaces them there) */}
+        {!isAuthenticated && !isExplore && (
           <>
             <motion.button
               whileTap={{ scale: 0.93 }}
@@ -100,6 +100,13 @@ export function TopBar() {
               Sign Up
             </motion.button>
           </>
+        )}
+
+        {/* Guest on Explore — single search icon only */}
+        {!isAuthenticated && isExplore && (
+          <IconBtn onClick={() => navigate("/search")}>
+            <Search style={{ width: 15, height: 15, strokeWidth: 1.9 }} />
+          </IconBtn>
         )}
 
         {/* Authenticated-only actions */}

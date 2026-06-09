@@ -195,57 +195,22 @@ export default function Explore() {
 
   return (
     <div ref={containerRef} className="h-full overflow-y-auto app-bg">
-      {/* ── Guest banner (non-authenticated only) ────────────────────── */}
-      {!isAuthenticated && (
-        <div
-          className="sticky top-0 z-20 flex items-center justify-between px-4 py-3"
-          style={{
-            background: "linear-gradient(135deg,rgba(168,85,247,0.15),rgba(236,72,153,0.15))",
-            borderBottom: "1px solid rgba(168,85,247,0.2)",
-            backdropFilter: "blur(8px)",
-          }}
-        >
-          <div>
-            <p className="text-[13px] font-bold text-white">Browsing as Guest</p>
-            <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.5)" }}>
-              Sign up to like, comment &amp; follow
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate("/auth")}
-              className="rounded-full px-3 py-1.5 text-[12px] font-semibold"
-              style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.15)" }}
-            >
-              Log In
-            </motion.button>
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate("/auth?mode=signup")}
-              className="rounded-full px-3 py-1.5 text-[12px] font-bold text-white"
-              style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}
-            >
-              Sign Up
-            </motion.button>
-          </div>
+      {/* ── Search bar shortcut (authenticated users only) ─────────────── */}
+      {isAuthenticated && (
+        <div className="px-4 pt-4 pb-2">
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate("/search")}
+            className="w-full flex items-center gap-3 rounded-2xl px-4 py-3"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            <Search className="h-4 w-4" style={{ color: "rgba(255,255,255,0.4)" }} />
+            <span className="text-[14px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+              Search posts, creators, hashtags…
+            </span>
+          </motion.button>
         </div>
       )}
-
-      {/* ── Search bar shortcut ────────────────────────────────────────── */}
-      <div className="px-4 pt-4 pb-2">
-        <motion.button
-          whileTap={{ scale: 0.98 }}
-          onClick={() => navigate("/search")}
-          className="w-full flex items-center gap-3 rounded-2xl px-4 py-3"
-          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
-        >
-          <Search className="h-4 w-4" style={{ color: "rgba(255,255,255,0.4)" }} />
-          <span className="text-[14px]" style={{ color: "rgba(255,255,255,0.35)" }}>
-            Search posts, creators, hashtags…
-          </span>
-        </motion.button>
-      </div>
 
       {/* ── Trending hashtags ─────────────────────────────────────────── */}
       {!loading && data?.hashtags && data.hashtags.length > 0 && (
