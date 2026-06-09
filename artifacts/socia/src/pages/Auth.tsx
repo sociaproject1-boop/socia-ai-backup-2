@@ -360,7 +360,7 @@ function GoogleGlyph() {
 
 function friendlyError(msg: string): string {
   const m = msg.toLowerCase();
-  if (m.includes("invalid login credentials") || m.includes("invalid credentials") || m.includes("wrong password"))
+  if (m.includes("invalid login credentials") || m.includes("invalid credentials") || m.includes("wrong password") || m.includes("invalid email or password"))
     return "Incorrect email or password.";
   if (m.includes("user already registered") || m.includes("already registered"))
     return "An account with this email already exists. Try signing in.";

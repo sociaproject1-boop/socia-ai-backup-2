@@ -56,17 +56,17 @@ router.post("/signin", async (req, res) => {
       .limit(1);
 
     if (!rows.length) {
-      res.status(401).json({ error: "Invalid email or password" });
+      res.status(401).json({ error: "Invalid credentials" });
       return;
     }
     const user = rows[0]!;
     if (!user.passwordHash) {
-      res.status(401).json({ error: "Invalid email or password" });
+      res.status(401).json({ error: "Invalid credentials" });
       return;
     }
     const valid = await bcrypt.compare(password, user.passwordHash);
     if (!valid) {
-      res.status(401).json({ error: "Invalid email or password" });
+      res.status(401).json({ error: "Invalid credentials" });
       return;
     }
 
