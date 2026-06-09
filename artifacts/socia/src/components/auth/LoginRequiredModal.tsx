@@ -8,6 +8,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import { X, ImageIcon, Film, Wand2, MessageCircle, Download, Zap } from "lucide-react";
+import sociaMarkUrl from "@assets/splash2/mark.png";
 
 export interface LoginRequiredModalProps {
   open: boolean;
@@ -73,19 +74,22 @@ export function LoginRequiredModal({ open, onClose, toolName }: LoginRequiredMod
               <X className="h-4 w-4" style={{ color: "rgba(255,255,255,0.55)" }} />
             </button>
 
-            {/* Icon orb */}
+            {/* Icon — official Socia "S" mark (same asset as Splash Screen & Join Socia) */}
             <div
-              className="mx-auto mb-4 grid h-[60px] w-[60px] place-items-center rounded-2xl"
-              style={{
-                background: "linear-gradient(135deg,#7c3aed,#a855f7,#ec4899)",
-                boxShadow: "0 6px 24px -6px rgba(168,85,247,0.55)",
-              }}
+              className="mx-auto mb-4 flex items-center justify-center"
+              style={{ width: 72, height: 72 }}
             >
-              {/* Lock icon drawn inline to avoid import overhead */}
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
+              <img
+                src={sociaMarkUrl}
+                alt="Socia"
+                style={{
+                  width: 72,
+                  height: 72,
+                  objectFit: "contain",
+                  filter:
+                    "drop-shadow(0 0 18px rgba(168,85,247,0.70)) drop-shadow(0 0 6px rgba(236,72,153,0.50))",
+                }}
+              />
             </div>
 
             {/* Heading */}
