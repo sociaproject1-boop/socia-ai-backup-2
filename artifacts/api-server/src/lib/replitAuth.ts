@@ -20,13 +20,20 @@ const SESSION_TTL_HOURS = 24 * 7; // 7 days
 export interface AuthedUser {
   id:    string;
   email: string | null;
+  name?: string | null;
   jwt:   string;
 }
 
 /* ── Session token helpers ──────────────────────────────────────────────── */
 
-export function signSessionToken(userId: string, email: string | null): string {
-  return jwt.sign({ sub: userId, email }, SESSION_SECRET, {
+export function signSessionToken(
+  userOrId: string | { id: string; email?: string | null; name?: string | null },
+  emailArg?: string | null,
+): string {
+  const userId = typeof userOrId === "string" ? userOrId : userOrId.id;
+  const email  = typeof userOrId === "string" ? (emailArg ?? null) : (userOrId.email ?? null);
+  const name   = typeof userOrId === "string" ? null : (userOrId.name ?? null);
+  return jwt.sign({ sub: userId, email, name }, SESSION_SECRET, {
     expiresIn: `${SESSION_TTL_HOURS}h`,
   });
 }
@@ -34,6 +41,7 @@ export function signSessionToken(userId: string, email: string | null): string {
 export interface SessionClaims {
   sub:   string;
   email: string | null;
+  name?: string | null;
   iat:   number;
   exp:   number;
 }
@@ -91,7 +99,7 @@ export const requireAuth: RequestHandler = (req, res, next) => {
   }
 
   const decorated = req as Request & { authedUser?: AuthedUser };
-  decorated.authedUser = { id: claims.sub, email: claims.email, jwt: token };
+  decorated.authedUser = { id: claims.sub, email: claims.email, name: claims.name ?? null, jwt: token };
   next();
 };
 
