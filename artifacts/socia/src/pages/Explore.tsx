@@ -9,7 +9,9 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavHide } from "@/hooks/useNavHide";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Flame, Users, RefreshCw, Search, ChevronRight } from "lucide-react";
+import { Flame, Users, Search, ChevronRight } from "lucide-react";
+import { PullToRefreshIndicator } from "@/components/feed/PullToRefreshIndicator";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { FeedCard } from "@/components/feed/FeedCard";
 import { useGuestGate } from "@/lib/useGuestGate";
 import { useAppStore } from "@/lib/store";
@@ -164,8 +166,13 @@ export default function Explore() {
   const containerRef = useRef<HTMLDivElement>(null);
   useNavHide(containerRef);
 
+  /* ── Pull-to-refresh ─────────────────────────────────────────────────── */
+  const { phase: ptrPhase, indicatorRef } = usePullToRefresh(containerRef, load);
+
   return (
-    <div ref={containerRef} className="h-full overflow-y-auto app-bg">
+    <>
+    <PullToRefreshIndicator phase={ptrPhase} indicatorRef={indicatorRef} />
+    <div ref={containerRef} className="h-full overflow-y-auto app-bg" style={{ overscrollBehaviorY: "contain" }}>
 
       {/* ── Search bar (authenticated users only) ─────────────────────── */}
       {isAuthenticated && (
@@ -227,16 +234,6 @@ export default function Explore() {
       <div className="px-4 pb-2">
         <div className="flex items-center justify-between">
           <h2 className="text-[14px] font-bold text-white">Discover</h2>
-          {!loading && (
-            <motion.button
-              whileTap={{ scale: 0.88 }}
-              onClick={load}
-              className="grid h-8 w-8 place-items-center rounded-full"
-              style={{ background: "rgba(255,255,255,0.05)" }}
-            >
-              <RefreshCw className="h-3.5 w-3.5" style={{ color: "rgba(255,255,255,0.5)" }} />
-            </motion.button>
-          )}
         </div>
       </div>
 
@@ -285,5 +282,6 @@ export default function Explore() {
       <div className="h-24" />
       {GuestModalPortal}
     </div>
+    </>
   );
 }

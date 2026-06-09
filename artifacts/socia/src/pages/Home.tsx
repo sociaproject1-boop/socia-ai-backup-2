@@ -15,6 +15,8 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Flame, Sparkles, ArrowUp, WifiOff } from "lucide-react";
 import { FeedCard } from "@/components/feed/FeedCard";
+import { PullToRefreshIndicator } from "@/components/feed/PullToRefreshIndicator";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { SupportSociaBanner } from "@/components/home/SupportSociaBanner";
 import { ImmersiveViewer } from "@/components/feed/ImmersiveViewer";
 import { CommentsSheet } from "@/components/feed/CommentsSheet";
@@ -138,13 +140,17 @@ export default function Home() {
   const navHidden = useAppStore((s) => s.navHidden);
   useNavHide(feedRef);
 
+  /* ── Pull-to-refresh ─────────────────────────────────────────────────── */
+  const { phase: ptrPhase, indicatorRef } = usePullToRefresh(feedRef, refresh);
+
   /* Shared slide-up transition — matches TopBar's cubic-bezier for
    * a perfectly synchronised header + tab-bar hide/reveal. */
   const slideTransition = "transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94)";
 
   return (
     <>
-    <div ref={feedRef} className="app-bg pb-28 scroll-native h-full overflow-y-auto hide-scrollbar">
+    <PullToRefreshIndicator phase={ptrPhase} indicatorRef={indicatorRef} />
+    <div ref={feedRef} className="app-bg pb-28 scroll-native h-full overflow-y-auto hide-scrollbar" style={{ overscrollBehaviorY: "contain" }}>
 
       {/* ── Sticky tab header — hides with TopBar on scroll-down ─────── *
        *  Outer div stays sticky so the grid-collapse anchors at the top.  *

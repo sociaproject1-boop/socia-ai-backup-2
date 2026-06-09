@@ -8,7 +8,9 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { TrendingUp, Flame, ArrowLeft, RefreshCw } from "lucide-react";
+import { TrendingUp, Flame, ArrowLeft } from "lucide-react";
+import { PullToRefreshIndicator } from "@/components/feed/PullToRefreshIndicator";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { FeedCard } from "@/components/feed/FeedCard";
 import { useGuestGate } from "@/lib/useGuestGate";
 import { useNavHide } from "@/hooks/useNavHide";
@@ -130,6 +132,9 @@ export default function Trending() {
 
   useEffect(() => { load(); }, [load]);
 
+  /* ── Pull-to-refresh (after load is defined) ─────────────────────────── */
+  const { phase: ptrPhase, indicatorRef } = usePullToRefresh(containerRef, load);
+
   const handleLike = useCallback((postId: string) => {
     gateAction(async () => {
       try {
@@ -171,7 +176,9 @@ export default function Trending() {
   }, [gateAction, navigate]);
 
   return (
-    <div ref={containerRef} className="h-full overflow-y-auto app-bg">
+    <>
+    <PullToRefreshIndicator phase={ptrPhase} indicatorRef={indicatorRef} />
+    <div ref={containerRef} className="h-full overflow-y-auto app-bg" style={{ overscrollBehaviorY: "contain" }}>
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div
@@ -209,16 +216,6 @@ export default function Trending() {
             >
               {meta.qualified} posts
             </span>
-          )}
-          {!loading && (
-            <motion.button
-              whileTap={{ scale: 0.88 }}
-              onClick={load}
-              className="grid h-8 w-8 place-items-center rounded-full"
-              style={{ background: "rgba(255,255,255,0.05)" }}
-            >
-              <RefreshCw className="h-3.5 w-3.5" style={{ color: "rgba(255,255,255,0.5)" }} />
-            </motion.button>
           )}
         </div>
       </div>
@@ -317,5 +314,6 @@ export default function Trending() {
       <div className="h-24" />
       {GuestModalPortal}
     </div>
+    </>
   );
 }
