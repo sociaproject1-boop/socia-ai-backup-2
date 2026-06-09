@@ -7,7 +7,8 @@
  */
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
-import { X, Sparkles } from "lucide-react";
+import { X } from "lucide-react";
+import sociaMarkUrl from "@assets/splash2/mark.png";
 
 interface Props {
   open: boolean;
@@ -62,12 +63,22 @@ export function GuestAuthModal({ open, onClose, action }: Props) {
               <X className="h-4 w-4" style={{ color: "rgba(255,255,255,0.6)" }} />
             </button>
 
-            {/* Icon */}
+            {/* Icon — official Socia "S" mark (same asset as Splash Screen) */}
             <div
-              className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl"
-              style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}
+              className="mx-auto mb-4 flex items-center justify-center"
+              style={{ width: 72, height: 72 }}
             >
-              <Sparkles className="h-7 w-7 text-white" />
+              <img
+                src={sociaMarkUrl}
+                alt="Socia"
+                style={{
+                  width: 72,
+                  height: 72,
+                  objectFit: "contain",
+                  filter:
+                    "drop-shadow(0 0 18px rgba(168,85,247,0.70)) drop-shadow(0 0 6px rgba(236,72,153,0.50))",
+                }}
+              />
             </div>
 
             {/* Heading */}
