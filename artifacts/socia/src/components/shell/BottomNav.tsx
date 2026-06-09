@@ -1,5 +1,5 @@
 import { useLocation } from "wouter";
-import { Home, Search, Compass, MessageCircle, UserCircle, Upload, Video, Image as ImageIcon, BookImage, X } from "lucide-react";
+import { Home, Compass, MessageCircle, UserCircle, Upload, Video, Image as ImageIcon, BookImage, X, Wand2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 import { useState } from "react";
@@ -23,17 +23,16 @@ const GUEST_TABS_LEFT = [
   { path: "/explore", label: "Explore", icon: Compass, match: (l: string) => l === "/explore" || l.startsWith("/explore") || l.startsWith("/hashtag") },
 ] as const;
 
-/* Guest right tabs require auth — tapping opens the modal */
-const GUEST_TABS_RIGHT = [
-  { label: "Create",  icon: Search    },
-  { label: "Profile", icon: UserCircle },
-] as const;
+/* Guest Create tab navigates to AI Studio; Profile requires auth */
+const GUEST_CREATE_TAB  = { path: "/create",   label: "Create",  icon: Wand2,       match: (l: string) => l === "/create" };
+const GUEST_PROFILE_TAB = {                     label: "Profile", icon: UserCircle };
 
 /* ── Color map ───────────────────────────────────────────────────────────── */
 const TAB_COLOR: Record<string, string> = {
   "/":         "#a855f7",
   "/search":   "#ec4899",
   "/explore":  "#a855f7",
+  "/create":   "#ec4899",
   "/messages": "#a855f7",
   "/profile":  "#a855f7",
 };
@@ -255,17 +254,32 @@ export function BottomNav() {
             {/* Center — Join CTA (S button opens auth modal for guests) */}
             <CenterButton gradient onClick={() => setShowGuestModal(true)} />
 
-            {/* Right: Create + Profile (both require auth) */}
-            {GUEST_TABS_RIGHT.map((tab) => {
-              const Icon = tab.icon;
+            {/* Right: Create (→ AI Studio) + Profile (→ auth modal) */}
+            {(() => {
+              const createActive = GUEST_CREATE_TAB.match(location);
+              const createColor  = TAB_COLOR[GUEST_CREATE_TAB.path];
+              const CreateIcon   = GUEST_CREATE_TAB.icon;
+              const ProfileIcon  = GUEST_PROFILE_TAB.icon;
               return (
-                <li key={tab.label} style={{ flex: 1 }}>
-                  <NavTab active={false} color="#a855f7" label={tab.label} onClick={() => setShowGuestModal(true)}>
-                    <Icon style={{ width: 22, height: 22, color: "rgba(255,255,255,0.35)", strokeWidth: 1.6 }} />
-                  </NavTab>
-                </li>
+                <>
+                  <li style={{ flex: 1 }}>
+                    <NavTab
+                      active={createActive}
+                      color={createColor}
+                      label={GUEST_CREATE_TAB.label}
+                      onClick={() => navigate(GUEST_CREATE_TAB.path)}
+                    >
+                      <CreateIcon style={{ width: 22, height: 22, color: createActive ? createColor : "rgba(255,255,255,0.35)", strokeWidth: createActive ? 2.2 : 1.6, transition: "color 0.18s ease" }} />
+                    </NavTab>
+                  </li>
+                  <li style={{ flex: 1 }}>
+                    <NavTab active={false} color="#a855f7" label={GUEST_PROFILE_TAB.label} onClick={() => setShowGuestModal(true)}>
+                      <ProfileIcon style={{ width: 22, height: 22, color: "rgba(255,255,255,0.35)", strokeWidth: 1.6 }} />
+                    </NavTab>
+                  </li>
+                </>
               );
-            })}
+            })()}
           </ul>
         </nav>
 

@@ -21,7 +21,7 @@ const HIDE_TOPBAR    = [/^\/messages\/[^/]+$/, /^\/post\//, /^\/create\/[^/]+$/,
    hide-list guarantees new subroutes don't accidentally show the tab bar. */
 const ROOT_TAB_PATHS = new Set(["/", "/create", "/search", "/messages", "/profile", "/explore"]);
 /* Guest public pages that should also show the bottom nav */
-const GUEST_ROOT_PATHS = new Set(["/explore", "/search"]);
+const GUEST_ROOT_PATHS = new Set(["/explore", "/search", "/create"]);
 const isRootTab = (loc: string, isAuthenticated: boolean) => {
   const normalized = loc.length > 1 && loc.endsWith("/") ? loc.slice(0, -1) : loc;
   if (!isAuthenticated) {
