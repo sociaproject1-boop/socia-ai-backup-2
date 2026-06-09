@@ -19,7 +19,7 @@ const HIDE_TOPBAR    = [/^\/messages\/[^/]+$/, /^\/post\//, /^\/create\/[^/]+$/,
    Subscription, preset detail, render, export, threads, post detail,
    creator subpages, legal pages, etc.). Using an allowlist instead of a
    hide-list guarantees new subroutes don't accidentally show the tab bar. */
-const ROOT_TAB_PATHS = new Set(["/", "/create", "/messages", "/profile", "/explore"]);
+const ROOT_TAB_PATHS = new Set(["/", "/create", "/search", "/messages", "/profile", "/explore"]);
 /* Guest public pages that should also show the bottom nav */
 const GUEST_ROOT_PATHS = new Set(["/explore", "/search"]);
 const isRootTab = (loc: string, isAuthenticated: boolean) => {
@@ -33,9 +33,11 @@ const isRootTab = (loc: string, isAuthenticated: boolean) => {
 };
 
 function tabRank(loc: string) {
-  if (loc.startsWith("/profile"))  return 3;
+  if (loc.startsWith("/profile"))  return 4;
+  if (loc.startsWith("/create"))   return 3;
+  if (loc.startsWith("/search"))   return 2;
   if (loc.startsWith("/messages")) return 2;
-  if (loc.startsWith("/create"))   return 1;
+  if (loc.startsWith("/explore"))  return 1;
   return 0;
 }
 

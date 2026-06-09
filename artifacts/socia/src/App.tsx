@@ -133,6 +133,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     || location.startsWith("/profile/")
     || location.startsWith("/search")
     || location.startsWith("/trending")
+    || location === "/create"
     || location.startsWith("/legal/")
     || location.startsWith("/sys-admin")
     || location.startsWith("/admin")

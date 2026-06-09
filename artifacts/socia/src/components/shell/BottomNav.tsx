@@ -1,16 +1,21 @@
 import { useLocation } from "wouter";
-import { Home, Search, MessageCircle, User, Compass, LogIn, UserPlus } from "lucide-react";
+import { Home, Search, Compass, PlusSquare, UserCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 import { useState } from "react";
 import { GuestAuthModal } from "@/components/guest/GuestAuthModal";
 import markUrl from "@assets/splash2/mark.png";
 
-const AUTH_TABS = [
-  { path: "/",        label: "Home",   icon: Home,          match: (l: string) => l === "/" },
-  { path: "/search",  label: "Explore",icon: Search,        match: (l: string) => l.startsWith("/search") },
-  { path: "/messages",label: "Inbox",  icon: MessageCircle, match: (l: string) => l.startsWith("/messages") },
-  { path: "/profile", label: "Me",     icon: User,          match: (l: string) => l.startsWith("/profile") },
+/* ── Tab definitions ─────────────────────────────────────────────────────── */
+
+const AUTH_TABS_LEFT = [
+  { path: "/",       label: "Home",    icon: Home,   match: (l: string) => l === "/" },
+  { path: "/search", label: "Explore", icon: Compass, match: (l: string) => l.startsWith("/search") || l.startsWith("/explore") },
+] as const;
+
+const AUTH_TABS_RIGHT = [
+  { path: "/create",  label: "Create",  icon: PlusSquare, match: (l: string) => l.startsWith("/create") || l.startsWith("/studio") },
+  { path: "/profile", label: "Profile", icon: UserCircle, match: (l: string) => l.startsWith("/profile") },
 ] as const;
 
 const GUEST_TABS_LEFT = [
@@ -18,30 +23,27 @@ const GUEST_TABS_LEFT = [
   { path: "/search",  label: "Search",  icon: Search,  match: (l: string) => l.startsWith("/search") },
 ] as const;
 
+/* Guest right tabs require auth — tapping opens the modal */
 const GUEST_TABS_RIGHT = [
-  { path: "/auth",             label: "Log In",  icon: LogIn,    match: (_l: string) => false },
-  { path: "/auth?mode=signup", label: "Sign Up", icon: UserPlus, match: (_l: string) => false },
+  { label: "Create",  icon: PlusSquare },
+  { label: "Profile", icon: UserCircle },
 ] as const;
 
+/* ── Color map ───────────────────────────────────────────────────────────── */
 const TAB_COLOR: Record<string, string> = {
-  "/":         "#a855f7",
-  "/search":   "#ec4899",
-  "/explore":  "#a855f7",
-  "/messages": "#60a5fa",
-  "/profile":  "#a855f7",
-  "/auth":     "#a855f7",
+  "/":        "#a855f7",
+  "/search":  "#ec4899",
+  "/explore": "#a855f7",
+  "/create":  "#a855f7",
+  "/profile": "#a855f7",
 };
 
-/* Shared nav container styles — no position:fixed; the AppShell wrapper
- * (absolute inset-x-0 bottom-0 z-30) already anchors the nav to the
- * bottom of the 480-px app column. Using position:fixed here caused the
- * bar to span the full viewport width instead of the app container. */
+/* ── Container styles ────────────────────────────────────────────────────── */
 const NAV_BASE: React.CSSProperties = {
   width: "100%",
   background: "#0a0a0a",
   borderTop: "1px solid rgba(255,255,255,0.07)",
   paddingBottom: "env(safe-area-inset-bottom, 0px)",
-  /* GPU compositing for smooth slide animation */
   willChange: "transform",
   transform: "translateZ(0)",
   backfaceVisibility: "hidden",
@@ -57,11 +59,53 @@ const UL_BASE: React.CSSProperties = {
   position: "relative",
 };
 
+/* ── Center brand-mark button ────────────────────────────────────────────── */
+function CenterButton({ onClick, gradient }: { onClick: () => void; gradient?: boolean }) {
+  return (
+    <li style={{ flex: "0 0 72px", display: "flex", justifyContent: "center", alignItems: "center", paddingTop: 4, paddingBottom: 6 }}>
+      <motion.button
+        whileTap={{ scale: 0.88 }}
+        transition={{ type: "spring", stiffness: 480, damping: 22 }}
+        onClick={onClick}
+        aria-label="AI Studio Hub"
+        style={{
+          width: 50,
+          height: 50,
+          borderRadius: "50%",
+          background: gradient
+            ? "linear-gradient(135deg,#a855f7,#ec4899)"
+            : "#0c0c0e",
+          border: gradient ? "none" : "1px solid rgba(255,255,255,0.08)",
+          display: "grid",
+          placeItems: "center",
+          flexShrink: 0,
+          boxShadow: gradient
+            ? "0 0 16px rgba(168,85,247,0.4)"
+            : "0 2px 8px rgba(0,0,0,0.18)",
+        }}
+      >
+        <img
+          src={markUrl}
+          alt=""
+          draggable={false}
+          style={{
+            width: 36,
+            height: 36,
+            objectFit: "contain",
+            userSelect: "none",
+            pointerEvents: "none",
+          }}
+        />
+      </motion.button>
+    </li>
+  );
+}
+
+/* ── Main component ──────────────────────────────────────────────────────── */
 export function BottomNav() {
   const [location, navigate] = useLocation();
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
-  const unreadCount = useAppStore((s) => s.unreadMessageCount);
-  const navHidden = useAppStore((s) => s.navHidden);
+  const navHidden       = useAppStore((s) => s.navHidden);
   const [showGuestModal, setShowGuestModal] = useState(false);
 
   const slideStyle: React.CSSProperties = {
@@ -71,6 +115,7 @@ export function BottomNav() {
     transition: "transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94)",
   };
 
+  /* ── GUEST nav ─────────────────────────────────────────────────────────── */
   if (!isAuthenticated) {
     return (
       <>
@@ -83,76 +128,23 @@ export function BottomNav() {
               const color  = TAB_COLOR[tab.path] ?? "#a855f7";
               return (
                 <li key={tab.path} style={{ flex: 1 }}>
-                  <NavTab
-                    active={active}
-                    color={color}
-                    label={tab.label}
-                    onClick={() => navigate(tab.path)}
-                  >
-                    <Icon
-                      style={{
-                        width: 22, height: 22,
-                        color: active ? color : "rgba(255,255,255,0.35)",
-                        strokeWidth: active ? 2.2 : 1.6,
-                        transition: "color 0.18s ease",
-                      }}
-                    />
+                  <NavTab active={active} color={color} label={tab.label} onClick={() => navigate(tab.path)}>
+                    <Icon style={{ width: 22, height: 22, color: active ? color : "rgba(255,255,255,0.35)", strokeWidth: active ? 2.2 : 1.6, transition: "color 0.18s ease" }} />
                   </NavTab>
                 </li>
               );
             })}
 
             {/* Center — Join CTA */}
-            <li style={{ flex: "0 0 72px", display: "flex", justifyContent: "center", alignItems: "center", paddingTop: 4, paddingBottom: 6 }}>
-              <motion.button
-                whileTap={{ scale: 0.88 }}
-                transition={{ type: "spring", stiffness: 480, damping: 22 }}
-                onClick={() => setShowGuestModal(true)}
-                aria-label="Join Socia"
-                style={{
-                  width: 50,
-                  height: 50,
-                  borderRadius: "50%",
-                  background: "linear-gradient(135deg,#a855f7,#ec4899)",
-                  display: "grid",
-                  placeItems: "center",
-                  flexShrink: 0,
-                  boxShadow: "0 0 16px rgba(168,85,247,0.4)",
-                }}
-              >
-                <img
-                  src={markUrl}
-                  alt=""
-                  draggable={false}
-                  style={{
-                    width: 36,
-                    height: 36,
-                    objectFit: "contain",
-                    userSelect: "none",
-                    pointerEvents: "none",
-                  }}
-                />
-              </motion.button>
-            </li>
+            <CenterButton gradient onClick={() => setShowGuestModal(true)} />
 
-            {/* Right: Log In + Sign Up (mirrors the 2-tab left side) */}
+            {/* Right: Create + Profile (require auth) */}
             {GUEST_TABS_RIGHT.map((tab) => {
               const Icon = tab.icon;
               return (
-                <li key={tab.path} style={{ flex: 1 }}>
-                  <NavTab
-                    active={false}
-                    color="#a855f7"
-                    label={tab.label}
-                    onClick={() => navigate(tab.path)}
-                  >
-                    <Icon
-                      style={{
-                        width: 22, height: 22,
-                        color: "rgba(255,255,255,0.35)",
-                        strokeWidth: 1.6,
-                      }}
-                    />
+                <li key={tab.label} style={{ flex: 1 }}>
+                  <NavTab active={false} color="#a855f7" label={tab.label} onClick={() => setShowGuestModal(true)}>
+                    <Icon style={{ width: 22, height: 22, color: "rgba(255,255,255,0.35)", strokeWidth: 1.6 }} />
                   </NavTab>
                 </li>
               );
@@ -160,114 +152,41 @@ export function BottomNav() {
           </ul>
         </nav>
 
-        <GuestAuthModal
-          open={showGuestModal}
-          onClose={() => setShowGuestModal(false)}
-        />
+        <GuestAuthModal open={showGuestModal} onClose={() => setShowGuestModal(false)} />
       </>
     );
   }
 
+  /* ── AUTH nav ──────────────────────────────────────────────────────────── */
   return (
     <nav style={{ ...NAV_BASE, ...slideStyle }}>
       <ul style={UL_BASE}>
-        {/* Left two tabs */}
-        {AUTH_TABS.slice(0, 2).map((tab) => {
-          const active  = tab.match(location);
-          const Icon    = tab.icon;
-          const color   = TAB_COLOR[tab.path];
+        {/* Left: Home + Explore */}
+        {AUTH_TABS_LEFT.map((tab) => {
+          const active = tab.match(location);
+          const Icon   = tab.icon;
+          const color  = TAB_COLOR[tab.path];
           return (
             <li key={tab.path} style={{ flex: 1 }}>
-              <NavTab
-                active={active}
-                color={color}
-                label={tab.label}
-                onClick={() => navigate(tab.path)}
-              >
-                <Icon
-                  style={{
-                    width: 22, height: 22,
-                    color: active ? color : "rgba(255,255,255,0.35)",
-                    strokeWidth: active ? 2.2 : 1.6,
-                    transition: "color 0.18s ease",
-                  }}
-                />
+              <NavTab active={active} color={color} label={tab.label} onClick={() => navigate(tab.path)}>
+                <Icon style={{ width: 22, height: 22, color: active ? color : "rgba(255,255,255,0.35)", strokeWidth: active ? 2.2 : 1.6, transition: "color 0.18s ease" }} />
               </NavTab>
             </li>
           );
         })}
 
-        {/* Center — Socia brand mark / new post */}
-        <li style={{ flex: "0 0 72px", display: "flex", justifyContent: "center", alignItems: "center", paddingTop: 4, paddingBottom: 6 }}>
-          <motion.button
-            whileTap={{ scale: 0.88 }}
-            transition={{ type: "spring", stiffness: 480, damping: 22 }}
-            onClick={() => navigate("/upload")}
-            aria-label="New Post"
-            style={{
-              width: 50,
-              height: 50,
-              borderRadius: "50%",
-              background: "#0c0c0e",
-              border: "1px solid rgba(255,255,255,0.08)",
-              display: "grid",
-              placeItems: "center",
-              flexShrink: 0,
-              boxShadow: "0 2px 8px rgba(0,0,0,0.18)",
-            }}
-          >
-            <img
-              src={markUrl}
-              alt=""
-              draggable={false}
-              style={{
-                width: 36,
-                height: 36,
-                objectFit: "contain",
-                userSelect: "none",
-                pointerEvents: "none",
-              }}
-            />
-          </motion.button>
-        </li>
+        {/* Center — AI Studio Hub */}
+        <CenterButton onClick={() => navigate("/create")} />
 
-        {/* Right two tabs */}
-        {AUTH_TABS.slice(2).map((tab) => {
-          const active  = tab.match(location);
-          const isInbox = tab.path === "/messages";
-          const Icon    = tab.icon;
-          const color   = TAB_COLOR[tab.path];
+        {/* Right: Create + Profile */}
+        {AUTH_TABS_RIGHT.map((tab) => {
+          const active = tab.match(location);
+          const Icon   = tab.icon;
+          const color  = TAB_COLOR[tab.path] ?? "#a855f7";
           return (
             <li key={tab.path} style={{ flex: 1 }}>
-              <NavTab
-                active={active}
-                color={color}
-                label={tab.label}
-                onClick={() => navigate(tab.path)}
-              >
-                <span className="relative">
-                  <Icon
-                    style={{
-                      width: 22, height: 22,
-                      color: active ? color : "rgba(255,255,255,0.35)",
-                      strokeWidth: active ? 2.2 : 1.6,
-                      transition: "color 0.18s ease",
-                    }}
-                  />
-                  {isInbox && unreadCount > 0 && (
-                    <AnimatePresence>
-                      <motion.span
-                        key={unreadCount}
-                        initial={{ scale: 0.4, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className="absolute -right-1.5 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full px-0.5 text-[9px] font-bold text-white"
-                        style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)", lineHeight: 1 }}
-                      >
-                        {unreadCount > 99 ? "99+" : unreadCount}
-                      </motion.span>
-                    </AnimatePresence>
-                  )}
-                </span>
+              <NavTab active={active} color={color} label={tab.label} onClick={() => navigate(tab.path)}>
+                <Icon style={{ width: 22, height: 22, color: active ? color : "rgba(255,255,255,0.35)", strokeWidth: active ? 2.2 : 1.6, transition: "color 0.18s ease" }} />
               </NavTab>
             </li>
           );
@@ -277,12 +196,9 @@ export function BottomNav() {
   );
 }
 
+/* ── NavTab ──────────────────────────────────────────────────────────────── */
 function NavTab({
-  active,
-  color,
-  label,
-  onClick,
-  children,
+  active, color, label, onClick, children,
 }: {
   active: boolean;
   color: string;
