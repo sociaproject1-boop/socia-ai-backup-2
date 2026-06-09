@@ -69,11 +69,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isSupabaseReady) {
-      console.warn(
-        "[Socia] Supabase env vars missing.\n" +
-        `  VITE_SUPABASE_URL      = ${import.meta.env.VITE_SUPABASE_URL      ?? "NOT SET"}\n` +
-        `  VITE_SUPABASE_ANON_KEY = ${import.meta.env.VITE_SUPABASE_ANON_KEY ? "(set)" : "NOT SET"}`,
-      );
       setLoading(false);
       return;
     }
@@ -469,11 +464,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const base   = import.meta.env.BASE_URL.replace(/\/$/, ""); // e.g. "" or "/socia"
     const redirectTo = `${window.location.origin}${base}/auth/callback`;
 
-    // Log so the browser console shows exactly what redirectTo is being sent.
-    // Add THIS URL to Supabase → Auth → URL Configuration → Redirect URLs.
     console.info("[Auth] Google OAuth redirectTo:", redirectTo);
-    console.info("[Auth] Supabase redirect_uri (add to Google Cloud Console):",
-      `${import.meta.env.VITE_SUPABASE_URL}/auth/v1/callback`);
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
