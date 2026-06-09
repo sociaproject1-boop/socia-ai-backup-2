@@ -757,8 +757,14 @@ router.get("/notifications", requireAuth as any, async (req, res) => {
       return;
     }
 
-    const unread = (data ?? []).filter((n: any) => !n.read).length;
-    res.json({ notifications: data ?? [], unread });
+    /* Separate COUNT query for total unread — not capped by page size */
+    const { count: unreadCount } = await svc
+      .from("post_notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("read", false);
+
+    res.json({ notifications: data ?? [], unread: unreadCount ?? 0 });
   } catch (err) {
     res.status(500).json({ error: "Internal error" });
   }

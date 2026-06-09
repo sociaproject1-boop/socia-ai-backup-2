@@ -7,6 +7,12 @@
 import { Router, type IRouter } from "express";
 import { createClient } from "@supabase/supabase-js";
 import { logger } from "../lib/logger.js";
+import { getAuthedUser } from "../lib/supabaseAuth.js";
+
+/** Read authenticated viewer ID without throwing (returns null for guests). */
+function tryGetViewer(req: any): string | null {
+  try { return getAuthedUser(req).id; } catch { return null; }
+}
 
 const router: IRouter = Router();
 
@@ -45,8 +51,9 @@ function trendingScore(p: any, likeCount: number, commentCount: number): number 
 }
 
 /* ── GET /api/explore ───────────────────────────────────────────────────── */
-router.get("/explore", async (_req, res) => {
+router.get("/explore", async (req, res) => {
   try {
+    const viewerId = tryGetViewer(req);
     const svc = db();
 
     const [trendingPostsRes, creatorsRes, hashtagPostsRes] = await Promise.all([
@@ -74,17 +81,30 @@ router.get("/explore", async (_req, res) => {
 
     const rawPosts = trendingPostsRes.data ?? [];
 
-    /* Enrich with real like/comment counts */
+    /* Enrich with real like/comment counts + viewer like/save status */
     let likeMap = new Map<string, number>();
     let commentMap = new Map<string, number>();
+    let likedSet = new Set<string>();
+    let savedSet = new Set<string>();
     if (rawPosts.length > 0) {
       const postIds = rawPosts.map((p: any) => p.id);
-      const [likesRes, commentsRes] = await Promise.all([
+      const parallelQueries: Promise<any>[] = [
         svc.from("likes").select("post_id").in("post_id", postIds),
         svc.from("comments").select("post_id").in("post_id", postIds),
-      ]);
+      ];
+      if (viewerId) {
+        parallelQueries.push(
+          svc.from("likes").select("post_id").in("post_id", postIds).eq("user_id", viewerId),
+          svc.from("saves").select("post_id").in("post_id", postIds).eq("user_id", viewerId),
+        );
+      }
+      const [likesRes, commentsRes, vLikesRes, vSavesRes] = await Promise.all(parallelQueries);
       (likesRes.data ?? []).forEach((r: any) => likeMap.set(r.post_id, (likeMap.get(r.post_id) ?? 0) + 1));
       (commentsRes.data ?? []).forEach((r: any) => commentMap.set(r.post_id, (commentMap.get(r.post_id) ?? 0) + 1));
+      if (viewerId) {
+        (vLikesRes?.data ?? []).forEach((r: any) => likedSet.add(r.post_id));
+        (vSavesRes?.data ?? []).forEach((r: any) => savedSet.add(r.post_id));
+      }
     }
 
     /* Fetch sound metadata for posts that have a sound_id */
@@ -104,6 +124,8 @@ router.get("/explore", async (_req, res) => {
         ...p,
         like_count:    likeMap.get(p.id) ?? 0,
         comment_count: commentMap.get(p.id) ?? 0,
+        has_liked:     likedSet.has(p.id),
+        has_saved:     savedSet.has(p.id),
         sound:         p.sound_id ? (soundMap.get(p.sound_id) ?? null) : null,
       }))
       .sort((a: any, b: any) => trendingScore(b, likeMap.get(b.id) ?? 0, commentMap.get(b.id) ?? 0) - trendingScore(a, likeMap.get(a.id) ?? 0, commentMap.get(a.id) ?? 0))

@@ -27,6 +27,7 @@ const ALLOWED_ORIGINS = new Set<string>([
   ..._productionOrigins,
   ...(_devOrigin ? [_devOrigin] : []),
   "http://localhost:3000",
+  "http://localhost:5000",
   "http://localhost:5173",
   "http://localhost:21175",
   "http://localhost:80",

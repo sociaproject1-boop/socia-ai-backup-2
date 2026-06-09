@@ -24,7 +24,6 @@ const router: IRouter = Router();
 
 const POST_SELECT = `
   id, author_id, caption, type, view_count, created_at,
-  like_count, comment_count,
   author:users!posts_author_id_fkey(id, name, username, avatar_url, is_verified, is_owner),
   media:post_media(id, url, type, position)
 `;
