@@ -118,35 +118,36 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const { loading } = useAuth();
   const [location, navigate] = useLocation();
 
+  const isPublic = location === "/auth"
+    || location === "/auth/callback"
+    || location === "/forgot-password"
+    || location === "/reset-password"
+    || location === "/status"
+    || location === "/explore"
+    || location.startsWith("/explore")
+    || location.startsWith("/hashtag/")
+    || location.startsWith("/post/")
+    || location.startsWith("/user/")
+    || location.startsWith("/@")
+    || location.startsWith("/profile/")
+    || location.startsWith("/search")
+    || location.startsWith("/legal/")
+    || location.startsWith("/sys-admin")
+    || location.startsWith("/admin")
+    || location.startsWith("/creator/");
+
   useEffect(() => {
     if (loading) return;
-    /* Public routes: signed-in users can also reach /reset-password (they  *
-     * land here from the recovery email with a valid session).             */
-    const isPublic = location === "/auth"
-      || location === "/auth/callback"
-      || location === "/forgot-password"
-      || location === "/reset-password"
-      || location === "/status"
-      || location === "/explore"
-      || location.startsWith("/explore")
-      || location.startsWith("/hashtag/")
-      || location.startsWith("/post/")
-      || location.startsWith("/user/")
-      || location.startsWith("/@")
-      || location.startsWith("/profile/")
-      || location.startsWith("/search")
-      || location.startsWith("/legal/")
-      || location.startsWith("/sys-admin")
-      || location.startsWith("/admin")
-      || location.startsWith("/creator/");
     /* Guests on root → send to explore instead of auth */
     if (!isAuthenticated && !isPublic) {
       if (location === "/") navigate("/explore");
       else navigate("/auth");
     }
     if (isAuthenticated && location === "/auth") navigate("/");
-    if (isAuthenticated && location === "/explore") navigate("/");
-  }, [isAuthenticated, loading, location, navigate]);
+    /* NOTE: /explore is intentionally accessible by both guests AND
+     * authenticated users — it is the public discovery feed. Do NOT
+     * add a redirect away from /explore for authenticated users here. */
+  }, [isAuthenticated, isPublic, loading, location, navigate]);
 
   if (loading) {
     /* Auth bootstrap blocks the tree, so the GlobalLoaderProvider isn't
@@ -157,6 +158,13 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         <CinematicLoadingOverlay open message="Loading Socia…" subtitle="Preparing your studio" />
       </div>
     );
+  }
+
+  /* Suppress the one-frame flash of the wrong page while the redirect
+   * useEffect is about to fire (e.g. guest at "/" before navigating to
+   * "/explore", or authed user landing on "/auth"). */
+  if (!isAuthenticated && !isPublic) {
+    return null;
   }
 
   return <>{children}</>;
