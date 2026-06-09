@@ -7,14 +7,13 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { ArrowLeft, MessageCircle, UserPlus, UserCheck, Facebook, Instagram, Music2, Star } from "lucide-react";
-import { ProfileDetailsPanel } from "@/components/profile/ProfileDetailsPanel";
 import type { ProfilePanelData } from "@/components/profile/ProfileDetailsPanel";
+import { AboutSection } from "@/components/profile/AboutSection";
 import { useUserPulses, usePulseSocket } from "@/lib/usePulse";
 import { openPulseViewer } from "@/components/pulse/PulseViewer";
 import type { PulseFeedGroup } from "@/lib/pulseClient";
 import SendStarsModal from "@/components/stars/SendStarsModal";
-import { supabase } from "@/lib/supabase";
-import type { DbUser } from "@/lib/supabase";
+import { supabase, fetchProfile, type DbUser } from "@/lib/supabase";
 import { useAuth } from "@/lib/authContext";
 import { NameBadges, OnlineDot } from "@/components/Badges";
 import {
@@ -70,8 +69,8 @@ export default function UserProfile() {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const uid = session?.user?.id;
-      const [profileRes, followRes, followersRes, followingRes] = await Promise.all([
-        supabase.from("users").select("*").eq("id", requestedFor).maybeSingle(),
+      const [profileData, followRes, followersRes, followingRes] = await Promise.all([
+        fetchProfile(requestedFor),
         uid
           ? supabase.from("follows").select("*").eq("follower_id", uid).eq("following_id", requestedFor).maybeSingle()
           : Promise.resolve({ data: null, error: null }),
@@ -79,9 +78,8 @@ export default function UserProfile() {
         supabase.from("follows").select("*", { count: "exact", head: true }).eq("follower_id",  requestedFor),
       ]);
       if (cancelled) return;
-      const base = profileRes.data as DbUser | null;
       const counts = { followers: followersRes.count ?? 0, following: followingRes.count ?? 0 };
-      setProfile(base ? { ...base, ...counts } : null);
+      setProfile(profileData ? { ...profileData, ...counts } : null);
       setFollowed(!!(followRes.data));
       setLoading(false);
     })();
@@ -334,9 +332,9 @@ export default function UserProfile() {
               <StatBox label="Following" value={profile.following ?? 0} onClick={() => navigate(`/following/${userId}`)} />
             </div>
 
-            {/* Facebook-style Details Panel — owner */}
+            {/* About — collapsible accordion (founder view) */}
             <div className="mt-4 -mx-5">
-              <ProfileDetailsPanel
+              <AboutSection
                 profile={{
                   id:                   profile.id,
                   name:                 profile.name ?? undefined,
@@ -374,7 +372,6 @@ export default function UserProfile() {
                   mood_status:          profile.mood_status,
                 } satisfies ProfilePanelData}
                 isOwnProfile={false}
-                viewerId={sessionUid}
               />
             </div>
 
@@ -517,49 +514,46 @@ export default function UserProfile() {
               <StatBox label="Following" value={profile.following ?? 0} onClick={() => navigate(`/following/${userId}`)} />
             </div>
 
-            {/* Facebook-style Details Panel */}
-            <div className="mt-4 -mx-4">
-              <ProfileDetailsPanel
-                profile={{
-                  id:                   profile.id,
-                  name:                 profile.name ?? undefined,
-                  username:             profile.username ?? undefined,
-                  avatar_url:           profile.avatar_url ?? undefined,
-                  followers:            profile.followers ?? 0,
-                  following:            profile.following ?? 0,
-                  location:             profile.location,
-                  birthday:             profile.birthday,
-                  gender:               profile.gender,
-                  relationship_status:  profile.relationship_status,
-                  work:                 profile.work,
-                  work_previous:        profile.work_previous,
-                  education:            profile.education,
-                  school:               profile.school,
-                  college:              profile.college,
-                  website:              profile.website,
-                  social_facebook:      profile.social_facebook,
-                  social_instagram:     profile.social_instagram,
-                  social_tiktok:        profile.social_tiktok,
-                  social_x:             profile.social_x,
-                  social_youtube:       profile.social_youtube,
-                  social_linkedin:      profile.social_linkedin,
-                  created_at:           profile.created_at,
-                  privacy_settings:     profile.privacy_settings,
-                  public_email:         profile.public_email,
-                  public_phone:         profile.public_phone,
-                  headline:             profile.headline,
-                  pronunciation:        profile.pronunciation,
-                  interests:            profile.interests,
-                  skills:               profile.skills,
-                  languages:            profile.languages,
-                  timezone:             profile.timezone,
-                  mood_emoji:           profile.mood_emoji,
-                  mood_status:          profile.mood_status,
-                } satisfies ProfilePanelData}
-                isOwnProfile={false}
-                viewerId={sessionUid}
-              />
-            </div>
+            {/* About — collapsible accordion */}
+            <AboutSection
+              profile={{
+                id:                   profile.id,
+                name:                 profile.name ?? undefined,
+                username:             profile.username ?? undefined,
+                avatar_url:           profile.avatar_url ?? undefined,
+                followers:            profile.followers ?? 0,
+                following:            profile.following ?? 0,
+                location:             profile.location,
+                birthday:             profile.birthday,
+                gender:               profile.gender,
+                relationship_status:  profile.relationship_status,
+                work:                 profile.work,
+                work_previous:        profile.work_previous,
+                education:            profile.education,
+                school:               profile.school,
+                college:              profile.college,
+                website:              profile.website,
+                social_facebook:      profile.social_facebook,
+                social_instagram:     profile.social_instagram,
+                social_tiktok:        profile.social_tiktok,
+                social_x:             profile.social_x,
+                social_youtube:       profile.social_youtube,
+                social_linkedin:      profile.social_linkedin,
+                created_at:           profile.created_at,
+                privacy_settings:     profile.privacy_settings,
+                public_email:         profile.public_email,
+                public_phone:         profile.public_phone,
+                headline:             profile.headline,
+                pronunciation:        profile.pronunciation,
+                interests:            profile.interests,
+                skills:               profile.skills,
+                languages:            profile.languages,
+                timezone:             profile.timezone,
+                mood_emoji:           profile.mood_emoji,
+                mood_status:          profile.mood_status,
+              } satisfies ProfilePanelData}
+              isOwnProfile={false}
+            />
 
             {/* Socia Profile Tabs — standard layout */}
             <div className="mt-6 -mx-4">

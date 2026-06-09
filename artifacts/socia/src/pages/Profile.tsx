@@ -7,8 +7,8 @@ import {
   ChevronRight, Feather, MapPin, Globe, Briefcase, GraduationCap,
   Facebook, Instagram, Music2,
 } from "lucide-react";
-import { ProfileDetailsPanel } from "@/components/profile/ProfileDetailsPanel";
 import type { ProfilePanelData } from "@/components/profile/ProfileDetailsPanel";
+import { AboutSection } from "@/components/profile/AboutSection";
 import { PulseRing } from "@/components/pulse/PulseRing";
 import { CreatePulse } from "@/components/pulse/CreatePulse";
 import { useUserPulses, usePulseSocket } from "@/lib/usePulse";
@@ -113,14 +113,16 @@ export default function Profile() {
   /* ── Realtime presence ───────────────────────────────────────────────── */
   const presenceStatus = usePresenceStatus(user?.id ?? null);
 
-  /* ── Load cover photo from Supabase on mount ────────────────────────── */
+  /* ── Load cover photo from API on mount ─────────────────────────────── */
   useEffect(() => {
     if (!user?.id) return;
     (async () => {
       try {
-        const { data } = await supabase
-          .from("users").select("cover_photo_url").eq("id", user.id).maybeSingle();
-        if (data?.cover_photo_url) setCoverPhotoUrl(data.cover_photo_url);
+        const res = await fetch(`/api/users/${user.id}`, { credentials: "include" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.cover_photo_url) setCoverPhotoUrl(data.cover_photo_url);
+        }
       } catch { /* ignore */ }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -331,11 +333,11 @@ export default function Profile() {
         </>
       ) : (
         /* ══════════════════════════════════════════════════════════════
-           STANDARD USER LAYOUT — Facebook-style cover
+           STANDARD USER LAYOUT — Instagram-style
         ══════════════════════════════════════════════════════════════ */
         <>
-          {/* Cover photo */}
-          <div className="relative overflow-hidden" style={{ height: 200 }}>
+          {/* Cover photo — 150px */}
+          <div className="relative overflow-hidden" style={{ height: 150 }}>
             {coverPhotoUrl ? (
               <img src={coverPhotoUrl} alt="cover"
                 className="absolute inset-0 w-full h-full object-cover object-center" />
@@ -356,12 +358,13 @@ export default function Profile() {
 
             {/* Bottom gradient */}
             <div className="absolute bottom-0 left-0 right-0 pointer-events-none"
-              style={{ height: 64, background: "linear-gradient(to bottom,transparent,rgba(0,0,0,0.6))" }} />
+              style={{ height: 48, background: "linear-gradient(to bottom,transparent,rgba(0,0,0,0.65))" }} />
           </div>
 
-          {/* Avatar + identity (overlapping cover) */}
-          <div className="px-4 pb-4" style={{ marginTop: -44 }}>
+          {/* Avatar + Stats row */}
+          <div className="px-4" style={{ marginTop: -40 }}>
             <div className="flex items-end justify-between">
+              {/* Avatar (left, with pulse ring) */}
               <div
                 className="relative cursor-pointer"
                 onClick={() => hasActivePulse
@@ -381,61 +384,62 @@ export default function Profile() {
                   </>
                 )}
                 <div className="relative" style={{ zIndex: 2 }}>
-                <SupporterProfileRing tier={supporterTier} size={88}>
-                  <div className="h-[88px] w-[88px] overflow-hidden rounded-full"
-                    style={{ border: "3px solid #000", boxShadow: "0 2px 16px rgba(0,0,0,0.6)" }}>
-                    {showAvatar ? (
-                      <img src={avatarSrc!} alt={user.name}
-                        className="h-full w-full object-cover"
-                        onError={() => setAvatarBroken(true)} />
-                    ) : (
-                      <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-2xl font-bold text-white">
-                        {initials}
-                      </div>
-                    )}
-                  </div>
-                </SupporterProfileRing>
+                  <SupporterProfileRing tier={supporterTier} size={88}>
+                    <div className="h-[88px] w-[88px] overflow-hidden rounded-full"
+                      style={{ border: "3px solid #000", boxShadow: "0 2px 16px rgba(0,0,0,0.6)" }}>
+                      {showAvatar ? (
+                        <img src={avatarSrc!} alt={user.name}
+                          className="h-full w-full object-cover"
+                          onError={() => setAvatarBroken(true)} />
+                      ) : (
+                        <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-2xl font-bold text-white">
+                          {initials}
+                        </div>
+                      )}
+                    </div>
+                  </SupporterProfileRing>
                 </div>
+              </div>
+
+              {/* Stats row — right of avatar */}
+              <div className="flex gap-5 pb-2">
+                <div className="text-center">
+                  <div className="font-display text-[17px] font-bold leading-none app-text">{compact(liveCreationsCount ?? realMyPosts.length)}</div>
+                  <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.1em] app-text-muted">Posts</div>
+                </div>
+                <motion.button whileTap={{ scale: 0.94 }} onClick={() => navigate(`/followers/${user.id}`)} className="text-center">
+                  <div className="font-display text-[17px] font-bold leading-none app-text">{compact(liveFollowers ?? user.followers)}</div>
+                  <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.1em] app-text-muted">Followers</div>
+                </motion.button>
+                <motion.button whileTap={{ scale: 0.94 }} onClick={() => navigate(`/following/${user.id}`)} className="text-center">
+                  <div className="font-display text-[17px] font-bold leading-none app-text">{compact(liveFollowing ?? user.following)}</div>
+                  <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.1em] app-text-muted">Following</div>
+                </motion.button>
               </div>
             </div>
 
             {/* Name / handle / bio */}
-            <div className="mt-4">
+            <div className="mt-3">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="font-display text-[24px] font-bold leading-tight app-text">{user.name}</h2>
+                <h2 className="font-display text-[20px] font-bold leading-tight app-text">{user.name}</h2>
                 {user.isOwner && <NameBadges isOwner={user.isOwner} isVerified={user.isVerified} size="md" />}
                 {supporterTier && !user.isOwner && (
-                  <FoundingSupporterBadge tier={supporterTier} size={22} />
+                  <FoundingSupporterBadge tier={supporterTier} size={20} />
                 )}
               </div>
               {supporterTier && !user.isOwner && (
-                <div className="mt-1"><SupporterLabel tier={supporterTier} /></div>
+                <div className="mt-0.5"><SupporterLabel tier={supporterTier} /></div>
               )}
-              <p className="mt-0.5 flex items-center gap-1.5 text-sm app-text-muted">
-                <OnlineDot status={presenceStatus} size={8} />
+              <p className="mt-0.5 text-[12px] app-text-muted flex items-center gap-1.5">
+                <OnlineDot status={presenceStatus} size={7} />
                 @{user.handle}
               </p>
               {user.bio && (
-                <p className="mt-2.5 text-[13px] leading-relaxed app-text-muted max-w-sm whitespace-pre-line">{user.bio}</p>
+                <p className="mt-2 text-[13px] leading-relaxed app-text-muted max-w-sm whitespace-pre-line">{user.bio}</p>
               )}
-
-              {/* Extended info chips */}
-              <ExtendedInfoRow user={user} showLocation={showLocation} showBirthday={showBirthday} showRelStatus={showRelStatus} />
-
-              {/* Social links */}
-              <SocialLinkRow user={user} />
             </div>
 
-            {/* Stats */}
-            <div className="mt-4 flex items-center overflow-hidden rounded-[18px] app-card">
-              <StatBtn label="Creations" value={liveCreationsCount ?? realMyPosts.length} />
-              <div className="my-3 w-px self-stretch" style={{ background: "var(--s-border-a)" }} />
-              <StatBtn label="Followers" value={liveFollowers ?? user.followers} onClick={() => navigate(`/followers/${user.id}`)} />
-              <div className="my-3 w-px self-stretch" style={{ background: "var(--s-border-a)" }} />
-              <StatBtn label="Following" value={liveFollowing ?? user.following} onClick={() => navigate(`/following/${user.id}`)} />
-            </div>
-
-            {/* Edit Profile + Studio buttons */}
+            {/* Action buttons */}
             <div className="mt-3 flex gap-2">
               <motion.button whileTap={{ scale: 0.97 }} onClick={() => setEditModalOpen(true)}
                 className="flex-1 rounded-[14px] py-2.5 text-[13px] font-semibold tracking-wide app-surface app-text">
@@ -455,50 +459,47 @@ export default function Profile() {
           {/* Profile Completeness bar */}
           <ProfileCompleteness user={user} onEdit={() => setEditModalOpen(true)} />
 
-          {/* Facebook-style Details Panel */}
-          <div className="mt-4">
-            <ProfileDetailsPanel
-              profile={{
-                id:                   user.id,
-                name:                 user.name,
-                username:             user.handle,
-                avatar_url:           user.avatar ?? undefined,
-                followers:            liveFollowers ?? user.followers,
-                following:            liveFollowing ?? user.following,
-                location:             user.location,
-                birthday:             user.birthday,
-                gender:               user.gender,
-                relationship_status:  user.relationshipStatus,
-                work:                 user.work,
-                work_previous:        user.workPrevious,
-                education:            user.education,
-                school:               (user as any).school,
-                college:              (user as any).college,
-                website:              user.website,
-                social_facebook:      user.social?.facebook,
-                social_instagram:     user.social?.instagram,
-                social_tiktok:        user.social?.tiktok,
-                social_x:             user.social?.x,
-                social_youtube:       user.social?.youtube,
-                social_linkedin:      user.social?.linkedin,
-                created_at:           (user as any).created_at,
-                privacy_settings:     user.privacySettings as Record<string, boolean | string>,
-                public_email:         (user as any).public_email,
-                public_phone:         (user as any).public_phone,
-                headline:             (user as any).headline,
-                pronunciation:        (user as any).pronunciation,
-                interests:            (user as any).interests,
-                skills:               (user as any).skills,
-                languages:            (user as any).languages,
-                timezone:             (user as any).timezone,
-                mood_emoji:           (user as any).mood_emoji,
-                mood_status:          (user as any).mood_status,
-              } satisfies ProfilePanelData}
-              isOwnProfile
-              viewerId={user.id}
-              onEditOpen={() => setEditModalOpen(true)}
-            />
-          </div>
+          {/* About — collapsible accordion */}
+          <AboutSection
+            profile={{
+              id:                   user.id,
+              name:                 user.name,
+              username:             user.handle,
+              avatar_url:           user.avatar ?? undefined,
+              followers:            liveFollowers ?? user.followers,
+              following:            liveFollowing ?? user.following,
+              location:             user.location,
+              birthday:             user.birthday,
+              gender:               user.gender,
+              relationship_status:  user.relationshipStatus,
+              work:                 user.work,
+              work_previous:        user.workPrevious,
+              education:            user.education,
+              school:               (user as any).school,
+              college:              (user as any).college,
+              website:              user.website,
+              social_facebook:      user.social?.facebook,
+              social_instagram:     user.social?.instagram,
+              social_tiktok:        user.social?.tiktok,
+              social_x:             user.social?.x,
+              social_youtube:       user.social?.youtube,
+              social_linkedin:      user.social?.linkedin,
+              created_at:           (user as any).created_at,
+              privacy_settings:     user.privacySettings as Record<string, boolean | string>,
+              public_email:         (user as any).public_email,
+              public_phone:         (user as any).public_phone,
+              headline:             (user as any).headline,
+              pronunciation:        (user as any).pronunciation,
+              interests:            (user as any).interests,
+              skills:               (user as any).skills,
+              languages:            (user as any).languages,
+              timezone:             (user as any).timezone,
+              mood_emoji:           (user as any).mood_emoji,
+              mood_status:          (user as any).mood_status,
+            } satisfies ProfilePanelData}
+            isOwnProfile
+            onEditOpen={() => setEditModalOpen(true)}
+          />
         </>
       )}
 

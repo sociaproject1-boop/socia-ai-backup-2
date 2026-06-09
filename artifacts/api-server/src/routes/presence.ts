@@ -68,6 +68,7 @@ router.patch("/users/:id", requireAuth, async (req, res) => {
     "relationship_status", "work", "work_previous", "education", "school", "college",
     "social_facebook", "social_instagram", "social_tiktok", "social_x", "social_youtube",
     "social_linkedin", "public_email", "public_phone", "privacy_settings",
+    "avatar_url", "cover_photo_url",
   ];
   const fields: Record<string, unknown> = {};
   for (const k of allowed) {

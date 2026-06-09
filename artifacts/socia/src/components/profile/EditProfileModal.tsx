@@ -388,9 +388,8 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
 
     setUser(updates as StoreUser);
 
-    if (isSupabaseReady) {
-      try {
-        await upsertProfile(user.id, {
+    try {
+      await upsertProfile(user.id, {
           name:                updates.name,
           username:            cleanHandle,
           bio:                 updates.bio,
@@ -432,7 +431,6 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
       } catch (err) {
         console.warn("[EditProfileModal] save error:", err);
       }
-    }
 
     setSaving(false); setSaved(true);
     setTimeout(() => {
