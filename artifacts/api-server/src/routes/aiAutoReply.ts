@@ -7,7 +7,7 @@
  * POST /api/ai-auto-reply/toggle  — body: { enabled: boolean, mode?: "online"|"offline" }
  */
 import { Router } from "express";
-import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser } from "../lib/replitAuth.js";
 import {
   ADMIN_EMAIL, aiState, type AiReplyMode,
   setOwnerOnline, isOwnerEffectivelyOnline,

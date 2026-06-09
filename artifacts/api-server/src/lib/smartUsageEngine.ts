@@ -8,7 +8,7 @@
  *  - All cost data is internal; never expose raw GPU units to users.
  */
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+
 
 /* ─── GPU Weight Tables ──────────────────────────────────────────── */
 
@@ -221,7 +221,7 @@ export function getThrottleCode(stage: LimitStage): string {
 /** Read how many GPU units a user has consumed this billing month */
 export async function getMonthlyGpuUsage(
   userId: string,
-  sb: SupabaseClient,
+  sb: any,
 ): Promise<number> {
   const monthStart = new Date();
   monthStart.setDate(1);
@@ -253,7 +253,7 @@ export interface AbuseResult {
 
 export async function detectRenderAbuse(
   userId: string,
-  sb: SupabaseClient,
+  sb: any,
 ): Promise<AbuseResult> {
   const nowMs      = Date.now();
   const oneHourAgo = new Date(nowMs - 3_600_000).toISOString();
@@ -370,7 +370,7 @@ export async function smartGate(params: {
   userId:   string;
   plan:     string;
   render:   RenderParams;
-  sb:       SupabaseClient;
+  sb: any;
 }): Promise<SmartGateResult> {
   const { userId, plan, render, sb } = params;
 

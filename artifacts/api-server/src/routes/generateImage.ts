@@ -5,7 +5,7 @@ import { enhancePromptAdvanced, expandShortPrompt } from "../lib/promptEnhancer.
 import { uploadBufferToCloudinary } from "../lib/cloudinaryServer.js";
 import { imageSemaphore } from "../lib/queue.js";
 import { logger } from "../lib/logger.js";
-import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/replitAuth.js";
 import { gateAndConsume, shouldRefund } from "../lib/billing.js";
 import { trackUsage } from "../lib/usageTracker.js";
 import { evaluateRequest, recordEvent, invalidateSpendCache } from "../lib/aiGovernance.js";

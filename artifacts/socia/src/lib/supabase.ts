@@ -1,29 +1,16 @@
-import { createClient } from "@supabase/supabase-js";
+/**
+ * supabase.ts — Replit Auth + PostgreSQL compatibility shim.
+ *
+ * This module replaces the Supabase client with:
+ *   - Auth: Replit Auth (via /api/auth/session endpoint)
+ *   - DB reads: REST API calls to the backend
+ *   - Realtime: stubbed (no real-time subscriptions)
+ *   - Storage: Cloudinary-backed upload via /api/upload endpoint
+ *
+ * All exported names are kept identical so existing imports continue to work.
+ */
 
-const SUPABASE_URL      = import.meta.env.VITE_SUPABASE_URL      as string | undefined;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-
-export const supabase = createClient(
-  SUPABASE_URL      ?? "https://placeholder.supabase.co",
-  SUPABASE_ANON_KEY ?? "placeholder-anon-key",
-  {
-    auth: {
-      flowType:           "pkce",        // explicit PKCE — most secure OAuth flow
-      persistSession:     true,          // session token survives page refresh
-      autoRefreshToken:   true,          // silently refresh expired JWT
-      detectSessionInUrl: true,          // exchange OAuth code from URL on load
-      storage:            localStorage,  // explicit: use window.localStorage
-    },
-  }
-);
-
-export const isSupabaseReady = Boolean(
-  SUPABASE_URL &&
-  SUPABASE_ANON_KEY &&
-  !SUPABASE_URL.includes("placeholder"),
-);
-
-/* ── Types ───────────────────────────────────────────────────────────────── */
+/* ── Types ─────────────────────────────────────────────────────────────── */
 export interface DbUser {
   id:         string;
   email:      string;
@@ -35,16 +22,13 @@ export interface DbUser {
   following:  number;
   created_at: string;
   updated_at: string;
-  /* Added in schema §13 */
   is_owner?:         boolean;
   is_verified?:      boolean;
   is_online?:        boolean;
   social_facebook?:  string;
   social_instagram?: string;
   social_tiktok?:    string;
-  /* Cover photo */
   cover_photo_url?:  string | null;
-  /* Extended profile fields */
   website?:             string;
   location?:            string;
   gender?:              string;
@@ -61,139 +45,18 @@ export interface DbUser {
   privacy_settings?:    Record<string, boolean | string>;
   public_email?:        string;
   public_phone?:        string;
-  /* New extended profile fields (schema §15) */
   headline?:            string;
   pronunciation?:       string;
-  interests?:           string;   /* JSON-encoded string[] */
-  skills?:              string;   /* JSON-encoded string[] */
-  languages?:           string;   /* JSON-encoded string[] */
+  interests?:           string;
+  skills?:              string;
+  languages?:           string;
   timezone?:            string;
   mood_emoji?:          string;
   mood_status?:         string;
+  subscription_status?: string;
+  plan_code?:           string;
+  credits_balance?:     string | number;
 }
-
-/* ── Online presence + owner badge helpers (RPCs, defined in schema §13) ── */
-export async function setOnlineStatus(online: boolean): Promise<void> {
-  if (!isSupabaseReady) return;
-  const { error } = await supabase.rpc("set_online", { p_online: online });
-  if (error) console.warn("[Supabase] set_online failed:", error.message);
-}
-
-export async function claimOwnerBadge(): Promise<boolean> {
-  if (!isSupabaseReady) return false;
-  const { data, error } = await supabase.rpc("claim_owner_badge");
-  if (error) {
-    console.warn("[Supabase] claim_owner_badge failed:", error.message);
-    return false;
-  }
-  return Boolean(data);
-}
-
-/* ── localStorage cache (guarantees profile survives refresh even when
-      the Supabase table isn't set up yet) ──────────────────────────────── */
-
-const cacheKey = (uid: string) => `socia_profile_${uid}`;
-
-export function cacheProfile(uid: string, data: Partial<DbUser>) {
-  try {
-    localStorage.setItem(cacheKey(uid), JSON.stringify(data));
-  } catch {}
-}
-
-export function getCachedProfile(uid: string): Partial<DbUser> | null {
-  try {
-    const raw = localStorage.getItem(cacheKey(uid));
-    return raw ? (JSON.parse(raw) as Partial<DbUser>) : null;
-  } catch {
-    return null;
-  }
-}
-
-/* ── Database helpers ─────────────────────────────────────────────────────── */
-
-export async function fetchProfile(uid: string): Promise<DbUser | null> {
-  const { data, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("id", uid)
-    .maybeSingle();
-
-  if (error) {
-    console.warn("[Supabase] fetchProfile error:", error.code, error.message);
-    return null;
-  }
-
-  if (!data) return null;
-
-  // Keep localStorage in sync with the database
-  cacheProfile(uid, data as DbUser);
-  return data as DbUser;
-}
-
-export async function upsertProfile(
-  uid: string,
-  fields: Partial<Omit<DbUser, "id" | "created_at">>,
-): Promise<{ error: string | null }> {
-  // Always update localStorage immediately — profile persists even if DB call fails.
-  // Store a local timestamp so authContext can detect unsync'd local changes on refresh.
-  const toCache = { ...getCachedProfile(uid), ...fields } as Record<string, unknown>;
-  toCache._local_updated_at = Date.now();
-  cacheProfile(uid, toCache as Partial<DbUser>);
-
-  // `.select("id, avatar_url")` forces a response body and lets us verify the write landed.
-  const { data: updateData, error } = await supabase
-    .from("users")
-    .update({ ...fields, updated_at: new Date().toISOString() })
-    .eq("id", uid)
-    .select("id, avatar_url");
-
-  if (error) {
-    console.warn("[Supabase] upsertProfile:", error.code, error.message);
-    return { error: error.message };
-  }
-
-  // Clear the pending-sync flag once the DB round-trip succeeds.
-  const committed = { ...getCachedProfile(uid) } as Record<string, unknown>;
-  delete committed._local_updated_at;
-  cacheProfile(uid, committed as Partial<DbUser>);
-
-  return { error: null };
-}
-
-/**
- * ensureProfile — like upsertProfile but uses INSERT … ON CONFLICT UPDATE so
- * the row is created when it doesn't exist yet (new sign-ups).  Always call
- * this instead of upsertProfile when the row may not exist in public.users.
- */
-export async function ensureProfile(
-  uid: string,
-  fields: Partial<Omit<DbUser, "id" | "created_at">>,
-): Promise<{ error: string | null }> {
-  const toCache = { ...getCachedProfile(uid), ...fields } as Record<string, unknown>;
-  toCache._local_updated_at = Date.now();
-  cacheProfile(uid, toCache as Partial<DbUser>);
-
-  const { error } = await supabase
-    .from("users")
-    .upsert(
-      { id: uid, ...fields, updated_at: new Date().toISOString() },
-      { onConflict: "id", ignoreDuplicates: false },
-    )
-    .select("id");
-
-  if (error) {
-    console.warn("[Supabase] ensureProfile:", error.code, error.message);
-    return { error: error.message };
-  }
-
-  const committed = { ...getCachedProfile(uid) } as Record<string, unknown>;
-  delete committed._local_updated_at;
-  cacheProfile(uid, committed as Partial<DbUser>);
-
-  return { error: null };
-}
-
-/* ── User search ─────────────────────────────────────────────────────────── */
 
 export interface UserSearchResult {
   id:         string;
@@ -202,35 +65,329 @@ export interface UserSearchResult {
   avatar_url: string;
 }
 
-export async function searchUsers(
-  query: string,
-  limit = 20,
-): Promise<UserSearchResult[]> {
-  const q = query.trim();
-  if (!q) return [];
+/* ── Always ready — no env vars needed ────────────────────────────────── */
+export const isSupabaseReady = true;
 
-  const { data, error } = await supabase
-    .from("users")
-    .select("id, name, username, avatar_url")
-    .or(`username.ilike.%${q}%,name.ilike.%${q}%`)
-    .limit(limit);
-
-  if (error) {
-    console.warn("[Supabase] searchUsers:", error.message);
-    return [];
-  }
-  return (data ?? []) as UserSearchResult[];
+/* ── Auth session state ─────────────────────────────────────────────────── */
+interface SessionUser {
+  id:    string;
+  email: string | null;
+  name?: string | null;
 }
 
-/* ── Avatar upload (Supabase Storage) ───────────────────────────────────── */
+interface Session {
+  user: SessionUser;
+  access_token: string;
+}
 
-/**
- * Resize + compress an image to ≤ maxPx on the longest side at the given
- * JPEG quality.  A 6 MB phone camera shot becomes ~50–90 KB (10–50× smaller),
- * cutting mobile upload time from 20s+ down to under 2s.
- *
- * Resolves with the original file as a safe fallback if canvas is unavailable.
- */
+let _session: Session | null = null;
+let _sessionFetched = false;
+
+async function fetchSession(): Promise<Session | null> {
+  if (_sessionFetched) return _session;
+  try {
+    const res = await fetch("/api/auth/session", { credentials: "include" });
+    if (!res.ok) { _sessionFetched = true; return null; }
+    const data = await res.json() as { user?: SessionUser; access_token?: string } | null;
+    if (data?.user) {
+      _session = { user: data.user, access_token: data.access_token ?? "" };
+    }
+    _sessionFetched = true;
+    return _session;
+  } catch {
+    _sessionFetched = true;
+    return null;
+  }
+}
+
+/* ── Fake realtime channel (no-op stub) ──────────────────────────────── */
+function makeChannel() {
+  return {
+    on:      (_: string, __: string, ___: object, ____: () => void) => makeChannel(),
+    subscribe: (_cb?: (status: string) => void) => { _cb?.("SUBSCRIBED"); return makeChannel(); },
+    unsubscribe: () => Promise.resolve(),
+    send:    () => Promise.resolve("ok"),
+  };
+}
+
+/* ── Auth ────────────────────────────────────────────────────────────────── */
+const auth = {
+  async getSession() {
+    const session = await fetchSession();
+    return { data: { session }, error: null };
+  },
+
+  async getUser() {
+    const session = await fetchSession();
+    return { data: { user: session?.user ?? null }, error: null };
+  },
+
+  onAuthStateChange(cb: (event: string, session: Session | null) => void) {
+    fetchSession().then((session) => {
+      cb(session ? "SIGNED_IN" : "INITIAL_SESSION", session);
+    });
+    return {
+      data: {
+        subscription: {
+          unsubscribe: () => {},
+        },
+      },
+    };
+  },
+
+  async signInWithPassword({ email, password }: { email: string; password: string }) {
+    try {
+      const res = await fetch("/api/auth/signin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        credentials: "include",
+      });
+      const data = await res.json() as { user?: SessionUser; error?: string; access_token?: string };
+      if (!res.ok || data.error) return { data: { user: null, session: null }, error: { message: data.error ?? "Sign in failed" } };
+      if (data.user) {
+        _session = { user: data.user, access_token: data.access_token ?? "" };
+        _sessionFetched = true;
+      }
+      return { data: { user: data.user, session: _session }, error: null };
+    } catch (e) {
+      return { data: { user: null, session: null }, error: { message: (e as Error).message } };
+    }
+  },
+
+  async signUp({ email, password, options }: { email: string; password: string; options?: { data?: Record<string, unknown> } }) {
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, ...options?.data }),
+        credentials: "include",
+      });
+      const data = await res.json() as { user?: SessionUser; error?: string; access_token?: string };
+      if (!res.ok || data.error) return { data: { user: null, session: null }, error: { message: data.error ?? "Sign up failed" } };
+      if (data.user) {
+        _session = { user: data.user, access_token: data.access_token ?? "" };
+        _sessionFetched = true;
+      }
+      return { data: { user: data.user, session: _session }, error: null };
+    } catch (e) {
+      return { data: { user: null, session: null }, error: { message: (e as Error).message } };
+    }
+  },
+
+  async signInWithOAuth(_opts: { provider: string; options?: { redirectTo?: string } }) {
+    window.location.href = "/api/auth/login";
+    return { data: { url: "/api/auth/login", provider: "replit" }, error: null };
+  },
+
+  async signOut() {
+    _session = null;
+    _sessionFetched = false;
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    return { error: null };
+  },
+
+  async resetPasswordForEmail(_email: string, _opts?: { redirectTo?: string }) {
+    return { data: {}, error: { message: "Password reset via email is not supported. Please use Replit authentication." } };
+  },
+
+  async updateUser(_fields: { password?: string; email?: string }) {
+    return { data: { user: null }, error: { message: "Profile updates are not supported via this method. Use the profile editor." } };
+  },
+};
+
+/* ── DB query shim ────────────────────────────────────────────────────── */
+type QueryResult<T = unknown> = Promise<{ data: T | null; error: { message: string } | null; count?: number | null }>;
+
+function buildQuery(table: string) {
+  const state = {
+    method:     "select" as "select" | "insert" | "update" | "delete" | "upsert",
+    selectCols: "*",
+    filters:    [] as Array<{ key: string; op: string; value: unknown }>,
+    data:       null as unknown,
+    orderCol:   null as string | null,
+    orderAsc:   true,
+    limitN:     null as number | null,
+    single_:    false,
+    maybeSingle_: false,
+    countOnly:  false,
+    head_:      false,
+  };
+
+  function exec(): QueryResult {
+    return fetch("/api/db-proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        table,
+        method:      state.method,
+        select:      state.selectCols,
+        filters:     state.filters,
+        data:        state.data,
+        order:       state.orderCol ? { col: state.orderCol, asc: state.orderAsc } : null,
+        limit:       state.limitN,
+        single:      state.single_,
+        maybeSingle: state.maybeSingle_,
+        countOnly:   state.countOnly,
+      }),
+      credentials: "include",
+    }).then((r) => r.json()) as QueryResult;
+  }
+
+  const q: any = {
+    select(cols: string, opts?: { count?: string; head?: boolean }) {
+      state.method = "select"; state.selectCols = cols;
+      if (opts?.count) state.countOnly = true;
+      if (opts?.head) state.head_ = true;
+      return q;
+    },
+    insert(data: unknown) { state.method = "insert"; state.data = data; return q; },
+    update(data: unknown) { state.method = "update"; state.data = data; return q; },
+    delete() { state.method = "delete"; return q; },
+    upsert(data: unknown, _opts?: unknown) { state.method = "upsert"; state.data = data; return q; },
+    eq(col: string, val: unknown) { state.filters.push({ key: col, op: "eq", value: val }); return q; },
+    neq(col: string, val: unknown) { state.filters.push({ key: col, op: "neq", value: val }); return q; },
+    gt(col: string, val: unknown) { state.filters.push({ key: col, op: "gt", value: val }); return q; },
+    gte(col: string, val: unknown) { state.filters.push({ key: col, op: "gte", value: val }); return q; },
+    lt(col: string, val: unknown) { state.filters.push({ key: col, op: "lt", value: val }); return q; },
+    lte(col: string, val: unknown) { state.filters.push({ key: col, op: "lte", value: val }); return q; },
+    in(col: string, vals: unknown[]) { state.filters.push({ key: col, op: "in", value: vals }); return q; },
+    is(col: string, val: unknown) { state.filters.push({ key: col, op: "is", value: val }); return q; },
+    ilike(col: string, val: unknown) { state.filters.push({ key: col, op: "ilike", value: val }); return q; },
+    like(col: string, val: unknown) { state.filters.push({ key: col, op: "like", value: val }); return q; },
+    or(filter: string) { state.filters.push({ key: "__or", op: "or", value: filter }); return q; },
+    order(col: string, opts?: { ascending?: boolean }) { state.orderCol = col; state.orderAsc = opts?.ascending !== false; return q; },
+    limit(n: number) { state.limitN = n; return q; },
+    single() { state.single_ = true; state.limitN = 1; return exec(); },
+    maybeSingle() { state.maybeSingle_ = true; state.limitN = 1; return exec(); },
+    then(resolve: (r: unknown) => void, reject?: (e: unknown) => void) { exec().then(resolve, reject); },
+  };
+  return q;
+}
+
+/* ── Storage shim ──────────────────────────────────────────────────────── */
+function makeStorage() {
+  return {
+    from(_bucket: string) {
+      return {
+        upload: async (_path: string, _file: Blob, _opts?: unknown) => {
+          return { data: null, error: { message: "Storage not available — use Cloudinary upload" } };
+        },
+        getPublicUrl: (_path: string) => ({ data: { publicUrl: "" } }),
+        download: async (_path: string) => ({ data: null, error: { message: "Storage not available" } }),
+      };
+    },
+  };
+}
+
+/* ── Main supabase export ─────────────────────────────────────────────── */
+export const supabase = {
+  auth,
+  from:   (table: string) => buildQuery(table),
+  rpc:    async (fn: string, args?: Record<string, unknown>) => {
+    try {
+      const res = await fetch("/api/rpc/" + fn, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(args ?? {}),
+        credentials: "include",
+      });
+      const data = await res.json();
+      return { data, error: null };
+    } catch (e) {
+      return { data: null, error: { message: (e as Error).message } };
+    }
+  },
+  channel: (_name: string, _opts?: unknown) => makeChannel(),
+  removeChannel: async (_ch: unknown) => "ok" as const,
+  storage: makeStorage(),
+};
+
+/* ── Online presence + owner badge helpers ─────────────────────────────── */
+export async function setOnlineStatus(online: boolean): Promise<void> {
+  try {
+    await fetch("/api/presence", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ online }),
+      credentials: "include",
+    });
+  } catch {}
+}
+
+export async function claimOwnerBadge(): Promise<boolean> {
+  try {
+    const res = await fetch("/api/owner/claim", { method: "POST", credentials: "include" });
+    const data = await res.json() as { claimed?: boolean };
+    return Boolean(data?.claimed);
+  } catch { return false; }
+}
+
+/* ── localStorage cache ─────────────────────────────────────────────────── */
+const cacheKey = (uid: string) => `socia_profile_${uid}`;
+
+export function cacheProfile(uid: string, data: Partial<DbUser>) {
+  try { localStorage.setItem(cacheKey(uid), JSON.stringify(data)); } catch {}
+}
+
+export function getCachedProfile(uid: string): Partial<DbUser> | null {
+  try {
+    const raw = localStorage.getItem(cacheKey(uid));
+    return raw ? (JSON.parse(raw) as Partial<DbUser>) : null;
+  } catch { return null; }
+}
+
+/* ── Database helpers ─────────────────────────────────────────────────── */
+export async function fetchProfile(uid: string): Promise<DbUser | null> {
+  try {
+    const res = await fetch(`/api/users/${uid}`, { credentials: "include" });
+    if (!res.ok) return null;
+    const data = await res.json() as DbUser;
+    cacheProfile(uid, data);
+    return data;
+  } catch { return null; }
+}
+
+export async function upsertProfile(
+  uid: string,
+  fields: Partial<Omit<DbUser, "id" | "created_at">>,
+): Promise<{ error: string | null }> {
+  const toCache = { ...getCachedProfile(uid), ...fields } as Record<string, unknown>;
+  toCache._local_updated_at = Date.now();
+  cacheProfile(uid, toCache as Partial<DbUser>);
+  try {
+    const res = await fetch(`/api/users/${uid}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fields),
+      credentials: "include",
+    });
+    const data = await res.json() as { error?: string };
+    if (!res.ok) return { error: data.error ?? "Update failed" };
+    const committed = { ...getCachedProfile(uid) } as Record<string, unknown>;
+    delete committed._local_updated_at;
+    cacheProfile(uid, committed as Partial<DbUser>);
+    return { error: null };
+  } catch (e) { return { error: (e as Error).message }; }
+}
+
+export async function ensureProfile(
+  uid: string,
+  fields: Partial<Omit<DbUser, "id" | "created_at">>,
+): Promise<{ error: string | null }> {
+  return upsertProfile(uid, fields);
+}
+
+export async function searchUsers(query: string, limit = 20): Promise<UserSearchResult[]> {
+  const q = query.trim();
+  if (!q) return [];
+  try {
+    const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}&limit=${limit}`, { credentials: "include" });
+    if (!res.ok) return [];
+    return await res.json() as UserSearchResult[];
+  } catch { return []; }
+}
+
 async function compressImage(file: File, maxPx = 400, quality = 0.82): Promise<Blob> {
   return new Promise((resolve) => {
     const img = new Image();
@@ -241,16 +398,11 @@ async function compressImage(file: File, maxPx = 400, quality = 0.82): Promise<B
       const w = Math.round(img.naturalWidth  * scale);
       const h = Math.round(img.naturalHeight * scale);
       const canvas = document.createElement("canvas");
-      canvas.width  = w;
-      canvas.height = h;
+      canvas.width = w; canvas.height = h;
       const ctx = canvas.getContext("2d");
       if (!ctx) { resolve(file); return; }
       ctx.drawImage(img, 0, 0, w, h);
-      canvas.toBlob(
-        (blob) => resolve(blob ?? file),
-        "image/jpeg",
-        quality,
-      );
+      canvas.toBlob((blob) => resolve(blob ?? file), "image/jpeg", quality);
     };
     img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(file); };
     img.src = objectUrl;
@@ -258,22 +410,13 @@ async function compressImage(file: File, maxPx = 400, quality = 0.82): Promise<B
 }
 
 export async function uploadAvatar(file: File, userId: string): Promise<string> {
-  // Compress to max 400 px on the longest side, JPEG 82 %.
-  // A 6 MB phone camera photo becomes ~50–90 KB — 10–50× faster on mobile.
   const compressed = await compressImage(file);
-
-  // Always store as .jpg — consistent path means each upload silently
-  // overwrites the previous avatar without leaving orphaned files.
-  const path = `${userId}.jpg`;
-
-  const { data, error } = await supabase.storage
-    .from("avatars")
-    .upload(path, compressed, { upsert: true, contentType: "image/jpeg" });
-
-  if (error || !data) {
-    throw new Error(error?.message ?? "Avatar upload failed");
-  }
-
-  const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(data.path);
-  return `${urlData.publicUrl}?t=${Date.now()}`;  // cache-buster
+  const formData = new FormData();
+  formData.append("file", compressed, `${userId}.jpg`);
+  formData.append("type", "avatar");
+  formData.append("userId", userId);
+  const res = await fetch("/api/upload", { method: "POST", body: formData, credentials: "include" });
+  if (!res.ok) throw new Error("Avatar upload failed");
+  const data = await res.json() as { url: string };
+  return `${data.url}?t=${Date.now()}`;
 }

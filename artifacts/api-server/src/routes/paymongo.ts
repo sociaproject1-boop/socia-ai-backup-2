@@ -40,7 +40,7 @@
 import { Router, type Request, type Response } from "express";
 import crypto from "node:crypto";
 import { createRateLimiter } from "../lib/rateLimit.js";
-import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser } from "../lib/replitAuth.js";
 import { getServiceClient } from "../lib/adminAuth.js";
 import { logger } from "../lib/logger.js";
 

@@ -16,7 +16,7 @@
  */
 
 import { Router } from "express";
-import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/replitAuth.js";
 import {
   estimateCreatorRefund, estimateAIRefund, computeRefundAbuseScore,
 } from "../lib/refundCalculator.js";

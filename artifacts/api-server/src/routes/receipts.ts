@@ -29,7 +29,7 @@
  */
 
 import { Router } from "express";
-import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/replitAuth.js";
 import { getServiceClient }    from "../lib/adminAuth.js";
 import {
   hashImage,

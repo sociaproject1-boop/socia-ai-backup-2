@@ -14,7 +14,7 @@
  * stays available.
  */
 import { Router, type IRouter, type RequestHandler } from "express";
-import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser } from "../lib/replitAuth.js";
 import { logger } from "../lib/logger.js";
 import {
   OWNER_EMAIL,

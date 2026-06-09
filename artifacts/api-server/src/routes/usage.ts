@@ -10,7 +10,7 @@
  */
 
 import { Router } from "express";
-import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/replitAuth.js";
 
 const router = Router();
 

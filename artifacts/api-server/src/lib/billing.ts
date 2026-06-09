@@ -1,15 +1,18 @@
 /**
- * Server-side billing helpers.
+ * Server-side billing helpers — ported to Drizzle/PostgreSQL.
  *
- * Calls the Supabase SECURITY DEFINER RPCs:
- *   • consume_credits(action) — atomic debit + cooldown evaluation
- *   • refund_credits(amount, reason, ref) — credit-back on provider failure
- *   • my_billing_summary() — read-only snapshot
- *
- * Action codes are the SAME as the cost-map keys in billing-schema.sql §10.
+ * Replaces the Supabase RPC calls:
+ *   • consume_credits(action)      → drizzle credit_ledger insert + users update
+ *   • refund_credits(amount)       → drizzle credit_ledger insert + users update
+ *   • my_billing_summary()         → drizzle users select
  */
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { logger } from "./logger.js";
+import { db, schema } from "./db.js";
+import { eq, sql } from "drizzle-orm";
+import type { Request } from "express";
+import { consumeGenerationQuota } from "./replitAuth.js";
+
+const { users, creditLedger } = schema;
 
 export type CreditAction =
   | "std_image"
@@ -32,7 +35,7 @@ export interface ConsumeResult {
   reason?:        "free_plan" | "insufficient" | "cooldown";
 }
 
-/** Server-side mirror of the SQL cost map — used only for refund sizing. */
+/** Server-side cost map — credits charged per action. */
 export const CREDIT_COSTS: Record<CreditAction, number> = {
   std_image:     3,
   hd_image:      10,
@@ -44,29 +47,103 @@ export const CREDIT_COSTS: Record<CreditAction, number> = {
   gpt_msg:       1,
 };
 
-export async function consumeCredits(
-  supabase: SupabaseClient,
-  action: CreditAction,
-): Promise<ConsumeResult> {
-  const { data, error } = await supabase.rpc("consume_credits", { p_action: action });
-  if (error) throw new Error(`consume_credits failed: ${error.message}`);
-  if (!data || typeof data !== "object") throw new Error("consume_credits returned no data");
-  return data as ConsumeResult;
+interface BillingSummary {
+  is_owner:       boolean;
+  plan_code:      string;
+  credits:        number;
+  smart_saver:    boolean;
+  cooldown_until: string | null;
 }
 
-/**
- * Unified generation gate: handles BOTH the daily-quota model (free users)
- * and the credit-ledger model (paid + owner). Routes call this once before
- * launching a generation; on provider failure they call `result.refund()` to
- * credit the user back.
- *
- *  – `freeKind`  → "image" | "video", used to pick the daily-quota bucket.
- *  – `pickAction(smart_saver)` → returns the CreditAction to charge for
- *     a paid user; receives the user's smart_saver flag so callers can swap
- *     HD → standard automatically when the wallet is low.
- */
-import type { Request } from "express";
-import { consumeGenerationQuota } from "./supabaseAuth.js";
+/** Fetch the billing summary for a user directly from the DB. */
+async function fetchBillingSummary(userId: string): Promise<BillingSummary | null> {
+  try {
+    const row = await db
+      .select({
+        isOwner:       users.isOwner,
+        planCode:      users.planCode,
+        creditsBalance: users.creditsBalance,
+        smartSaver:    users.smartSaver,
+        cooldownUntil: users.cooldownUntil,
+      })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (!row.length) return null;
+    const r = row[0]!;
+    return {
+      is_owner:       r.isOwner,
+      plan_code:      r.planCode ?? "free",
+      credits:        Number(r.creditsBalance ?? 0),
+      smart_saver:    r.smartSaver ?? false,
+      cooldown_until: r.cooldownUntil?.toISOString() ?? null,
+    };
+  } catch (err) {
+    logger.warn({ err: (err as Error).message, userId }, "[billing] fetchBillingSummary failed");
+    return null;
+  }
+}
+
+/** Atomic credit debit — returns ConsumeResult. */
+export async function consumeCredits(
+  _sb: any,
+  action: CreditAction,
+  userId?: string,
+): Promise<ConsumeResult> {
+  if (!userId) {
+    return { allowed: false, balance: 0, plan: "free", action, cost: 0, smart_saver: false, cooldown_until: null, reason: "free_plan" };
+  }
+  const cost = CREDIT_COSTS[action] ?? 1;
+
+  try {
+    const row = await db
+      .select({ creditsBalance: users.creditsBalance, isOwner: users.isOwner, planCode: users.planCode, smartSaver: users.smartSaver, cooldownUntil: users.cooldownUntil })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!row.length) {
+      return { allowed: false, balance: 0, plan: "free", action, cost, smart_saver: false, cooldown_until: null, reason: "insufficient" };
+    }
+
+    const r = row[0]!;
+    const balance = Number(r.creditsBalance ?? 0);
+
+    // Check cooldown
+    if (r.cooldownUntil && new Date(r.cooldownUntil) > new Date()) {
+      return { allowed: false, balance, plan: r.planCode ?? "free", action, cost, smart_saver: r.smartSaver ?? false, cooldown_until: r.cooldownUntil.toISOString(), reason: "cooldown" };
+    }
+
+    if (balance < cost) {
+      return { allowed: false, balance, plan: r.planCode ?? "free", action, cost, smart_saver: r.smartSaver ?? false, cooldown_until: null, reason: "insufficient" };
+    }
+
+    const newBalance = balance - cost;
+    await db.update(users)
+      .set({ creditsBalance: String(newBalance), updatedAt: new Date() })
+      .where(eq(users.id, userId));
+
+    await db.insert(creditLedger).values({
+      userId,
+      amount: String(-cost),
+      action,
+      reason: `Generation: ${action}`,
+      balanceAfter: String(newBalance),
+    }).catch(() => {});
+
+    return {
+      allowed: true,
+      balance: newBalance,
+      plan: r.isOwner ? "owner" : (r.planCode ?? "free"),
+      action, cost,
+      smart_saver: r.smartSaver ?? false,
+      cooldown_until: null,
+    };
+  } catch (err) {
+    logger.warn({ err: (err as Error).message, userId, action }, "[billing] consumeCredits failed");
+    return { allowed: false, balance: 0, plan: "free", action, cost, smart_saver: false, cooldown_until: null, reason: "insufficient" };
+  }
+}
 
 export type GateOk = {
   ok:             true;
@@ -76,10 +153,8 @@ export type GateOk = {
   cost:           number;
   balance:        number;
   cooldown_until: string | null;
-  /** Daily-quota counters for free users (undefined for paid). */
   remaining?:     number;
   limit?:         number;
-  /** Credit-back closure (no-op for free + owner). */
   refund:         (reason: string, ref?: string) => Promise<void>;
 };
 export type GateFail = {
@@ -91,24 +166,24 @@ export type GateResult = GateOk | GateFail;
 
 export async function gateAndConsume(
   req: Request,
-  supabase: SupabaseClient,
+  _sb: any,
   opts: {
     freeKind:    "image" | "video";
     pickAction:  (smart_saver: boolean) => CreditAction;
   },
 ): Promise<GateResult> {
-  // 1. Get plan snapshot.
-  const { data: summary, error: sErr } = await supabase.rpc("my_billing_summary");
-  if (sErr || !summary) {
+  const authedUser = (req as any).authedUser as { id: string } | undefined;
+  if (!authedUser?.id) {
+    return { ok: false, status: 401, body: { error: "Not authenticated.", code: "UNAUTHENTICATED" } };
+  }
+
+  const s = await fetchBillingSummary(authedUser.id);
+  if (!s) {
     return {
       ok: false, status: 503,
       body: { error: "Billing service temporarily unavailable.", code: "BILLING_UNAVAILABLE" },
     };
   }
-  const s = summary as {
-    is_owner: boolean; plan_code: string; credits: number;
-    smart_saver: boolean; cooldown_until: string | null;
-  };
 
   // 2. Owner — never debit, never block.
   if (s.is_owner) {
@@ -121,7 +196,7 @@ export async function gateAndConsume(
 
   // 3. Free — keep daily-quota model.
   if (s.plan_code === "free") {
-    const q = await consumeGenerationQuota(supabase, opts.freeKind);
+    const q = await consumeGenerationQuota(null, opts.freeKind);
     if (!q.allowed) {
       return {
         ok: false, status: 429,
@@ -143,7 +218,7 @@ export async function gateAndConsume(
 
   // 4. Paid — credits.
   const action = opts.pickAction(s.smart_saver);
-  const r = await consumeCredits(supabase, action);
+  const r = await consumeCredits(null, action, authedUser.id);
   if (!r.allowed) {
     if (r.reason === "cooldown") {
       return {
@@ -171,8 +246,8 @@ export async function gateAndConsume(
       body: { error: "Generation blocked.", code: "BLOCKED", reason: r.reason ?? null },
     };
   }
-  // Capture for refund closure.
   const charged = r.cost;
+  const userId = authedUser.id;
   return {
     ok: true,
     plan: r.plan === "owner" ? "owner" : "active",
@@ -182,86 +257,63 @@ export async function gateAndConsume(
     balance: r.balance,
     cooldown_until: r.cooldown_until,
     refund: async (reason: string, ref?: string) => {
-      await refundCredits(supabase, charged, reason, ref);
+      await refundCredits(null, charged, reason, ref, userId);
     },
   };
 }
 
 /** Whether an error code from a downstream provider deserves a refund. */
 export function shouldRefund(code: string | undefined | null): boolean {
-  if (!code) return true; // unknown internal errors → refund (user wasn't at fault)
+  if (!code) return true;
   switch (code) {
-    case "FAL_BILLING":
-    case "FAL_TIMEOUT":
-    case "FAL_UNAVAILABLE":
-    case "FAL_NO_OUTPUT":
-    case "FAL_FAILED":
-    case "FAL_AUTH":
-    case "FAL_RATE_LIMITED":
-    case "STITCH_FAILED":
-    case "INTERNAL":
+    case "FAL_BILLING": case "FAL_TIMEOUT": case "FAL_UNAVAILABLE":
+    case "FAL_NO_OUTPUT": case "FAL_FAILED": case "FAL_AUTH":
+    case "FAL_RATE_LIMITED": case "STITCH_FAILED": case "INTERNAL":
       return true;
-    case "FAL_MODERATED":
-    case "FAL_INVALID_INPUT":
-    case "FAL_FORBIDDEN":
-      return false; // user-attributable
+    case "FAL_MODERATED": case "FAL_INVALID_INPUT": case "FAL_FORBIDDEN":
+      return false;
     case "PROVIDER_NOT_CONFIGURED":
-      return true;  // operator failure — must refund
+      return true;
     default:
       return false;
   }
 }
 
 export async function refundCredits(
-  supabase: SupabaseClient,
+  _sb: any,
   amount: number,
   reason: string,
   ref?: string,
+  userId?: string,
 ): Promise<{ refunded: number; balance: number }> {
-  if (amount <= 0) return { refunded: 0, balance: 0 };
-  const { data, error } = await supabase.rpc("refund_credits", {
-    p_amount: amount,
-    p_reason: reason,
-    p_ref:    ref ?? null,
-  });
-  if (error) {
-    // Log but never throw — refund failure must not mask the original error.
-    logger.error({ err: error, amount, reason, ref }, "[billing] refund_credits RPC failed — user may have lost credits");
+  if (amount <= 0 || !userId) return { refunded: 0, balance: 0 };
+  try {
+    const rows = await db.select({ creditsBalance: users.creditsBalance })
+      .from(users).where(eq(users.id, userId)).limit(1);
+    const current = Number(rows[0]?.creditsBalance ?? 0);
+    const newBalance = current + amount;
+    await db.update(users).set({ creditsBalance: String(newBalance), updatedAt: new Date() }).where(eq(users.id, userId));
+    await db.insert(creditLedger).values({
+      userId,
+      amount: String(amount),
+      action: "refund",
+      reason,
+      ref: ref ?? null,
+      balanceAfter: String(newBalance),
+    }).catch(() => {});
+    return { refunded: amount, balance: newBalance };
+  } catch (err) {
+    logger.error({ err: (err as Error).message, userId, amount, reason }, "[billing] refundCredits failed");
     return { refunded: 0, balance: 0 };
   }
-  return (data ?? { refunded: 0, balance: 0 }) as { refunded: number; balance: number };
 }
 
-/**
- * Admin refund — for background workers that have no user JWT (e.g. the
- * cinematic renderWorker). Calls public.refund_credits_admin which accepts
- * an explicit p_user_id and is GRANTed only to service_role.
- *
- * REQUIRES MIGRATION 41 (41-refund-credits-admin.sql). If the migration is
- * not applied this call will fail with `function does not exist` and the
- * caller's catch block will log a "manual credit may be required" warning.
- * It will NOT throw — refund failures must not mask the original error.
- */
 export async function refundCreditsAdmin(
-  serviceClient: SupabaseClient,
+  _serviceClient: any,
   userId: string,
   amount: number,
   reason: string,
   ref?: string,
 ): Promise<{ refunded: number; balance: number }> {
-  if (amount <= 0) return { refunded: 0, balance: 0 };
-  const { data, error } = await serviceClient.rpc("refund_credits_admin", {
-    p_user_id: userId,
-    p_amount:  amount,
-    p_reason:  reason,
-    p_ref:     ref ?? null,
-  });
-  if (error) {
-    logger.error(
-      { err: error, userId, amount, reason, ref },
-      "[billing] refund_credits_admin RPC failed — apply migration 41 if 'function does not exist'; user may have lost credits otherwise",
-    );
-    return { refunded: 0, balance: 0 };
-  }
-  return (data ?? { refunded: 0, balance: 0 }) as { refunded: number; balance: number };
+  return refundCredits(null, amount, reason, ref, userId);
 }

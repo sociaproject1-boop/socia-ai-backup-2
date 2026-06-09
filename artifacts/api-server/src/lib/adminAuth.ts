@@ -1,75 +1,25 @@
 /**
  * Super-admin authentication for the api-server.
- *
- * Admins are entirely separate from Supabase auth users. They authenticate
- * with username + bcrypt password and receive a short-lived JWT signed with
- * SESSION_SECRET. All privileged DB operations use the service-role Supabase
- * client which bypasses RLS.
- *
- * 2FA-ready: super_admins.totp_secret/totp_enabled exist — verify step is a
- * one-line addition before signAdminToken().
+ * Ported to Drizzle/PostgreSQL — no Supabase dependency.
  */
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Request, RequestHandler } from "express";
-import { readFileSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
 import { logger } from "./logger.js";
+import { db, schema } from "./db.js";
+import { eq } from "drizzle-orm";
+import { createDbClient } from "./dbCompat.js";
 
 const JWT_SECRET = process.env["SESSION_SECRET"] || "dev-only-insecure-secret-change-me";
 const ADMIN_TTL_HOURS = 8;
 
-/* ── Service-role key resolution ──────────────────────────────────────────
- * Tries (in order):
- *   1. process.env.SUPABASE_SERVICE_ROLE_KEY  (Replit Secrets — preferred)
- *   2. ./.local/secrets/SUPABASE_SERVICE_ROLE_KEY  (file-based fallback for
- *      mobile / when the Secrets panel is stuck — gitignored)
- * The file fallback exists so admins can still bootstrap the system from a
- * mobile editor where the Secrets UI is unreliable. */
-function getSupabaseUrl(): string {
-  return process.env["VITE_SUPABASE_URL"] ?? process.env["SUPABASE_URL"] ?? "";
-}
-
-function resolveServiceRole(): string | undefined {
-  const fromEnv = process.env["SUPABASE_SERVICE_ROLE_KEY"];
-  if (fromEnv && fromEnv.trim()) return fromEnv.trim();
-  try {
-    const candidates = [
-      resolve(process.cwd(), ".local/secrets/SUPABASE_SERVICE_ROLE_KEY"),
-      resolve(process.cwd(), "../../.local/secrets/SUPABASE_SERVICE_ROLE_KEY"),
-    ];
-    for (const p of candidates) {
-      if (existsSync(p)) {
-        const v = readFileSync(p, "utf8").trim();
-        if (v) {
-          logger.info({ path: p }, "[admin] loaded SUPABASE_SERVICE_ROLE_KEY from file fallback");
-          return v;
-        }
-      }
-    }
-  } catch (e) {
-    logger.warn({ err: (e as Error).message }, "[admin] file-fallback read failed");
-  }
-  return undefined;
-}
-let _service: SupabaseClient | null = null;
-/** Service-role Supabase client (bypasses RLS). Lazy-initialised so the
- *  server still boots if SUPABASE_SERVICE_ROLE_KEY hasn't been added yet —
- *  admin routes will return 503 in that case. */
-export function getServiceClient(): SupabaseClient | null {
-  if (_service) return _service;
-  const url = getSupabaseUrl();
-  const role = resolveServiceRole();
-  if (!url || !role) return null;
-  _service = createClient(url, role, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  return _service;
+/** Returns a Supabase-compatible DB client backed by PostgreSQL. */
+export function getServiceClient() {
+  return createDbClient();
 }
 
 export function isAdminSystemReady(): boolean {
-  return Boolean(getSupabaseUrl() && resolveServiceRole());
+  return Boolean(process.env["DATABASE_URL"]);
 }
 
 export interface AdminClaims {
@@ -110,15 +60,10 @@ export function getAdminClaims(req: Request): AdminClaims {
   return claims;
 }
 
-/** Express middleware — requires a valid admin JWT in `Authorization: Bearer`
- *  or in the `socia_admin_token` cookie. Optionally restrict by role. */
 export function requireAdmin(allowedRoles?: AdminClaims["role"][]): RequestHandler {
   return (req, res, next): void => {
     if (!isAdminSystemReady()) {
-      res.status(503).json({
-        code: "ADMIN_NOT_CONFIGURED",
-        message: "SUPABASE_SERVICE_ROLE_KEY missing on server.",
-      });
+      res.status(503).json({ code: "ADMIN_NOT_CONFIGURED", message: "DATABASE_URL missing on server." });
       return;
     }
     const auth = req.header("authorization") || "";
@@ -144,24 +89,24 @@ export async function audit(
   action: string,
   ctx: { req?: Request; targetType?: string; targetId?: string; meta?: unknown } = {},
 ): Promise<void> {
-  const sb = getServiceClient();
-  if (!sb) return;
-  const ip =
-    ctx.req?.header("cf-connecting-ip") ||
-    ctx.req?.header("x-forwarded-for")?.split(",")[0]?.trim() ||
-    ctx.req?.socket?.remoteAddress ||
-    null;
-  const ua = ctx.req?.header("user-agent") ?? null;
-  await sb.from("admin_audit_log").insert({
-    admin_id:    claims?.adminId ?? null,
-    username:    claims?.username ?? null,
-    action,
-    target_type: ctx.targetType ?? null,
-    target_id:   ctx.targetId   ?? null,
-    meta:        ctx.meta ? (ctx.meta as object) : null,
-    ip,
-    user_agent:  ua,
-  }).then(({ error }) => {
-    if (error) logger.warn({ err: error, action }, "admin audit insert failed");
-  });
+  try {
+    const ip =
+      ctx.req?.header("cf-connecting-ip") ||
+      ctx.req?.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+      ctx.req?.socket?.remoteAddress ||
+      null;
+    const ua = ctx.req?.header("user-agent") ?? null;
+    await db.insert(schema.adminAuditLog).values({
+      adminId:    claims?.adminId ?? null,
+      username:   claims?.username ?? null,
+      action,
+      targetType: ctx.targetType ?? null,
+      targetId:   ctx.targetId   ?? null,
+      meta:       ctx.meta ? (ctx.meta as Record<string, unknown>) : null,
+      ip,
+      userAgent:  ua,
+    });
+  } catch (err) {
+    logger.warn({ err, action }, "admin audit insert failed");
+  }
 }

@@ -8,7 +8,7 @@
  * POST /api/ai/cancel    — cancel current subscription
  */
 import { Router } from "express";
-import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/replitAuth.js";
 import { AI_PLANS, fetchAIPlan } from "../lib/aiSubscription.js";
 import { getUsageStats } from "../lib/aiRateLimit.js";
 import { logger } from "../lib/logger.js";

@@ -8,11 +8,11 @@
  */
 import { Router } from "express";
 import { createRateLimiter } from "../lib/rateLimit.js";
-import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser } from "../lib/replitAuth.js";
 import { gateAndConsume } from "../lib/billing.js";
 import { isMockMode } from "../lib/fal.js";
 import { getEngine, isEngineConfigured } from "../lib/engineRegistry.js";
-import { getRequestSupabase } from "../lib/supabaseAuth.js";
+import { getRequestSupabase } from "../lib/replitAuth.js";
 import { logger } from "../lib/logger.js";
 import {
   createRenderJob, getJobForUser, getUserJobs, updateJobProgress,

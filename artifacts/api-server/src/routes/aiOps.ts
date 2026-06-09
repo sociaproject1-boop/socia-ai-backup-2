@@ -15,7 +15,7 @@
  *   GET /api/ai-ops/activity   — recent live activity feed (lightweight)
  */
 import { Router, type IRouter, type RequestHandler } from "express";
-import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser } from "../lib/replitAuth.js";
 import { getServiceClient } from "../lib/adminAuth.js";
 import { OWNER_EMAIL } from "../monitoring/index.js";
 import { logger } from "../lib/logger.js";

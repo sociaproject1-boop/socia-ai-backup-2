@@ -18,7 +18,7 @@
  *   eligibility cap  = 85% usage threshold (matches existing policy)
  */
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { computeUsageSummary, computeHeavyScore, type UsageSummary } from "./usageTracker.js";
 import { logger } from "./logger.js";
 
@@ -103,7 +103,7 @@ export function sanitizeRefundForUser(result: PartialRefundResult): UserSafeRefu
  * @param orderId    - Optional: specific payment order to scope usage to
  */
 export async function computePartialRefund(
-  supabase: SupabaseClient,
+  supabase: any,
   userId: string,
   orderId?: string | null,
 ): Promise<PartialRefundResult> {
@@ -231,7 +231,7 @@ export async function computePartialRefund(
  * Returns MAX(0, paid * (1 - usage_pct)).
  */
 async function getLedgerRefundable(
-  supabase: SupabaseClient,
+  supabase: any,
   userId: string,
   subscriptionType: "creator" | "ai",
   paymentAmountPhp: number,

@@ -146,33 +146,47 @@ export default function Home() {
     <>
     <div ref={feedRef} className="app-bg pb-28 scroll-native h-full overflow-y-auto hide-scrollbar">
 
-      {/* ── Sticky tab header — hides with TopBar on scroll-down ─────── */}
-      <div
-        className="app-header sticky top-0 z-20 flex items-center gap-1 px-4 py-2"
+      {/* ── Sticky tab header — hides with TopBar on scroll-down ─────── *
+       *  Outer div stays sticky so the grid-collapse anchors at the top.  *
+       *  Inner grid collapses from 1fr→0fr (layout) while the header div  *
+       *  simultaneously slides up via translateY — together this gives the *
+       *  TikTok effect: header slides out AND content fills freed space.   */}
+      <div className="sticky top-0 z-20"
         style={{
-          transform:  navHidden ? "translateY(-100%)" : "translateY(0)",
+          display: "grid",
+          gridTemplateRows: navHidden ? "0fr" : "1fr",
           transition: slideTransition,
-          willChange: "transform",
         }}
       >
-        {(["for-you", "following"] as FeedMode[]).map((t) => (
-          <motion.button
-            key={t}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setFeedTab(t)}
-            className="relative rounded-full px-4 py-1.5 text-[12px] font-semibold"
-            style={{ color: feedTab === t ? "hsl(var(--foreground))" : "var(--s-text-muted)" }}
+        <div style={{ overflow: "hidden" }}>
+          <div
+            className="app-header flex items-center gap-1 px-4 py-2"
+            style={{
+              transform:  navHidden ? "translateY(-100%)" : "translateY(0)",
+              transition: slideTransition,
+              willChange: "transform",
+            }}
           >
-            {feedTab === t && (
-              <motion.span
-                layoutId="feedTab"
-                className="absolute inset-0 rounded-full app-surface"
-                transition={{ type: "spring", stiffness: 480, damping: 34 }}
-              />
-            )}
-            <span className="relative">{t === "for-you" ? "For You" : "Following"}</span>
-          </motion.button>
-        ))}
+            {(["for-you", "following"] as FeedMode[]).map((t) => (
+              <motion.button
+                key={t}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setFeedTab(t)}
+                className="relative rounded-full px-4 py-1.5 text-[12px] font-semibold"
+                style={{ color: feedTab === t ? "hsl(var(--foreground))" : "var(--s-text-muted)" }}
+              >
+                {feedTab === t && (
+                  <motion.span
+                    layoutId="feedTab"
+                    className="absolute inset-0 rounded-full app-surface"
+                    transition={{ type: "spring", stiffness: 480, damping: 34 }}
+                  />
+                )}
+                <span className="relative">{t === "for-you" ? "For You" : "Following"}</span>
+              </motion.button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* ── New posts banner ──────────────────────────────────────────── */}

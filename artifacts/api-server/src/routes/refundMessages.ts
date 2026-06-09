@@ -14,7 +14,7 @@
  */
 
 import { Router, type IRouter } from "express";
-import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/replitAuth.js";
 import { requireAdmin, getServiceClient } from "../lib/adminAuth.js";
 
 const router: IRouter = Router();

@@ -16,7 +16,7 @@
  *   GET  /api/ai-governance/events       — enforcement / audit log
  */
 import { Router, type IRouter, type RequestHandler } from "express";
-import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser } from "../lib/replitAuth.js";
 import { OWNER_EMAIL } from "../monitoring/index.js";
 import { logger } from "../lib/logger.js";
 import {

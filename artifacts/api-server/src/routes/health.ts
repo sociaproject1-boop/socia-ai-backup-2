@@ -20,7 +20,7 @@
  * by default — we use spread to bypass that).
  */
 import { Router, type IRouter } from "express";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "../lib/dbCompat.js";
 import { logger } from "../lib/logger.js";
 
 const router: IRouter = Router();

@@ -5,7 +5,7 @@ import { imageToVideo, isMockMode, FalError } from "../lib/fal.js";
 import { uploadBufferToCloudinary, uploadUrlToCloudinary } from "../lib/cloudinaryServer.js";
 import { imageSemaphore, videoSemaphore } from "../lib/queue.js";
 import { logger } from "../lib/logger.js";
-import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/replitAuth.js";
 import { gateAndConsume, shouldRefund, type CreditAction } from "../lib/billing.js";
 import {
   PRESETS,

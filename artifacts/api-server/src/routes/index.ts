@@ -49,6 +49,9 @@ import starsRouter               from "./stars.js";
 import pulsesRouter              from "./pulses.js";
 import soundsRouter              from "./sounds.js";
 import exploreRouter             from "./explore.js";
+import authRouter                from "./auth.js";
+import dbProxyRouter             from "./dbProxy.js";
+import presenceRouter            from "./presence.js";
 import trendingRouter            from "./trending.js";
 
 const router: IRouter = Router();
@@ -104,5 +107,9 @@ router.use(soundsRouter);
 router.use(pulsesRouter);
 router.use(exploreRouter);
 router.use(trendingRouter);
+
+router.use("/auth", authRouter);
+router.use("/db-proxy", dbProxyRouter);
+router.use(presenceRouter);
 
 export default router;

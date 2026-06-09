@@ -16,7 +16,7 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { logger } from "../lib/logger.js";
-import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/replitAuth.js";
 import { buildSystemPrompt, type SociaGptMode } from "../lib/sociaGptSystem.js";
 import { VALID_PROFILES, type SociaGptProfile } from "../lib/sociaGptProfiles.js";
 import { readMemory } from "../lib/memoryStore.js";

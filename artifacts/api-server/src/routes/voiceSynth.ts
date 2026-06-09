@@ -6,7 +6,7 @@
  */
 
 import { Router }                          from "express";
-import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/replitAuth.js";
 import { getServiceClient }                from "../lib/renderJobsDb.js";
 import { synthesizeVoiceTrack }            from "../lib/voiceSynthesis.js";
 import { logger }                          from "../lib/logger.js";

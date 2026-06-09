@@ -12,8 +12,8 @@
  *   PUT  /api/user/notification-prefs  — update prefs (self only)
  */
 import { Router, type IRouter } from "express";
-import { createClient } from "@supabase/supabase-js";
-import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
+import { createClient } from "../lib/dbCompat.js";
+import { requireAuth, getAuthedUser } from "../lib/replitAuth.js";
 import { logger } from "../lib/logger.js";
 
 function serviceClient() {

@@ -11,7 +11,7 @@
 
 import { Router, type IRouter } from "express";
 import pino from "pino";
-import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser } from "../lib/replitAuth.js";
 import { getServiceClient, requireAdmin } from "../lib/adminAuth.js";
 
 const logger = pino({ name: "stars" });

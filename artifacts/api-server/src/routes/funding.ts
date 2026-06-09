@@ -7,8 +7,8 @@
  */
 
 import { Router }  from "express";
-import { createClient } from "@supabase/supabase-js";
-import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/supabaseAuth.js";
+import { createClient } from "../lib/dbCompat.js";
+import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/replitAuth.js";
 import { getServiceClient } from "../lib/adminAuth.js";
 
 const router = Router();

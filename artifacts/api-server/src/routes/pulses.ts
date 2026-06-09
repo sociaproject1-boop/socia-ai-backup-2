@@ -12,8 +12,8 @@
  * §9  Admin: get reported pulses / remove any pulse
  */
 import { Router, type IRouter } from "express";
-import { createClient } from "@supabase/supabase-js";
-import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
+import { createClient } from "../lib/dbCompat.js";
+import { requireAuth, getAuthedUser } from "../lib/replitAuth.js";
 import { getIo } from "../lib/ioInstance.js";
 import { logger } from "../lib/logger.js";
 

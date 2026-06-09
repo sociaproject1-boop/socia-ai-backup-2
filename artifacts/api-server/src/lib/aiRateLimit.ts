@@ -11,7 +11,7 @@
  * IMPORTANT: Cooldown and burst detection are purely in-memory for speed.
  * Usage counts are persisted so they survive restarts and multiple instances.
  */
-import type { SupabaseClient } from "@supabase/supabase-js";
+
 import type { AIPlan } from "./aiSubscription.js";
 
 /* ── In-memory cooldown store ───────────────────────────────────────────── */
@@ -117,7 +117,7 @@ function getMonthlyResetAt(): string {
  * rather than granting unlimited access.
  */
 export async function checkAndIncrementUsage(
-  supabase: SupabaseClient,
+  supabase: any,
   userId: string,
   plan: AIPlan,
 ): Promise<UsageResult> {
@@ -236,7 +236,7 @@ export async function checkAndIncrementUsage(
 
 /** Read-only usage fetch for the /api/ai/usage endpoint. */
 export async function getUsageStats(
-  supabase: SupabaseClient,
+  supabase: any,
   userId: string,
   plan: AIPlan,
 ): Promise<{ used: number; limit: number; period: "daily" | "monthly"; resetAt: string }> {

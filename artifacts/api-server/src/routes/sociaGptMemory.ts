@@ -11,7 +11,7 @@
  * surface noise.
  */
 import { Router } from "express";
-import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser } from "../lib/replitAuth.js";
 import { getGrok, GROK_FAST, shouldSkipGrok } from "../lib/grokClient.js";
 import { readMemory, writeMemory, resetMemory } from "../lib/memoryStore.js";
 import {

@@ -20,7 +20,7 @@
  *   velocity_abuse                 +30 medium   — ≥2 refund requests in 30 days
  */
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { referencesMatch, normaliseRef } from "./ocrService.js";
 import { logger } from "./logger.js";
 
@@ -74,8 +74,8 @@ function action(score: number): FraudAction {
  * @param input         — data gathered during receipt processing
  */
 export async function runFraudChecks(
-  userClient:    SupabaseClient,
-  serviceClient: SupabaseClient | null,
+  userClient:    any,
+  serviceClient: any,
   input:         FraudCheckInput,
 ): Promise<FraudResult> {
   const flags: FraudFlag[] = [];
@@ -107,8 +107,8 @@ export async function runFraudChecks(
 /* ── Individual checks ────────────────────────────────────────────────── */
 
 async function checkDuplicateHash(
-  userClient:    SupabaseClient,
-  serviceClient: SupabaseClient | null,
+  userClient:    any,
+  serviceClient: any,
   { userId, imageHash }: FraudCheckInput,
 ): Promise<FraudFlag | null> {
   if (!imageHash) return null;
@@ -159,8 +159,8 @@ async function checkDuplicateHash(
  * of the exact same underlying transaction.
  */
 async function checkDuplicateExtractedReference(
-  userClient:    SupabaseClient,
-  serviceClient: SupabaseClient | null,
+  userClient:    any,
+  serviceClient: any,
   { userId, extractedReference }: FraudCheckInput,
 ): Promise<FraudFlag | null> {
   if (!extractedReference) return null;
@@ -192,8 +192,8 @@ async function checkDuplicateExtractedReference(
 }
 
 async function checkReferenceInOtherRefund(
-  userClient:    SupabaseClient,
-  serviceClient: SupabaseClient | null,
+  userClient:    any,
+  serviceClient: any,
   { userId, manualReference }: FraudCheckInput,
 ): Promise<FraudFlag | null> {
   if (!manualReference) return null;
@@ -221,7 +221,7 @@ async function checkReferenceInOtherRefund(
 }
 
 async function checkCrossUserReference(
-  serviceClient: SupabaseClient | null,
+  serviceClient: any,
   { userId, manualReference }: FraudCheckInput,
 ): Promise<FraudFlag | null> {
   if (!serviceClient || !manualReference) return null;
@@ -356,7 +356,7 @@ function checkFakeStructure({ structureScore }: FraudCheckInput): FraudFlag | nu
 }
 
 async function checkVelocity(
-  userClient: SupabaseClient,
+  userClient: any,
   { userId }: FraudCheckInput,
 ): Promise<FraudFlag | null> {
   const since30d = new Date(Date.now() - 30 * 86_400_000).toISOString();

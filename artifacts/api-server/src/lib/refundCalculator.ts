@@ -9,7 +9,7 @@
  *   • Anti-abuse: if credits_used > 80% of plan, refundable = 0
  */
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+
 
 export interface CreatorRefundEstimate {
   type:                "creator";
@@ -55,7 +55,7 @@ const CREATOR_PLAN_PRICES: Record<string, number> = {
 const ABUSE_THRESHOLD = 0.85;
 
 export async function estimateCreatorRefund(
-  supabase: SupabaseClient,
+  supabase: any,
   userId: string,
 ): Promise<CreatorRefundEstimate> {
   // 1. Get current billing snapshot
@@ -121,7 +121,7 @@ export async function estimateCreatorRefund(
 }
 
 export async function estimateAIRefund(
-  supabase: SupabaseClient,
+  supabase: any,
   userId: string,
 ): Promise<AIRefundEstimate> {
   // 1. Get current AI subscription
@@ -194,7 +194,7 @@ export async function estimateAIRefund(
  * Returns an abuse score (0 = clean, 100 = maximum abuse).
  */
 export async function computeRefundAbuseScore(
-  supabase: SupabaseClient,
+  supabase: any,
   userId: string,
 ): Promise<{ score: number; reason: string | null }> {
   const since30d = new Date(Date.now() - 30 * 86400_000).toISOString();

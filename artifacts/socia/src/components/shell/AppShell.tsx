@@ -93,6 +93,7 @@ export function AppShell({ children }: Props) {
   useEffect(() => { prevLoc.current = location; }, [location]);
 
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+  const navHidden       = useAppStore((s) => s.navHidden);
   const setNavHidden    = useAppStore((s) => s.setNavHidden);
 
   /* Reset nav-hide state on every route change */
@@ -117,7 +118,22 @@ export function AppShell({ children }: Props) {
   return (
     <div className="app-bg relative h-[100dvh] w-full overflow-hidden">
       <div className="mx-auto flex h-[100dvh] w-full max-w-[480px] flex-col">
-        {!hideTopBar && <TopBar />}
+        {/* ── TopBar collapse wrapper ─────────────────────────────────────
+             Grid-row trick: 1fr→0fr collapses the layout space in sync with
+             TopBar's internal translateY slide so no black gap is left behind. */}
+        {!hideTopBar && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateRows: navHidden ? "0fr" : "1fr",
+              transition: "grid-template-rows 0.3s cubic-bezier(0.25,0.46,0.45,0.94)",
+            }}
+          >
+            <div style={{ overflow: "hidden" }}>
+              <TopBar />
+            </div>
+          </div>
+        )}
 
         <main className="relative flex-1 overflow-hidden">
           {/* mode="wait" → only ONE page is mounted at a time. Required so   *

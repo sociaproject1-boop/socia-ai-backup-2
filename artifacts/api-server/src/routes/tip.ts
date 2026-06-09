@@ -7,8 +7,8 @@
  * load time (avoids "supabaseKey is required" during build).
  */
 import { Router } from "express";
-import { requireAuth } from "../lib/supabaseAuth.js";
-import { createClient } from "@supabase/supabase-js";
+import { requireAuth } from "../lib/replitAuth.js";
+import { createClient } from "../lib/dbCompat.js";
 import { logger } from "../lib/logger.js";
 
 function db() {

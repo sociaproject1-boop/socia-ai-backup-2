@@ -30,9 +30,9 @@
  */
 
 import { Router, type IRouter } from "express";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "../lib/dbCompat.js";
 import { logger } from "../lib/logger.js";
-import { getAuthedUser } from "../lib/supabaseAuth.js";
+import { getAuthedUser } from "../lib/replitAuth.js";
 
 const router: IRouter = Router();
 

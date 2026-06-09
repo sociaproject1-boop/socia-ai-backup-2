@@ -9,7 +9,7 @@
  *   → top hashtags extracted from post captions + top users
  */
 import { Router, type IRouter } from "express";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "../lib/dbCompat.js";
 import { logger } from "../lib/logger.js";
 
 function db() {

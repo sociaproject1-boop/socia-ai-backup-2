@@ -8,7 +8,7 @@
  * DELETE /api/projects/:id    — delete project
  */
 import { Router } from "express";
-import { requireAuth, getAuthedUser } from "../lib/supabaseAuth.js";
+import { requireAuth, getAuthedUser } from "../lib/replitAuth.js";
 import { logger } from "../lib/logger.js";
 import { getServiceClient } from "../lib/renderJobsDb.js";
 
