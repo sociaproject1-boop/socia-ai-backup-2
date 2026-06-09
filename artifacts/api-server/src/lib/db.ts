@@ -4,10 +4,25 @@ import * as schema from "@workspace/db";
 
 const { Pool } = pg;
 
-if (!process.env["DATABASE_URL"]) {
-  throw new Error("DATABASE_URL must be set. Did you forget to provision a database?");
+function getReplitConnectionString(): string {
+  const host = process.env["PGHOST"];
+  const port = process.env["PGPORT"] ?? "5432";
+  const user = process.env["PGUSER"];
+  const password = process.env["PGPASSWORD"];
+  const database = process.env["PGDATABASE"];
+  if (host && user && password && database) {
+    return `postgresql://${user}:${encodeURIComponent(password)}@${host}:${port}/${database}`;
+  }
+  return "";
 }
 
-export const pool = new Pool({ connectionString: process.env["DATABASE_URL"] });
+const replitUrl = getReplitConnectionString();
+const connectionString = replitUrl || process.env["DATABASE_URL"];
+
+if (!connectionString) {
+  throw new Error("No database connection available. Ensure the database is provisioned.");
+}
+
+export const pool = new Pool({ connectionString });
 export const db = drizzle(pool, { schema });
 export { schema };

@@ -83,6 +83,10 @@ interface Session {
 let _session: Session | null = null;
 let _sessionFetched = false;
 
+/* ── Auth state change listeners ─────────────────────────────────────────── */
+type AuthListener = (event: string, session: Session | null) => void;
+const _listeners: AuthListener[] = [];
+
 async function fetchSession(): Promise<Session | null> {
   if (_sessionFetched) return _session;
   try {
@@ -123,13 +127,17 @@ const auth = {
   },
 
   onAuthStateChange(cb: (event: string, session: Session | null) => void) {
+    _listeners.push(cb);
     fetchSession().then((session) => {
       cb(session ? "SIGNED_IN" : "INITIAL_SESSION", session);
     });
     return {
       data: {
         subscription: {
-          unsubscribe: () => {},
+          unsubscribe: () => {
+            const idx = _listeners.indexOf(cb);
+            if (idx !== -1) _listeners.splice(idx, 1);
+          },
         },
       },
     };
@@ -143,11 +151,17 @@ const auth = {
         body: JSON.stringify({ email, password }),
         credentials: "include",
       });
+      if (!res.ok) {
+        let message = "Sign in failed";
+        try { const e = await res.json() as { error?: string }; message = e.error ?? message; } catch {}
+        return { data: { user: null, session: null }, error: { message } };
+      }
       const data = await res.json() as { user?: SessionUser; error?: string; access_token?: string };
-      if (!res.ok || data.error) return { data: { user: null, session: null }, error: { message: data.error ?? "Sign in failed" } };
+      if (data.error) return { data: { user: null, session: null }, error: { message: data.error } };
       if (data.user) {
         _session = { user: data.user, access_token: data.access_token ?? "" };
         _sessionFetched = true;
+        for (const cb of _listeners) cb("SIGNED_IN", _session);
       }
       return { data: { user: data.user, session: _session }, error: null };
     } catch (e) {
@@ -163,11 +177,17 @@ const auth = {
         body: JSON.stringify({ email, password, ...options?.data }),
         credentials: "include",
       });
+      if (!res.ok) {
+        let message = "Sign up failed";
+        try { const e = await res.json() as { error?: string }; message = e.error ?? message; } catch {}
+        return { data: { user: null, session: null }, error: { message } };
+      }
       const data = await res.json() as { user?: SessionUser; error?: string; access_token?: string };
-      if (!res.ok || data.error) return { data: { user: null, session: null }, error: { message: data.error ?? "Sign up failed" } };
+      if (data.error) return { data: { user: null, session: null }, error: { message: data.error } };
       if (data.user) {
         _session = { user: data.user, access_token: data.access_token ?? "" };
         _sessionFetched = true;
+        for (const cb of _listeners) cb("SIGNED_IN", _session);
       }
       return { data: { user: data.user, session: _session }, error: null };
     } catch (e) {
@@ -183,6 +203,7 @@ const auth = {
   async signOut() {
     _session = null;
     _sessionFetched = false;
+    for (const cb of _listeners) cb("SIGNED_OUT", null);
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     return { error: null };
   },

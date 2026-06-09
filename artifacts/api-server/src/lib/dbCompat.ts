@@ -13,11 +13,25 @@ import pg from "pg";
 
 const { Pool } = pg;
 
-if (!process.env["DATABASE_URL"]) {
+function getReplitConnectionString(): string {
+  const host = process.env["PGHOST"];
+  const port = process.env["PGPORT"] ?? "5432";
+  const user = process.env["PGUSER"];
+  const password = process.env["PGPASSWORD"];
+  const database = process.env["PGDATABASE"];
+  if (host && user && password && database) {
+    return `postgresql://${user}:${encodeURIComponent(password)}@${host}:${port}/${database}`;
+  }
+  return "";
+}
+
+const connectionString = getReplitConnectionString() || process.env["DATABASE_URL"] || "";
+
+if (!connectionString) {
   throw new Error("DATABASE_URL must be set.");
 }
 
-const pool = new Pool({ connectionString: process.env["DATABASE_URL"] });
+const pool = new Pool({ connectionString });
 
 /**
  * Parse a PostgREST-style select string into a PostgreSQL column list.

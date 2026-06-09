@@ -28,3 +28,4 @@
 - [Vite cache isolation](vite-cache-isolation.md) — two Vite instances sharing same cacheDir cause persistent 504 "Outdated Optimize Dep"; fix: `cacheDir: \`node_modules/.vite-\${port}\`` in defineConfig.
 - [api-server pg externalization](api-server-pg-extern.md) — pg must be externalized in build.mjs AND symlinked from pnpm store into api-server/node_modules/pg; otherwise api-server crashes on import.
 - [dbCompat PostgREST parser](dbcompat-postgrest-parser.md) — parseSelectCols() converts Supabase-style `alias:table!fk(cols)` selects to SQL subqueries; two getServiceClient() impls (adminAuth vs renderJobsDb); .range/.not/.storage/.auth all added.
+- [Replit PG migration table target](replit-pg-table-target.md) — executeSql tool creates tables in a different DB than PGHOST=helium; always use the api-server's pg driver (via node --input-type=module + artifacts/api-server/node_modules/pg) to create schema against the real heliumdb.

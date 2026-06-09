@@ -51,7 +51,53 @@ router.get("/users/:id", async (req, res) => {
   try {
     const rows = await db.select().from(schema.users).where(eq(schema.users.id, id!)).limit(1);
     if (!rows.length) { res.status(404).json({ error: "User not found" }); return; }
-    res.json(rows[0]);
+    const u = rows[0]!;
+    res.json({
+      id:                    u.id,
+      email:                 u.email,
+      name:                  u.name,
+      username:              u.username,
+      avatar_url:            u.avatarUrl,
+      bio:                   u.bio,
+      cover_photo_url:       u.coverPhotoUrl,
+      followers:             u.followers,
+      following:             u.following,
+      is_owner:              u.isOwner,
+      is_verified:           u.isVerified,
+      is_online:             u.isOnline,
+      is_banned:             u.isBanned,
+      is_suspended:          u.isSuspended,
+      force_logout_at:       u.forceLogoutAt,
+      subscription_status:   u.subscriptionStatus,
+      plan_code:             u.planCode,
+      credits_balance:       u.creditsBalance,
+      smart_saver:           u.smartSaver,
+      cooldown_until:        u.cooldownUntil,
+      daily_image_count:     u.dailyImageCount,
+      daily_video_count:     u.dailyVideoCount,
+      daily_reset_at:        u.dailyResetAt,
+      website:               u.website,
+      location:              u.location,
+      gender:                u.gender,
+      birthday:              u.birthday,
+      relationship_status:   u.relationshipStatus,
+      work:                  u.work,
+      work_previous:         u.workPrevious,
+      school:                u.school,
+      college:               u.college,
+      education:             u.education,
+      public_email:          u.publicEmail,
+      public_phone:          u.publicPhone,
+      social_facebook:       u.socialFacebook,
+      social_instagram:      u.socialInstagram,
+      social_tiktok:         u.socialTiktok,
+      social_x:              u.socialX,
+      social_youtube:        u.socialYoutube,
+      social_linkedin:       u.socialLinkedin,
+      privacy_settings:      u.privacySettings,
+      created_at:            u.createdAt,
+      updated_at:            u.updatedAt,
+    });
   } catch (err) {
     logger.warn({ err }, "[presence] user fetch failed");
     res.status(500).json({ error: "Internal server error" });
