@@ -1,14 +1,15 @@
 /**
  * Explore.tsx — Public guest-accessible explore feed.
  *
- * Shows trending posts, popular creators, and trending hashtags.
+ * Shows popular creators and a discover feed.
+ * Trending is its own dedicated page at /trending.
  * No authentication required. Engagement actions show GuestAuthModal.
  */
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavHide } from "@/hooks/useNavHide";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { TrendingUp, Hash, Users, RefreshCw, Search, ChevronRight } from "lucide-react";
+import { Flame, Users, RefreshCw, Search, ChevronRight } from "lucide-react";
 import { FeedCard } from "@/components/feed/FeedCard";
 import { useGuestGate } from "@/lib/useGuestGate";
 import { useAppStore } from "@/lib/store";
@@ -24,15 +25,9 @@ interface Creator {
   subscription_status: string | null;
 }
 
-interface HashtagItem {
-  tag: string;
-  count: number;
-}
-
 interface ExploreData {
   posts: SocialPost[];
   creators: Creator[];
-  hashtags: HashtagItem[];
 }
 
 async function fetchExplore(): Promise<ExploreData> {
@@ -49,7 +44,6 @@ function fmtCount(n: number): string {
 
 function CreatorCard({ creator }: { creator: Creator }) {
   const [, navigate] = useLocation();
-  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
 
   return (
     <motion.button
@@ -92,29 +86,6 @@ function CreatorCard({ creator }: { creator: Creator }) {
   );
 }
 
-function HashtagChip({ tag, count }: { tag: string; count: number }) {
-  const [, navigate] = useLocation();
-  return (
-    <motion.button
-      whileTap={{ scale: 0.95 }}
-      onClick={() => navigate(`/hashtag/${tag.replace(/^#/, "")}`)}
-      className="flex items-center gap-1.5 rounded-full px-3 py-1.5 flex-shrink-0"
-      style={{
-        background: "rgba(168,85,247,0.12)",
-        border: "1px solid rgba(168,85,247,0.25)",
-      }}
-    >
-      <Hash className="h-3 w-3" style={{ color: "var(--accent-primary)" }} />
-      <span className="text-[12px] font-semibold" style={{ color: "var(--accent-primary)" }}>
-        {tag.replace(/^#/, "")}
-      </span>
-      <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.35)" }}>
-        {fmtCount(count)}
-      </span>
-    </motion.button>
-  );
-}
-
 function ShimmerCard() {
   return (
     <div className="mx-3 my-2 overflow-hidden rounded-[18px] px-4 py-4 space-y-3"
@@ -137,8 +108,8 @@ function ShimmerCard() {
 }
 
 export default function Explore() {
-  const [, navigate]     = useLocation();
-  const isAuthenticated  = useAppStore((s) => s.isAuthenticated);
+  const [, navigate]    = useLocation();
+  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
   const { gateAction, GuestModalPortal } = useGuestGate();
 
   const [data, setData]       = useState<ExploreData | null>(null);
@@ -195,7 +166,8 @@ export default function Explore() {
 
   return (
     <div ref={containerRef} className="h-full overflow-y-auto app-bg">
-      {/* ── Search bar shortcut (authenticated users only) ─────────────── */}
+
+      {/* ── Search bar (authenticated users only) ─────────────────────── */}
       {isAuthenticated && (
         <div className="px-4 pt-4 pb-2">
           <motion.button
@@ -212,39 +184,36 @@ export default function Explore() {
         </div>
       )}
 
-      {/* ── Trending hashtags ─────────────────────────────────────────── */}
-      {!loading && data?.hashtags && data.hashtags.length > 0 && (
-        <div className="mb-4">
-          <div className="flex items-center justify-between px-4 pb-2">
-            <div className="flex items-center gap-1.5">
-              <TrendingUp className="h-4 w-4" style={{ color: "var(--accent-primary)" }} />
-              <h2 className="text-[14px] font-bold text-white">Trending</h2>
+      {/* ── Trending CTA ──────────────────────────────────────────────── */}
+      <div className={isAuthenticated ? "px-4 pb-3" : "px-4 pt-4 pb-3"}>
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={() => navigate("/trending")}
+          className="w-full flex items-center justify-between rounded-2xl px-4 py-3"
+          style={{
+            background: "linear-gradient(135deg,rgba(245,158,11,0.1),rgba(239,68,68,0.08))",
+            border: "1px solid rgba(245,158,11,0.2)",
+          }}
+        >
+          <div className="flex items-center gap-2.5">
+            <Flame className="h-4 w-4" style={{ color: "#f59e0b" }} />
+            <div className="text-left">
+              <p className="text-[13px] font-bold text-white leading-tight">Trending Now</p>
+              <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                Ranked by engagement · views · watch time
+              </p>
             </div>
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate("/search")}
-              className="flex items-center gap-0.5 text-[12px]"
-              style={{ color: "var(--accent-primary)" }}
-            >
-              See all <ChevronRight className="h-3 w-3" />
-            </motion.button>
           </div>
-          <div className="flex gap-2 overflow-x-auto px-4 pb-1 scrollbar-none" style={{ scrollbarWidth: "none" }}>
-            {data.hashtags.map((h) => (
-              <HashtagChip key={h.tag} tag={h.tag} count={h.count} />
-            ))}
-          </div>
-        </div>
-      )}
+          <ChevronRight className="h-4 w-4" style={{ color: "rgba(245,158,11,0.6)" }} />
+        </motion.button>
+      </div>
 
       {/* ── Popular creators ──────────────────────────────────────────── */}
       {!loading && data?.creators && data.creators.length > 0 && (
         <div className="mb-4">
-          <div className="flex items-center justify-between px-4 pb-2">
-            <div className="flex items-center gap-1.5">
-              <Users className="h-4 w-4" style={{ color: "#60a5fa" }} />
-              <h2 className="text-[14px] font-bold text-white">Popular Creators</h2>
-            </div>
+          <div className="flex items-center px-4 pb-2 gap-1.5">
+            <Users className="h-4 w-4" style={{ color: "#60a5fa" }} />
+            <h2 className="text-[14px] font-bold text-white">Popular Creators</h2>
           </div>
           <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-none" style={{ scrollbarWidth: "none" }}>
             {data.creators.map((c) => (
@@ -254,10 +223,10 @@ export default function Explore() {
         </div>
       )}
 
-      {/* ── Trending posts ────────────────────────────────────────────── */}
+      {/* ── Discover posts header ─────────────────────────────────────── */}
       <div className="px-4 pb-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-[14px] font-bold text-white">Trending Posts</h2>
+          <h2 className="text-[14px] font-bold text-white">Discover</h2>
           {!loading && (
             <motion.button
               whileTap={{ scale: 0.88 }}
@@ -295,9 +264,9 @@ export default function Explore() {
 
       {!loading && !error && posts.length === 0 && (
         <div className="flex flex-col items-center gap-3 py-16">
-          <TrendingUp className="h-12 w-12" style={{ color: "rgba(255,255,255,0.12)" }} />
+          <Flame className="h-12 w-12" style={{ color: "rgba(255,255,255,0.12)" }} />
           <p className="text-[14px]" style={{ color: "rgba(255,255,255,0.4)" }}>
-            No trending posts yet
+            No posts yet — be the first to create
           </p>
         </div>
       )}
@@ -313,9 +282,7 @@ export default function Explore() {
         />
       ))}
 
-      {/* bottom padding for nav */}
       <div className="h-24" />
-
       {GuestModalPortal}
     </div>
   );

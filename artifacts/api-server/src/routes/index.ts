@@ -49,6 +49,7 @@ import starsRouter               from "./stars.js";
 import pulsesRouter              from "./pulses.js";
 import soundsRouter              from "./sounds.js";
 import exploreRouter             from "./explore.js";
+import trendingRouter            from "./trending.js";
 
 const router: IRouter = Router();
 
@@ -102,5 +103,6 @@ router.use(starsRouter);
 router.use(soundsRouter);
 router.use(pulsesRouter);
 router.use(exploreRouter);
+router.use(trendingRouter);
 
 export default router;

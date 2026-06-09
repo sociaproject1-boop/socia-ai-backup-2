@@ -83,6 +83,7 @@ const SoundPage              = lazy(() => import("@/pages/SoundPage"));
 const CameraCreator          = lazy(() => import("@/pages/CameraCreator"));
 const ExplorePage            = lazy(() => import("@/pages/Explore"));
 const HashtagFeedPage        = lazy(() => import("@/pages/HashtagFeed"));
+const TrendingPage           = lazy(() => import("@/pages/Trending"));
 
 // Stable wrapper components defined outside Router to avoid remounts on re-render.
 // They reference lazy components which are resolved by the nearest Suspense boundary.
@@ -131,6 +132,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     || location.startsWith("/@")
     || location.startsWith("/profile/")
     || location.startsWith("/search")
+    || location.startsWith("/trending")
     || location.startsWith("/legal/")
     || location.startsWith("/sys-admin")
     || location.startsWith("/admin")
@@ -250,6 +252,7 @@ function Router() {
       <Route path="/sounds/:id"           component={SoundPage} />
       <Route path="/camera"               component={CameraCreator} />
       <Route path="/explore"              component={ExplorePage} />
+      <Route path="/trending"             component={TrendingPage} />
       <Route path="/hashtag/:tag"         component={HashtagFeedPage} />
       <Route path="/@:username"           component={UserByUsername} />
       <Route path="/support-hub"          component={SupportHub} />
