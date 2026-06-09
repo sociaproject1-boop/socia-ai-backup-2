@@ -6,8 +6,8 @@
  */
 
 import { Router }                          from "express";
-import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/replitAuth.js";
-import { getServiceClient }                from "../lib/renderJobsDb.js";
+import { requireAuth, getAuthedUser } from "../lib/replitAuth.js";
+import { getServiceClient }          from "../lib/adminAuth.js";
 import { synthesizeVoiceTrack }            from "../lib/voiceSynthesis.js";
 import { logger }                          from "../lib/logger.js";
 
@@ -79,10 +79,12 @@ router.post("/voice/preview", requireAuth, async (req, res) => {
 ───────────────────────────────────────────────────────────────── */
 router.get("/voice/tracks/:jobId", requireAuth, async (req, res) => {
   const user   = getAuthedUser(req);
-  const sb     = getRequestSupabase(req);
+  const sb     = getServiceClient();
   const jobId  = req.params["jobId"];
 
-  // Verify job ownership via user-auth client (RLS)
+  if (!sb) return res.status(503).json({ error: "Service unavailable" });
+
+  // Verify job ownership
   const { data: job, error: jobErr } = await sb
     .from("render_jobs")
     .select("id")
@@ -94,8 +96,8 @@ router.get("/voice/tracks/:jobId", requireAuth, async (req, res) => {
     return res.status(404).json({ error: "Render job not found", code: "JOB_NOT_FOUND" });
   }
 
-  // Fetch tracks via service-role client (voice_tracks uses service-role for inserts)
-  const sc = getServiceClient();
+  // Fetch tracks via service client
+  const sc = sb;
   const { data: tracks, error: tracksErr } = await sc
     .from("voice_tracks")
     .select("scene_index, dialogue_text, voice_type, emotion, audio_url, duration_sec, timing_map, status, provider, created_at")

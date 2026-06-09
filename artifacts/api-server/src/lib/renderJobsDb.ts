@@ -82,9 +82,11 @@ function rowToJob(row: typeof renderJobs.$inferSelect): RenderJob {
   };
 }
 
+import { createDbClient as _createDbClient } from "./dbCompat.js";
+
 /** Kept for backward compat — callers that imported getServiceClient() for other purposes */
 export function getServiceClient() {
-  return db;
+  return _createDbClient();
 }
 
 /* ── Job creation ───────────────────────────────────────────────────── */

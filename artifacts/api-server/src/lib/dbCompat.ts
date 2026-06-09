@@ -19,12 +19,125 @@ if (!process.env["DATABASE_URL"]) {
 
 const pool = new Pool({ connectionString: process.env["DATABASE_URL"] });
 
+/**
+ * Parse a PostgREST-style select string into a PostgreSQL column list.
+ * Handles nested relationship selects like:
+ *   author:users!posts_author_id_fkey(id, name)
+ *   media:post_media(id, url)
+ */
+function parseSelectCols(rawSelect: string, mainTable: string): string {
+  // Split at depth-0 commas so nested parens don't confuse us
+  const parts: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const ch of rawSelect) {
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    if (ch === "," && depth === 0) {
+      const p = current.trim();
+      if (p) parts.push(p);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  const last = current.trim();
+  if (last) parts.push(last);
+
+  const exprs: string[] = [];
+  for (const part of parts) {
+    // Relationship select: alias:table!fk_hint(cols) or alias:table(cols)
+    const relMatch = part.trim().match(/^(\w+):(\w+)(?:!(\w+))?\((.+)\)$/s);
+    if (!relMatch) {
+      const t = part.trim();
+      // Plain column — quote if simple identifier
+      if (!t || t === "*" || t.includes("(") || t.includes(" ") || t.includes(".")) {
+        exprs.push(t || "*");
+      } else {
+        exprs.push(`"${t}"`);
+      }
+      continue;
+    }
+
+    const [, alias, relTable, fkHint, innerCols] = relMatch as [string, string, string, string | undefined, string];
+
+    // Build flat inner column list (skip nested relationships in inner select for simplicity)
+    const innerExprs: string[] = [];
+    let idepth = 0;
+    let icur = "";
+    for (const ch of innerCols) {
+      if (ch === "(") idepth++;
+      else if (ch === ")") idepth--;
+      if (ch === "," && idepth === 0) {
+        const p = icur.trim();
+        if (p) innerExprs.push(p);
+        icur = "";
+      } else {
+        icur += ch;
+      }
+    }
+    const ilast = icur.trim();
+    if (ilast) innerExprs.push(ilast);
+
+    const innerSql = innerExprs
+      .filter((c) => !c.includes("("))   // drop nested relations
+      .map((c) => {
+        const t = c.trim();
+        return t === "*" || t.includes(" ") ? t : `"${t}"`;
+      })
+      .join(", ") || "*";
+
+    if (fkHint) {
+      // FK hint format: mainTable_fkCol_fkey  (FK lives on the current table)
+      const withoutFkey = fkHint.replace(/_fkey$/, "");
+      let fkCol: string;
+      if (withoutFkey.toLowerCase().startsWith(mainTable.toLowerCase() + "_")) {
+        fkCol = withoutFkey.slice(mainTable.length + 1);
+      } else {
+        // Fallback: last two underscore-separated segments → col name
+        const segs = withoutFkey.split("_");
+        fkCol = segs.length >= 2 ? segs.slice(-2).join("_") : (segs[segs.length - 1] ?? "id");
+      }
+      exprs.push(
+        `(SELECT row_to_json(t.*) FROM (SELECT ${innerSql} FROM "${relTable}" t WHERE t."id" = "${mainTable}"."${fkCol}" LIMIT 1) t) AS "${alias}"`
+      );
+    } else {
+      // No FK hint: decide direction by convention
+      // If the related table is "users" or the alias is a well-known singular role → forward FK
+      const SINGULAR_ROLES = new Set(["user", "author", "creator", "sender", "receiver", "owner", "admin", "reporter", "viewer", "parent", "target", "actor", "manager"]);
+      const isForwardFk = relTable === "users" || SINGULAR_ROLES.has(alias.toLowerCase());
+      if (isForwardFk) {
+        // FK on current table: currentTable.{alias}_id → relTable.id
+        const fkCol = `${alias}_id`;
+        exprs.push(
+          `(SELECT row_to_json(t.*) FROM (SELECT ${innerSql} FROM "${relTable}" t WHERE t."id" = "${mainTable}"."${fkCol}" LIMIT 1) t) AS "${alias}"`
+        );
+      } else {
+        // FK on related table: relTable.{mainTable_singular}_id → mainTable.id
+        const singular = mainTable.endsWith("s") ? mainTable.slice(0, -1) : mainTable;
+        const fkBackCol = `${singular}_id`;
+        exprs.push(
+          `(SELECT COALESCE(json_agg(t.*), '[]'::json) FROM (SELECT ${innerSql} FROM "${relTable}" t WHERE t."${fkBackCol}" = "${mainTable}"."id") t) AS "${alias}"`
+        );
+      }
+    }
+  }
+
+  return exprs.join(", ") || "*";
+}
+
 type FilterOp = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "in" | "is" | "ilike" | "like";
 
 interface WhereClause {
   col:  string;
   op:   FilterOp;
   val:  unknown;
+}
+
+interface NotClause {
+  col: string;
+  op:  string;
+  val: unknown;
 }
 
 type OrderDir = { col: string; asc: boolean };
@@ -46,12 +159,15 @@ class QueryBuilder {
   private _maybeSingle: boolean = false;
   private _countOnly:  boolean = false;
   private _head:       boolean = false;
+  private _offset:     number | null = null;
+  private _notClauses: NotClause[] = [];
 
   constructor(table: string) {
     this._table = table;
   }
 
-  select(cols: string, opts?: { count?: string; head?: boolean }) {
+  select(cols?: string, opts?: { count?: string; head?: boolean }) {
+    if (cols === undefined) cols = "*";
     this._select = cols;
     if (opts?.count) this._countOnly = true;
     if (opts?.head) { this._head = true; this._countOnly = true; }
@@ -85,8 +201,17 @@ class QueryBuilder {
   or(filter: string)               { this._orFilter = filter; return this; }
   order(col: string, opts?: { ascending?: boolean }) { this._order.push({ col, asc: opts?.ascending !== false }); return this; }
   limit(n: number)                 { this._limit = n; return this; }
+  range(from: number, to: number)  { this._offset = from; this._limit = to - from + 1; return this; }
+  not(col: string, op: string, val: unknown) { this._notClauses.push({ col, op, val }); return this; }
   single()                         { this._single = true; this._limit = 1; return this; }
   maybeSingle()                    { this._maybeSingle = true; this._limit = 1; return this; }
+  async catch<T = never>(onRejected?: ((reason: unknown) => T | PromiseLike<T>) | null): Promise<unknown | T> {
+    return this.then(undefined, onRejected ?? undefined);
+  }
+  async finally(onFinally?: (() => void) | null): Promise<unknown> {
+    try { return await this._execute(); } finally { onFinally?.(); }
+  }
+  get [Symbol.toStringTag]() { return "QueryBuilder" as const; }
 
   private buildWhere(startIdx: number): { clause: string; params: unknown[] } {
     const params: unknown[] = [];
@@ -131,16 +256,37 @@ class QueryBuilder {
       if (orParts.length) parts.push(`(${orParts.join(" OR ")})`);
     }
 
+    for (const n of this._notClauses) {
+      const col = `"${n.col}"`;
+      const op = n.op.toLowerCase();
+      if (op === "is" && n.val === null) {
+        parts.push(`${col} IS NOT NULL`);
+      } else if (op === "eq") {
+        parts.push(`${col} != $${i++}`); params.push(n.val);
+      } else if (op === "in") {
+        const arr = n.val as unknown[];
+        if (arr.length === 0) { parts.push("FALSE"); }
+        else {
+          const placeholders = arr.map((_, j) => `$${i + j}`).join(", ");
+          parts.push(`${col} NOT IN (${placeholders})`);
+          params.push(...arr);
+          i += arr.length;
+        }
+      } else {
+        parts.push(`NOT (${col} ${op.toUpperCase()} $${i++})`); params.push(n.val);
+      }
+    }
+
     return { clause: parts.length ? `WHERE ${parts.join(" AND ")}` : "", params };
   }
 
-  async then(resolve: (result: any) => void, reject?: (err: any) => void): Promise<void> {
+  async then(resolve?: ((result: any) => any) | null, reject?: ((err: any) => any) | null): Promise<any> {
     try {
       const result = await this._execute();
-      resolve(result);
+      return resolve ? resolve(result) : result;
     } catch (err) {
-      if (reject) reject(err);
-      else throw err;
+      if (reject) return reject(err);
+      throw err;
     }
   }
 
@@ -226,17 +372,15 @@ class QueryBuilder {
         return { data: null, error: null, count: parseInt(r.rows[0].count, 10) };
       }
 
-      const cols = !this._select || this._select === "*" ? "*"
-        : this._select.split(",").map((c) => {
-            const t = c.trim();
-            if (t.includes("(") || t === "*" || t.includes(" ")) return t;
-            return `"${t}"`;
-          }).join(", ");
+      const cols = !this._select || this._select.trim() === "*"
+        ? "*"
+        : parseSelectCols(this._select, this._table);
       let sql = `SELECT ${cols} FROM "${this._table}" ${clause}`;
       if (this._order.length) {
         sql += ` ORDER BY ${this._order.map((o) => `"${o.col}" ${o.asc ? "ASC" : "DESC"}`).join(", ")}`;
       }
-      if (this._limit) sql += ` LIMIT ${this._limit}`;
+      if (this._limit !== null) sql += ` LIMIT ${this._limit}`;
+      if (this._offset !== null) sql += ` OFFSET ${this._offset}`;
 
       const r = await client.query(sql, params);
 
@@ -261,10 +405,35 @@ class QueryBuilder {
 export function createDbClient() {
   return {
     from: (table: string) => new QueryBuilder(table),
-    rpc: async (fn: string, _args?: Record<string, unknown>) => {
-      // Stub — RPC calls are not supported. Return graceful no-op.
+    rpc: async (fn: string, _args?: Record<string, unknown>): Promise<{ data: unknown; error: { message: string } | null }> => {
       console.warn(`[dbCompat] rpc("${fn}") called — not supported, returning null`);
       return { data: null, error: null };
+    },
+    storage: {
+      from: (_bucket: string) => ({
+        createSignedUrl: async (_path: string, _expires: number) => ({
+          data: null as { signedUrl: string } | null,
+          error: { message: "Storage not available in this environment" } as { message: string } | null,
+        }),
+        upload: async (_path: string, _body: unknown) => ({
+          data: null as unknown,
+          error: { message: "Storage not available in this environment" } as { message: string } | null,
+        }),
+        remove: async (_paths: string[]) => ({
+          data: null as unknown,
+          error: { message: "Storage not available in this environment" } as { message: string } | null,
+        }),
+      }),
+    },
+    auth: {
+      admin: {
+        signOut: async (_uid: string, _scope?: string) => ({ error: null }),
+        updateUserById: async (_uid: string, _updates: Record<string, unknown>) => ({
+          data: null as unknown,
+          error: null as { message: string } | null,
+        }),
+        deleteUser: async (_uid: string) => ({ error: null }),
+      },
     },
   };
 }

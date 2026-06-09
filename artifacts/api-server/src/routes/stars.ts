@@ -76,7 +76,7 @@ router.post("/stars/send", requireAuth as any, async (req, res) => {
 
     if (error) {
       logger.error({ error }, "[stars] send_stars RPC error");
-      return res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: (error as any).message ?? String(error) });
     }
 
     type RPCResult = {
@@ -320,7 +320,7 @@ router.post("/admin/stars/grant", requireAdmin(), async (req, res) => {
 
     if (error) {
       logger.error({ error }, "[admin/stars/grant] RPC error");
-      return res.status(500).json({ error: error.message });
+      return res.status(500).json({ error: (error as any).message ?? String(error) });
     }
 
     return res.json(data);
