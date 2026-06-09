@@ -10,6 +10,7 @@ import { useEffect } from "react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useAppStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
+import { useLoginGate } from "@/lib/useLoginGate";
 
 const MODES = [
   {
@@ -154,6 +155,7 @@ export default function CreateHub() {
   const isAdmin = useIsAdmin();
   const isOwner = useAppStore((s) => s.user?.isOwner === true);
   const { toast } = useToast();
+  const { requireLogin } = useLoginGate();
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -195,6 +197,8 @@ export default function CreateHub() {
                 });
                 return;
               }
+              // Gate: guests see LoginRequiredModal; backend enforces 401 as fallback.
+              if (!requireLogin(m.title)) return;
               navigate(m.path);
             };
 

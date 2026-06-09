@@ -19,6 +19,8 @@ import { GlobalAIGenerationOverlay } from "@/components/loader/GlobalAIGeneratio
 import { CinematicLoadingOverlay } from "@/components/loader/CinematicLoadingOverlay";
 import { SplashScreen } from "@/components/splash/SplashScreen";
 import { PulseViewerHost } from "@/components/pulse/PulseViewer";
+import { LoginRequiredModal } from "@/components/auth/LoginRequiredModal";
+import { useLoginGateStore } from "@/lib/useLoginGate";
 
 // ── Critical path (eager) ────────────────────────────────────────────────────
 // Auth is the unauthenticated landing page — must be available without delay.
@@ -335,6 +337,10 @@ function App() {
                     CreateHub's coming-soon locked taps) can dispatch
                     toasts through `useToast()`. */}
                 <Toaster />
+                {/* Global Login-Required modal — triggered from any page via
+                    useLoginGate hook when a guest attempts an AI action.
+                    Backend enforces auth via requireAuth; this is the UX layer. */}
+                <GlobalLoginGate />
                 {/* Global AI Generation loading screen — shown ONLY during
                     AI generation tasks (image / video / cinematic). Driven by
                     the isolated useAIGeneration store; fully additive. */}
@@ -352,6 +358,14 @@ function App() {
       </PreferencesProvider>
     </UpdateGate>
   );
+}
+
+/** Reads from the global login-gate store and renders the modal. */
+function GlobalLoginGate() {
+  const open      = useLoginGateStore((s) => s.open);
+  const toolName  = useLoginGateStore((s) => s.toolName);
+  const closeGate = useLoginGateStore((s) => s.closeGate);
+  return <LoginRequiredModal open={open} onClose={closeGate} toolName={toolName} />;
 }
 
 export default App;
