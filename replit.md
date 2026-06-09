@@ -2,6 +2,63 @@
 
 AI-powered social media platform where users create images and videos with AI, share posts, chat in real time, and subscribe for premium generation credits.
 
+## Group Chat System
+
+Messenger-style group chats, completely isolated from DMs.
+
+### User flow
+1. Messages page → compose button (top right) → "New Group"
+2. Step 1: search and multi-select members
+3. Step 2: enter group name + optional avatar photo
+4. Navigate to `/groups/:id` — full real-time group thread
+
+### Features
+- Real-time messages via Supabase Realtime (postgres_changes)
+- Typing indicators via Supabase Presence channels
+- Image/video/file sharing via Cloudinary unsigned upload
+- Group avatar (Cloudinary upload during creation)
+- Unread count badges on group inbox rows
+- Infinite scroll (load older messages)
+- Auto read-receipt on message view
+- Group info sheet: member list with role badges (owner/admin/member)
+- Add members (admin+), remove members (admin+), leave group, delete group (owner)
+- Ownership transfer
+
+### Database (run in Supabase SQL editor)
+`artifacts/api-server/migrations/group-chat-schema.sql` — creates:
+- `chat_groups` — group metadata (name, avatar, owner)
+- `chat_group_members` — per-user membership + role
+- `chat_group_messages` — messages with JSONB attachments
+- `chat_group_reads` — per-user last-read tracking (unread counts)
+
+### API routes (all require auth)
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/groups` | Create group |
+| GET | `/api/groups` | List my groups (with unread counts) |
+| GET | `/api/groups/:id` | Group detail + members |
+| GET | `/api/groups/:id/messages` | Paginated messages |
+| POST | `/api/groups/:id/messages` | Send message |
+| POST | `/api/groups/:id/read` | Mark read |
+| PATCH | `/api/groups/:id` | Edit name/avatar (admin+) |
+| DELETE | `/api/groups/:id` | Delete group (owner only) |
+| POST | `/api/groups/:id/leave` | Leave group |
+| POST | `/api/groups/:id/members` | Add members (admin+) |
+| DELETE | `/api/groups/:id/members/:uid` | Remove member (admin+) |
+| PATCH | `/api/groups/:id/transfer` | Transfer ownership |
+
+### New files
+| File | Purpose |
+|------|---------|
+| `artifacts/api-server/migrations/group-chat-schema.sql` | **Run in Supabase SQL editor** |
+| `artifacts/api-server/src/routes/groupChat.ts` | All 12 REST endpoints |
+| `artifacts/socia/src/lib/useGroupChat.ts` | Hooks + API helpers + Realtime subs |
+| `artifacts/socia/src/components/messages/CreateGroupFlow.tsx` | 3-step group creation sheet |
+| `artifacts/socia/src/pages/GroupThread.tsx` | Full group chat thread at `/groups/:id` |
+
+### Production health endpoint
+`GET /api/health` — probes database, Supabase REST, Supabase Storage, and Supabase Auth in parallel (3 s timeout each). Returns `healthy`/`degraded`/`unhealthy` + per-probe latency + full env inventory.
+
 ## Run & Operate
 
 - `pnpm --filter @workspace/socia run dev` — run the Socia frontend (port 21175)

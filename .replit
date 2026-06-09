@@ -59,46 +59,6 @@ integrations = ["javascript_database:1.0.0", "javascript_openai_ai_integrations:
 path = "scripts/post-merge.sh"
 timeoutMs = 180000
 
-[[ports]]
-localPort = 3000
-externalPort = 6800
-
-[[ports]]
-localPort = 5000
-externalPort = 80
-
-[[ports]]
-localPort = 5173
-externalPort = 5173
-
-[[ports]]
-localPort = 5174
-externalPort = 3003
-
-[[ports]]
-localPort = 5175
-externalPort = 4200
-
-[[ports]]
-localPort = 8080
-externalPort = 8080
-
-[[ports]]
-localPort = 8081
-externalPort = 8081
-
-[[ports]]
-localPort = 9001
-externalPort = 6000
-
-[[ports]]
-localPort = 18348
-externalPort = 3001
-
-[[ports]]
-localPort = 21175
-externalPort = 3000
-
 [userenv]
 
 [userenv.shared]

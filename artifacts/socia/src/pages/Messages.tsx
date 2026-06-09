@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, MessageCirclePlus, X, ArrowLeft, User, Bot, Wifi, WifiOff } from "lucide-react";
+import { Search, MessageCirclePlus, X, ArrowLeft, User, Bot, Wifi, WifiOff, Users, Plus, MessageSquare } from "lucide-react";
 import { useAuth } from "@/lib/authContext";
 import { useAppStore } from "@/lib/store";
 import { useConversations, isUserOnline } from "@/lib/useSupabaseChat";
@@ -9,6 +9,8 @@ import { usePresenceStore } from "@/lib/usePresence";
 import { searchUsers, type UserSearchResult } from "@/lib/supabase";
 import { NameBadges } from "@/components/Badges";
 import { useAiAutoReply } from "@/lib/useAiAutoReply";
+import { useMyGroups } from "@/lib/useGroupChat";
+import { CreateGroupFlow } from "@/components/messages/CreateGroupFlow";
 
 export default function Messages() {
   const [, navigate] = useLocation();
@@ -24,7 +26,12 @@ export default function Messages() {
   const [searchLoading, setSearchLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /* Group chat */
+  const [composeOpen, setComposeOpen]     = useState(false);
+  const [groupFlowOpen, setGroupFlowOpen] = useState(false);
+
   const { conversations, loading } = useConversations(myId);
+  const { groups, loading: groupsLoading, reload: reloadGroups } = useMyGroups(myId);
   const presences = usePresenceStore((s) => s.presences);
 
   const ai = useAiAutoReply(isOwner);
@@ -51,17 +58,45 @@ export default function Messages() {
   );
 
   return (
+    <>
     <div className="px-4 pb-24 pt-2">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-display text-2xl font-bold text-white">Messages</h2>
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={() => { setSearching(true); setSearchQuery(""); setSearchResults([]); }}
-          className="card-premium grid h-9 w-9 place-items-center rounded-full text-white/80"
-        >
-          <MessageCirclePlus className="h-[18px] w-[18px]" strokeWidth={1.9} />
-        </motion.button>
+        <div className="relative">
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => setComposeOpen((v) => !v)}
+            className="card-premium grid h-9 w-9 place-items-center rounded-full text-white/80"
+          >
+            <MessageCirclePlus className="h-[18px] w-[18px]" strokeWidth={1.9} />
+          </motion.button>
+          <AnimatePresence>
+            {composeOpen && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.92, y: -4 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.92, y: -4 }}
+                className="absolute right-0 top-11 z-40 w-52 overflow-hidden rounded-2xl border border-white/[0.10] bg-[#141418] shadow-2xl"
+              >
+                <button
+                  onClick={() => { setComposeOpen(false); setSearching(true); setSearchQuery(""); setSearchResults([]); }}
+                  className="flex w-full items-center gap-3 px-4 py-3.5 text-sm text-white/85 hover:bg-white/[0.06]"
+                >
+                  <MessageSquare className="h-4 w-4 text-purple-400" />
+                  New Message
+                </button>
+                <button
+                  onClick={() => { setComposeOpen(false); setGroupFlowOpen(true); }}
+                  className="flex w-full items-center gap-3 border-t border-white/[0.06] px-4 py-3.5 text-sm text-white/85 hover:bg-white/[0.06]"
+                >
+                  <Users className="h-4 w-4 text-pink-400" />
+                  New Group
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* ── AI Auto Reply Panel (admin only) ────────────────────────────────── */}
@@ -267,9 +302,93 @@ export default function Messages() {
         </div>
       )}
 
+      {/* ── Groups inbox ─────────────────────────────────────────────────── */}
+      {!searching && groups.length > 0 && (
+        <div className="mb-5">
+          <div className="mb-2.5 flex items-center justify-between">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-white/40">Groups</h3>
+            <button
+              onClick={() => setGroupFlowOpen(true)}
+              className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-purple-400 hover:bg-purple-500/10"
+            >
+              <Plus className="h-3 w-3" /> New
+            </button>
+          </div>
+          <ul className="space-y-1">
+            {(groupsLoading ? [1, 2] : groups).map((g, i) => {
+              if (typeof g === "number") return (
+                <li key={g} className="flex items-center gap-3 rounded-2xl px-3 py-2.5">
+                  <div className="h-11 w-11 rounded-full shimmer shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 w-32 rounded shimmer" />
+                    <div className="h-2.5 w-48 rounded shimmer" />
+                  </div>
+                </li>
+              );
+              const group = g as import("@/lib/useGroupChat").ChatGroup;
+              return (
+                <motion.li key={group.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.025, type: "spring", stiffness: 380, damping: 30 }}
+                >
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => navigate(`/groups/${group.id}`)}
+                    className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left active:bg-white/[0.06]"
+                  >
+                    <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full border border-white/10">
+                      {group.avatar_url ? (
+                        <img src={group.avatar_url} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="h-full w-full bg-gradient-to-br from-violet-600 via-purple-500 to-pink-600 grid place-items-center">
+                          <Users className="h-5 w-5 text-white" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="truncate text-sm font-semibold text-white">{group.name}</span>
+                        <span className="shrink-0 text-[10px] text-white/40">
+                          {group.last_message?.created_at ? relTime(group.last_message.created_at) : ""}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className={"truncate text-xs " + ((group.unread_count ?? 0) > 0 ? "font-medium text-white" : "text-white/55")}>
+                          {group.last_message?.content
+                            ? group.last_message.content
+                            : group.last_message?.attachments?.length
+                            ? "📎 Attachment"
+                            : `${group.member_count ?? "?"} members`}
+                        </p>
+                        {(group.unread_count ?? 0) > 0 && (
+                          <span className="min-w-[18px] rounded-full bg-pink-500 px-1.5 py-0.5 text-center text-[10px] font-bold text-white neon-pulse">
+                            {group.unread_count}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </motion.button>
+                </motion.li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {/* ── Conversation list ────────────────────────────────────────────── */}
       {!searching && (
         <>
+          {!groups.length && !loading && conversations.length === 0 && (
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-white/40">Direct Messages</h3>
+            </div>
+          )}
+          {groups.length > 0 && (
+            <div className="mb-2.5">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-white/40">Direct Messages</h3>
+            </div>
+          )}
           {loading && (
             <ul className="space-y-1">
               {[1, 2, 3, 4].map((i) => (
@@ -317,6 +436,22 @@ export default function Messages() {
         </>
       )}
     </div>
+
+    {/* ── Create Group Flow ─────────────────────────────────────────────── */}
+    <AnimatePresence>
+      {groupFlowOpen && myId && (
+        <CreateGroupFlow
+          myId={myId}
+          onClose={() => setGroupFlowOpen(false)}
+          onCreate={(groupId) => {
+            setGroupFlowOpen(false);
+            void reloadGroups();
+            navigate(`/groups/${groupId}`);
+          }}
+        />
+      )}
+    </AnimatePresence>
+    </>
   );
 }
 
