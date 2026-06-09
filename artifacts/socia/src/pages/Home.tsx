@@ -134,15 +134,27 @@ export default function Home() {
     navigate("/create/prompt-image");
   };
 
-  const feedRef = useRef<HTMLDivElement>(null);
+  const feedRef   = useRef<HTMLDivElement>(null);
+  const navHidden = useAppStore((s) => s.navHidden);
   useNavHide(feedRef);
+
+  /* Shared slide-up transition — matches TopBar's cubic-bezier for
+   * a perfectly synchronised header + tab-bar hide/reveal. */
+  const slideTransition = "transform 0.3s cubic-bezier(0.25,0.46,0.45,0.94)";
 
   return (
     <>
     <div ref={feedRef} className="app-bg pb-28 scroll-native h-full overflow-y-auto hide-scrollbar">
 
-      {/* ── Sticky tab header ─────────────────────────────────────────── */}
-      <div className="app-header sticky top-0 z-20 flex items-center gap-1 px-4 py-2">
+      {/* ── Sticky tab header — hides with TopBar on scroll-down ─────── */}
+      <div
+        className="app-header sticky top-0 z-20 flex items-center gap-1 px-4 py-2"
+        style={{
+          transform:  navHidden ? "translateY(-100%)" : "translateY(0)",
+          transition: slideTransition,
+          willChange: "transform",
+        }}
+      >
         {(["for-you", "following"] as FeedMode[]).map((t) => (
           <motion.button
             key={t}
