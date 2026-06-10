@@ -16,8 +16,7 @@ function getReplitConnectionString(): string {
   return "";
 }
 
-const replitUrl = getReplitConnectionString();
-const connectionString = replitUrl || process.env["DATABASE_URL"];
+const connectionString = process.env["DATABASE_URL"] || getReplitConnectionString();
 
 if (!connectionString) {
   throw new Error("No database connection available. Ensure the database is provisioned.");
