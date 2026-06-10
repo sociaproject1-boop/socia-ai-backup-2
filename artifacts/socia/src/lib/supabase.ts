@@ -1,16 +1,21 @@
 /**
- * supabase.ts — Replit Auth + PostgreSQL compatibility shim.
+ * supabase.ts — Native Supabase Auth client + API helpers.
  *
- * This module replaces the Supabase client with:
- *   - Auth: Replit Auth (via /api/auth/session endpoint)
- *   - DB reads: REST API calls to the backend
- *   - Realtime: stubbed (no real-time subscriptions)
- *   - Storage: Cloudinary-backed upload via /api/upload endpoint
+ * Authentication: uses @supabase/supabase-js directly (signIn, signUp,
+ * signOut, password reset, Google OAuth all work natively via Supabase Auth).
  *
- * All exported names are kept identical so existing imports continue to work.
+ * Data access: routes through the Express API backend (/api/db-proxy,
+ * /api/rpc/:fn, /api/users/:id, etc.) so backend security and business
+ * logic is preserved.
+ *
+ * The Supabase access token is tracked in a module-level variable and
+ * included as an Authorization header on every backend API call so the
+ * server-side requireAuth middleware can verify the caller's identity.
  */
+import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-/* ── Types ─────────────────────────────────────────────────────────────── */
+/* ── Types ──────────────────────────────────────────────────────────────── */
 export interface DbUser {
   id:         string;
   email:      string;
@@ -65,181 +70,73 @@ export interface UserSearchResult {
   avatar_url: string;
 }
 
-/* ── Always ready — no env vars needed ────────────────────────────────── */
-export const isSupabaseReady = true;
+/* ── Supabase real client (internal — do NOT export this directly) ───────── */
+const SUPABASE_URL  = import.meta.env["VITE_SUPABASE_URL"]     as string | undefined;
+const SUPABASE_ANON = import.meta.env["VITE_SUPABASE_ANON_KEY"] as string | undefined;
 
-/* ── Auth session state ─────────────────────────────────────────────────── */
-interface SessionUser {
-  id:    string;
-  email: string | null;
-  name?: string | null;
-}
+export const isSupabaseReady = Boolean(SUPABASE_URL && SUPABASE_ANON);
 
-interface Session {
-  user: SessionUser;
-  access_token: string;
-}
-
-let _session: Session | null = null;
-let _sessionFetched = false;
-
-/* ── Auth state change listeners ─────────────────────────────────────────── */
-type AuthListener = (event: string, session: Session | null) => void;
-const _listeners: AuthListener[] = [];
-
-async function fetchSession(): Promise<Session | null> {
-  if (_sessionFetched) return _session;
-  try {
-    const res = await fetch("/api/auth/session", { credentials: "include" });
-    if (!res.ok) { _sessionFetched = true; return null; }
-    const data = await res.json() as { user?: SessionUser; access_token?: string } | null;
-    if (data?.user) {
-      _session = { user: data.user, access_token: data.access_token ?? "" };
-    }
-    _sessionFetched = true;
-    return _session;
-  } catch {
-    _sessionFetched = true;
-    return null;
-  }
-}
-
-/* ── Fake realtime channel (no-op stub) ──────────────────────────────── */
-function makeChannel() {
-  return {
-    on:      (_: string, __: string, ___: object, ____: () => void) => makeChannel(),
-    subscribe: (_cb?: (status: string) => void) => { _cb?.("SUBSCRIBED"); return makeChannel(); },
-    unsubscribe: () => Promise.resolve(),
-    send:    () => Promise.resolve("ok"),
-  };
-}
-
-/* ── Auth ────────────────────────────────────────────────────────────────── */
-const auth = {
-  async getSession() {
-    const session = await fetchSession();
-    return { data: { session }, error: null };
-  },
-
-  async getUser() {
-    const session = await fetchSession();
-    return { data: { user: session?.user ?? null }, error: null };
-  },
-
-  onAuthStateChange(cb: (event: string, session: Session | null) => void) {
-    _listeners.push(cb);
-    fetchSession().then((session) => {
-      cb(session ? "SIGNED_IN" : "INITIAL_SESSION", session);
-    });
-    return {
-      data: {
-        subscription: {
-          unsubscribe: () => {
-            const idx = _listeners.indexOf(cb);
-            if (idx !== -1) _listeners.splice(idx, 1);
-          },
-        },
+const _realClient: SupabaseClient = isSupabaseReady
+  ? createClient(SUPABASE_URL!, SUPABASE_ANON!, {
+      auth: {
+        flowType:           "pkce",
+        detectSessionInUrl: true,
+        autoRefreshToken:   true,
+        persistSession:     true,
+        storageKey:         "socia_supabase_auth",
       },
-    };
-  },
+    })
+  : createClient("https://placeholder.supabase.co", "placeholder", {
+      auth: { persistSession: false },
+    });
 
-  async signInWithPassword({ email, password }: { email: string; password: string }) {
-    try {
-      const res = await fetch("/api/auth/signin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-        credentials: "include",
-      });
-      if (!res.ok) {
-        let message = "Sign in failed";
-        try { const e = await res.json() as { error?: string }; message = e.error ?? message; } catch {}
-        return { data: { user: null, session: null }, error: { message } };
-      }
-      const data = await res.json() as { user?: SessionUser; error?: string; access_token?: string };
-      if (data.error) return { data: { user: null, session: null }, error: { message: data.error } };
-      if (data.user) {
-        _session = { user: data.user, access_token: data.access_token ?? "" };
-        _sessionFetched = true;
-        for (const cb of _listeners) cb("SIGNED_IN", _session);
-      }
-      return { data: { user: data.user, session: _session }, error: null };
-    } catch (e) {
-      return { data: { user: null, session: null }, error: { message: (e as Error).message } };
-    }
-  },
+/* ── Access-token tracking ────────────────────────────────────────────────── *
+ * The Supabase JS client stores the session in localStorage. We mirror the
+ * current access token here so every backend API call can include it as an
+ * Authorization header without making an async getSession() call.             */
+let _accessToken: string | null = null;
 
-  async signUp({ email, password, options }: { email: string; password: string; options?: { data?: Record<string, unknown> } }) {
-    try {
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, ...options?.data }),
-        credentials: "include",
-      });
-      if (!res.ok) {
-        let message = "Sign up failed";
-        try { const e = await res.json() as { error?: string }; message = e.error ?? message; } catch {}
-        return { data: { user: null, session: null }, error: { message } };
-      }
-      const data = await res.json() as { user?: SessionUser; error?: string; access_token?: string };
-      if (data.error) return { data: { user: null, session: null }, error: { message: data.error } };
-      if (data.user) {
-        _session = { user: data.user, access_token: data.access_token ?? "" };
-        _sessionFetched = true;
-        for (const cb of _listeners) cb("SIGNED_IN", _session);
-      }
-      return { data: { user: data.user, session: _session }, error: null };
-    } catch (e) {
-      return { data: { user: null, session: null }, error: { message: (e as Error).message } };
-    }
-  },
+/* Seed from localStorage on module init (synchronous — no network needed) */
+_realClient.auth.getSession().then(({ data }) => {
+  _accessToken = data.session?.access_token ?? null;
+}).catch(() => {});
 
-  async signInWithOAuth(_opts: { provider: string; options?: { redirectTo?: string } }) {
-    window.location.href = "/api/auth/login";
-    return { data: { url: "/api/auth/login", provider: "replit" }, error: null };
-  },
+/* Keep updated on every auth event */
+_realClient.auth.onAuthStateChange((_event, session) => {
+  _accessToken = session?.access_token ?? null;
+});
 
-  async signOut() {
-    _session = null;
-    _sessionFetched = false;
-    for (const cb of _listeners) cb("SIGNED_OUT", null);
-    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
-    return { error: null };
-  },
+/* ── Auth headers helper ─────────────────────────────────────────────────── */
+function apiHeaders(extra?: Record<string, string>): Record<string, string> {
+  const h: Record<string, string> = { "Content-Type": "application/json", ...extra };
+  if (_accessToken) h["Authorization"] = `Bearer ${_accessToken}`;
+  return h;
+}
 
-  async resetPasswordForEmail(_email: string, _opts?: { redirectTo?: string }) {
-    return { data: {}, error: { message: "Password reset via email is not supported. Please use Replit authentication." } };
-  },
-
-  async updateUser(_fields: { password?: string; email?: string }) {
-    return { data: { user: null }, error: { message: "Profile updates are not supported via this method. Use the profile editor." } };
-  },
-};
-
-/* ── DB query shim ────────────────────────────────────────────────────── */
+/* ── DB query shim (routes through /api/db-proxy) ────────────────────────── *
+ * Preserves backend security model — all data reads/writes go through the
+ * Express server which enforces auth and business logic.                       */
 type QueryResult<T = unknown> = Promise<{ data: T | null; error: { message: string } | null; count?: number | null }>;
 
 function buildQuery(table: string) {
   const state = {
-    method:     "select" as "select" | "insert" | "update" | "delete" | "upsert",
-    selectCols: "*",
-    filters:    [] as Array<{ key: string; op: string; value: unknown }>,
-    data:       null as unknown,
-    orderCol:   null as string | null,
-    orderAsc:   true,
-    limitN:     null as number | null,
-    single_:    false,
+    method:       "select" as "select" | "insert" | "update" | "delete" | "upsert",
+    selectCols:   "*",
+    filters:      [] as Array<{ key: string; op: string; value: unknown }>,
+    data:         null as unknown,
+    orderCol:     null as string | null,
+    orderAsc:     true,
+    limitN:       null as number | null,
+    single_:      false,
     maybeSingle_: false,
-    countOnly:  false,
-    head_:      false,
+    countOnly:    false,
   };
 
   function exec(): QueryResult {
     return fetch("/api/db-proxy", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      method:      "POST",
+      headers:     apiHeaders(),
+      body:        JSON.stringify({
         table,
         method:      state.method,
         select:      state.selectCols,
@@ -255,45 +152,45 @@ function buildQuery(table: string) {
     }).then((r) => r.json()) as QueryResult;
   }
 
-  const q: any = {
+  const q: Record<string, unknown> = {
     select(cols: string, opts?: { count?: string; head?: boolean }) {
       state.method = "select"; state.selectCols = cols;
       if (opts?.count) state.countOnly = true;
-      if (opts?.head) state.head_ = true;
       return q;
     },
     insert(data: unknown) { state.method = "insert"; state.data = data; return q; },
     update(data: unknown) { state.method = "update"; state.data = data; return q; },
     delete() { state.method = "delete"; return q; },
-    upsert(data: unknown, _opts?: unknown) { state.method = "upsert"; state.data = data; return q; },
-    eq(col: string, val: unknown) { state.filters.push({ key: col, op: "eq", value: val }); return q; },
-    neq(col: string, val: unknown) { state.filters.push({ key: col, op: "neq", value: val }); return q; },
-    gt(col: string, val: unknown) { state.filters.push({ key: col, op: "gt", value: val }); return q; },
-    gte(col: string, val: unknown) { state.filters.push({ key: col, op: "gte", value: val }); return q; },
-    lt(col: string, val: unknown) { state.filters.push({ key: col, op: "lt", value: val }); return q; },
-    lte(col: string, val: unknown) { state.filters.push({ key: col, op: "lte", value: val }); return q; },
-    in(col: string, vals: unknown[]) { state.filters.push({ key: col, op: "in", value: vals }); return q; },
-    is(col: string, val: unknown) { state.filters.push({ key: col, op: "is", value: val }); return q; },
+    upsert(data: unknown) { state.method = "upsert"; state.data = data; return q; },
+    eq(col: string, val: unknown)    { state.filters.push({ key: col, op: "eq",    value: val }); return q; },
+    neq(col: string, val: unknown)   { state.filters.push({ key: col, op: "neq",   value: val }); return q; },
+    gt(col: string, val: unknown)    { state.filters.push({ key: col, op: "gt",    value: val }); return q; },
+    gte(col: string, val: unknown)   { state.filters.push({ key: col, op: "gte",   value: val }); return q; },
+    lt(col: string, val: unknown)    { state.filters.push({ key: col, op: "lt",    value: val }); return q; },
+    lte(col: string, val: unknown)   { state.filters.push({ key: col, op: "lte",   value: val }); return q; },
+    in(col: string, vals: unknown[]) { state.filters.push({ key: col, op: "in",    value: vals }); return q; },
+    is(col: string, val: unknown)    { state.filters.push({ key: col, op: "is",    value: val }); return q; },
     ilike(col: string, val: unknown) { state.filters.push({ key: col, op: "ilike", value: val }); return q; },
-    like(col: string, val: unknown) { state.filters.push({ key: col, op: "like", value: val }); return q; },
+    like(col: string, val: unknown)  { state.filters.push({ key: col, op: "like",  value: val }); return q; },
     or(filter: string) { state.filters.push({ key: "__or", op: "or", value: filter }); return q; },
-    order(col: string, opts?: { ascending?: boolean }) { state.orderCol = col; state.orderAsc = opts?.ascending !== false; return q; },
+    order(col: string, opts?: { ascending?: boolean }) {
+      state.orderCol = col; state.orderAsc = opts?.ascending !== false; return q;
+    },
     limit(n: number) { state.limitN = n; return q; },
-    single() { state.single_ = true; state.limitN = 1; return exec(); },
+    single()      { state.single_      = true; state.limitN = 1; return exec(); },
     maybeSingle() { state.maybeSingle_ = true; state.limitN = 1; return exec(); },
     then(resolve: (r: unknown) => void, reject?: (e: unknown) => void) { exec().then(resolve, reject); },
   };
   return q;
 }
 
-/* ── Storage shim ──────────────────────────────────────────────────────── */
+/* ── Storage shim (uses Cloudinary via /api/upload) ─────────────────────── */
 function makeStorage() {
   return {
     from(_bucket: string) {
       return {
-        upload: async (_path: string, _file: Blob, _opts?: unknown) => {
-          return { data: null, error: { message: "Storage not available — use Cloudinary upload" } };
-        },
+        upload: async (_path: string, _file: Blob, _opts?: unknown) =>
+          ({ data: null, error: { message: "Use Cloudinary upload via /api/upload" } }),
         getPublicUrl: (_path: string) => ({ data: { publicUrl: "" } }),
         download: async (_path: string) => ({ data: null, error: { message: "Storage not available" } }),
       };
@@ -301,26 +198,42 @@ function makeStorage() {
   };
 }
 
-/* ── Main supabase export ─────────────────────────────────────────────── */
+/* ── Exported `supabase` facade ────────────────────────────────────────── *
+ * `auth` → real Supabase Auth (native sign-in, OAuth, password reset, etc.)
+ * `from()` → /api/db-proxy (backend controls data access)
+ * `rpc()` → /api/rpc/:fn (backend controls RPC calls)
+ * `channel()` / `removeChannel()` → real Supabase Realtime
+ * `storage` → Cloudinary shim via /api/upload                               */
 export const supabase = {
-  auth,
-  from:   (table: string) => buildQuery(table),
-  rpc:    async (fn: string, args?: Record<string, unknown>) => {
+  /* ── Auth ── */
+  get auth() { return _realClient.auth; },
+
+  /* ── Data ── */
+  from: (table: string) => buildQuery(table),
+
+  rpc: async (fn: string, args?: Record<string, unknown>) => {
     try {
-      const res = await fetch("/api/rpc/" + fn, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(args ?? {}),
+      const res = await fetch(`/api/rpc/${fn}`, {
+        method:      "POST",
+        headers:     apiHeaders(),
+        body:        JSON.stringify(args ?? {}),
         credentials: "include",
       });
-      const data = await res.json();
+      const data: unknown = await res.json();
       return { data, error: null };
     } catch (e) {
       return { data: null, error: { message: (e as Error).message } };
     }
   },
-  channel: (_name: string, _opts?: unknown) => makeChannel(),
-  removeChannel: async (_ch: unknown) => "ok" as const,
+
+  /* ── Realtime ── */
+  channel: (name: string, opts?: Parameters<SupabaseClient["channel"]>[1]) =>
+    _realClient.channel(name, opts),
+
+  removeChannel: (ch: ReturnType<SupabaseClient["channel"]>) =>
+    _realClient.removeChannel(ch),
+
+  /* ── Storage ── */
   storage: makeStorage(),
 };
 
@@ -328,9 +241,9 @@ export const supabase = {
 export async function setOnlineStatus(online: boolean): Promise<void> {
   try {
     await fetch("/api/presence", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ online }),
+      method:      "POST",
+      headers:     apiHeaders(),
+      body:        JSON.stringify({ online }),
       credentials: "include",
     });
   } catch {}
@@ -338,13 +251,17 @@ export async function setOnlineStatus(online: boolean): Promise<void> {
 
 export async function claimOwnerBadge(): Promise<boolean> {
   try {
-    const res = await fetch("/api/owner/claim", { method: "POST", credentials: "include" });
+    const res = await fetch("/api/owner/claim", {
+      method:      "POST",
+      headers:     _accessToken ? { Authorization: `Bearer ${_accessToken}` } : {},
+      credentials: "include",
+    });
     const data = await res.json() as { claimed?: boolean };
     return Boolean(data?.claimed);
   } catch { return false; }
 }
 
-/* ── localStorage cache ─────────────────────────────────────────────────── */
+/* ── localStorage profile cache ─────────────────────────────────────────── */
 const cacheKey = (uid: string) => `socia_profile_${uid}`;
 
 export function cacheProfile(uid: string, data: Partial<DbUser>) {
@@ -358,10 +275,13 @@ export function getCachedProfile(uid: string): Partial<DbUser> | null {
   } catch { return null; }
 }
 
-/* ── Database helpers ─────────────────────────────────────────────────── */
+/* ── API helpers (via backend) ──────────────────────────────────────────── */
 export async function fetchProfile(uid: string): Promise<DbUser | null> {
   try {
-    const res = await fetch(`/api/users/${uid}`, { credentials: "include" });
+    const res = await fetch(`/api/users/${uid}`, {
+      headers:     _accessToken ? { Authorization: `Bearer ${_accessToken}` } : {},
+      credentials: "include",
+    });
     if (!res.ok) return null;
     const data = await res.json() as DbUser;
     cacheProfile(uid, data);
@@ -378,9 +298,9 @@ export async function upsertProfile(
   cacheProfile(uid, toCache as Partial<DbUser>);
   try {
     const res = await fetch(`/api/users/${uid}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(fields),
+      method:      "PATCH",
+      headers:     apiHeaders(),
+      body:        JSON.stringify(fields),
       credentials: "include",
     });
     const data = await res.json() as { error?: string };
@@ -403,7 +323,13 @@ export async function searchUsers(query: string, limit = 20): Promise<UserSearch
   const q = query.trim();
   if (!q) return [];
   try {
-    const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}&limit=${limit}`, { credentials: "include" });
+    const res = await fetch(
+      `/api/users/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+      {
+        headers:     _accessToken ? { Authorization: `Bearer ${_accessToken}` } : {},
+        credentials: "include",
+      },
+    );
     if (!res.ok) return [];
     return await res.json() as UserSearchResult[];
   } catch { return []; }
@@ -436,7 +362,14 @@ export async function uploadAvatar(file: File, userId: string): Promise<string> 
   formData.append("file", compressed, `${userId}.jpg`);
   formData.append("type", "avatar");
   formData.append("userId", userId);
-  const res = await fetch("/api/upload", { method: "POST", body: formData, credentials: "include" });
+  const headers: Record<string, string> = {};
+  if (_accessToken) headers["Authorization"] = `Bearer ${_accessToken}`;
+  const res = await fetch("/api/upload", {
+    method:      "POST",
+    headers,
+    body:        formData,
+    credentials: "include",
+  });
   if (!res.ok) throw new Error("Avatar upload failed");
   const data = await res.json() as { url: string };
   return `${data.url}?t=${Date.now()}`;

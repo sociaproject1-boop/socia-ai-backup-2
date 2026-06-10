@@ -9,6 +9,14 @@ import { startStorageCleanup } from "./lib/storageCleanup.js";
 import { warmGrok } from "./lib/grokClient.js";
 import { startMonitoring } from "./monitoring/index.js";
 
+/* ── Global error guards — keep the server alive through background worker failures ── */
+process.on("uncaughtException", (err) => {
+  logger.error({ err: err.message, stack: err.stack }, "[process] uncaughtException — server continues");
+});
+process.on("unhandledRejection", (reason) => {
+  logger.error({ reason: String(reason) }, "[process] unhandledRejection — server continues");
+});
+
 /* ── WebSocket polyfill for Node.js < 22 ──────────────────────────────── */
 if (typeof (globalThis as any).WebSocket === "undefined") {
   (globalThis as any).WebSocket = ws;
