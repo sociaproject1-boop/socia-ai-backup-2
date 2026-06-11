@@ -132,11 +132,11 @@ async function fireNotification(payload: {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════════
    §1  FEED ENDPOINTS
-═══════════════════════════════════════════════════════════════════════ */
+═════════════════════════════════════════════════════════════════════════════════ */
 
-/* ── GET /api/posts — For You feed (public + optional viewer) ──────────── */
+/* ── GET /api/posts — For You feed (public + optional viewer) ──────────────── */
 router.get("/posts", async (req, res) => {
   try {
     const viewer = tryGetViewer(req);
@@ -152,10 +152,11 @@ router.get("/posts", async (req, res) => {
       .from("posts")
       .select(BASE_POST_SELECT)
       .order("created_at", { ascending: false })
-      .range(0, offset + fetchLimit - 1);
+      .range(offset, offset + fetchLimit - 1);
 
     if (error) {
-      res.status(500).json({ error: error.message });
+      logger.error({ err: error }, "[posts] select error");
+      res.status(500).json({ error: error.message ?? "Database error" });
       return;
     }
 
@@ -173,7 +174,7 @@ router.get("/posts", async (req, res) => {
   }
 });
 
-/* ── GET /api/posts/feed/following — Following feed ────────────────────── */
+/* ── GET /api/posts/feed/following — Following feed ────────────────────────── */
 router.get("/posts/feed/following", requireAuth as any, async (req, res) => {
   try {
     const viewer = getAuthedUser(req as any);
@@ -201,16 +202,21 @@ router.get("/posts/feed/following", requireAuth as any, async (req, res) => {
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
-    if (error) { res.status(500).json({ error: error.message }); return; }
+    if (error) { 
+      logger.error({ err: error }, "[posts/following] select error");
+      res.status(500).json({ error: error.message ?? "Database error" }); 
+      return; 
+    }
 
     const posts = await enrichPosts(data ?? [], viewer.id);
     res.json({ posts });
   } catch (err) {
+    logger.error({ err }, "[posts/following] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
 
-/* ── GET /api/posts/feed/saved — Saved posts ────────────────────────────── */
+/* ── GET /api/posts/feed/saved — Saved posts ────────────────────────────────── */
 router.get("/posts/feed/saved", requireAuth as any, async (req, res) => {
   try {
     const viewer = getAuthedUser(req as any);
@@ -233,7 +239,11 @@ router.get("/posts/feed/saved", requireAuth as any, async (req, res) => {
       .select(BASE_POST_SELECT)
       .in("id", savedIds);
 
-    if (error) { res.status(500).json({ error: error.message }); return; }
+    if (error) { 
+      logger.error({ err: error }, "[posts/saved] select error");
+      res.status(500).json({ error: error.message ?? "Database error" }); 
+      return; 
+    }
 
     const posts = await enrichPosts(data ?? [], viewer.id);
     /* Preserve save order */
@@ -242,6 +252,7 @@ router.get("/posts/feed/saved", requireAuth as any, async (req, res) => {
       .filter(Boolean);
     res.json({ posts: ordered });
   } catch (err) {
+    logger.error({ err }, "[posts/saved] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -262,11 +273,16 @@ router.get("/posts/user/:uid", async (req, res) => {
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
-    if (error) { res.status(500).json({ error: error.message }); return; }
+    if (error) { 
+      logger.error({ err: error }, "[posts/user] select error");
+      res.status(500).json({ error: error.message ?? "Database error" }); 
+      return; 
+    }
 
     const posts = await enrichPosts(data ?? [], viewer);
     res.json({ posts });
   } catch (err) {
+    logger.error({ err }, "[posts/user] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -283,18 +299,23 @@ router.get("/posts/:id", async (req, res) => {
       .eq("id", req.params["id"])
       .maybeSingle();
 
-    if (error || !data) { res.status(404).json({ error: "Not found" }); return; }
+    if (error || !data) { 
+      logger.warn({ err: error }, "[posts/:id] select error or not found");
+      res.status(404).json({ error: "Not found" }); 
+      return; 
+    }
 
     const [enriched] = await enrichPosts([data], viewer);
     res.json({ post: enriched });
   } catch (err) {
+    logger.error({ err }, "[posts/:id] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════════
    §2  POST CRUD
-═══════════════════════════════════════════════════════════════════════ */
+═════════════════════════════════════════════════════════════════════════════════ */
 
 /* ── POST /api/posts — Create ──────────────────────────────────────────── */
 router.post("/posts", requireAuth as any, async (req, res) => {
@@ -316,7 +337,11 @@ router.post("/posts", requireAuth as any, async (req, res) => {
       .select()
       .single();
 
-    if (postErr) { res.status(500).json({ error: postErr.message }); return; }
+    if (postErr) { 
+      logger.error({ err: postErr }, "[posts] create insert error");
+      res.status(500).json({ error: postErr.message }); 
+      return; 
+    }
 
     const mediaRows = (media as any[]).map((m, i) => ({
       post_id: (post as any).id, url: m.url, type: m.type,
@@ -408,13 +433,14 @@ router.delete("/posts/:id", requireAuth as any, async (req, res) => {
     await svc.from("posts").delete().eq("id", postId);
     res.json({ ok: true });
   } catch (err) {
+    logger.error({ err }, "[posts] delete error");
     res.status(500).json({ error: "Internal error" });
   }
 });
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════════
    §3  LIKE / SAVE TOGGLES
-═══════════════════════════════════════════════════════════════════════ */
+═════════════════════════════════════════════════════════════════════════════════ */
 
 /* ── POST /api/posts/:id/like — Toggle like ────────────────────────────── */
 router.post("/posts/:id/like", requireAuth as any, async (req, res) => {
@@ -444,6 +470,7 @@ router.post("/posts/:id/like", requireAuth as any, async (req, res) => {
       res.json({ liked: true });
     }
   } catch (err) {
+    logger.error({ err }, "[posts/like] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -470,13 +497,14 @@ router.post("/posts/:id/save", requireAuth as any, async (req, res) => {
       res.json({ saved: true });
     }
   } catch (err) {
+    logger.error({ err }, "[posts/save] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════════
    §4  COMMENTS
-═══════════════════════════════════════════════════════════════════════ */
+═════════════════════════════════════════════════════════════════════════════════ */
 
 const COMMENT_SELECT = "*, author:users!comments_author_id_fkey(id, name, username, avatar_url)";
 
@@ -502,9 +530,14 @@ router.get("/posts/:id/comments", async (req, res) => {
     }
 
     const { data, error } = await query;
-    if (error) { res.status(500).json({ error: error.message }); return; }
+    if (error) { 
+      logger.error({ err: error }, "[posts/comments] select error");
+      res.status(500).json({ error: error.message }); 
+      return; 
+    }
     res.json({ comments: data ?? [] });
   } catch (err) {
+    logger.error({ err }, "[posts/comments] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -531,7 +564,11 @@ router.post("/posts/:id/comments", requireAuth as any, async (req, res) => {
       .select(COMMENT_SELECT)
       .single();
 
-    if (error) { res.status(500).json({ error: error.message }); return; }
+    if (error) { 
+      logger.error({ err: error }, "[posts/comments] insert error");
+      res.status(500).json({ error: error.message }); 
+      return; 
+    }
 
     /* Notification async */
     const { data: postRow } = await svc.from("posts").select("author_id").eq("id", postId).maybeSingle();
@@ -549,6 +586,7 @@ router.post("/posts/:id/comments", requireAuth as any, async (req, res) => {
 
     res.status(201).json({ comment: data });
   } catch (err) {
+    logger.error({ err }, "[posts/comments] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -574,9 +612,14 @@ router.put("/posts/:id/comments/:cid", requireAuth as any, async (req, res) => {
       .select(COMMENT_SELECT)
       .single();
 
-    if (error) { res.status(500).json({ error: error.message }); return; }
+    if (error) { 
+      logger.error({ err: error }, "[posts/comments/:cid] update error");
+      res.status(500).json({ error: error.message }); 
+      return; 
+    }
     res.json({ comment: data });
   } catch (err) {
+    logger.error({ err }, "[posts/comments/:cid] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -598,13 +641,14 @@ router.delete("/posts/:id/comments/:cid", requireAuth as any, async (req, res) =
     await svc.from("comments").delete().eq("id", cid);
     res.json({ ok: true });
   } catch (err) {
+    logger.error({ err }, "[posts/comments] delete error");
     res.status(500).json({ error: "Internal error" });
   }
 });
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════════
    §5  REPORTS
-═══════════════════════════════════════════════════════════════════════ */
+═════════════════════════════════════════════════════════════════════════════════ */
 
 const VALID_REASONS = ["spam","inappropriate","harassment","misinformation","other"] as const;
 
@@ -627,9 +671,14 @@ router.post("/posts/:id/report", requireAuth as any, async (req, res) => {
       notes: notes?.trim()?.slice(0, 500) ?? null,
     });
 
-    if (error) { res.status(500).json({ error: error.message }); return; }
+    if (error) { 
+      logger.error({ err: error }, "[posts/report] insert error");
+      res.status(500).json({ error: error.message }); 
+      return; 
+    }
     res.json({ ok: true });
   } catch (err) {
+    logger.error({ err }, "[posts/report] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -653,14 +702,19 @@ router.post("/posts/:id/comments/:cid/report", requireAuth as any, async (req, r
       notes: notes?.trim()?.slice(0, 500) ?? null,
     });
 
-    if (error) { res.status(500).json({ error: error.message }); return; }
+    if (error) { 
+      logger.error({ err: error }, "[posts/comments/report] insert error");
+      res.status(500).json({ error: error.message }); 
+      return; 
+    }
     res.json({ ok: true });
   } catch (err) {
+    logger.error({ err }, "[posts/comments/report] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════════
    §6  VIEW COUNTER
    Strategy:
    • Authenticated users → DB-backed (post_views table, migration 45).
@@ -668,7 +722,7 @@ router.post("/posts/:id/comments/:cid/report", requireAuth as any, async (req, r
      unique constraint prevents double-counting across restarts/replicas.
    • Anonymous users → in-memory 24 h fingerprint cache (IP + UA).
      No user identity to store, so DB dedup is not possible.
-═══════════════════════════════════════════════════════════════════════ */
+═════════════════════════════════════════════════════════════════════════════════ */
 
 /* ── Anonymous fallback: in-memory cache (anon users only) ── */
 const _anonSeen   = new Map<string, Set<string>>();
@@ -726,9 +780,9 @@ router.post("/posts/:id/view", async (req, res) => {
   }
 });
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════════
    §7  NOTIFICATIONS
-═══════════════════════════════════════════════════════════════════════ */
+═════════════════════════════════════════════════════════════════════════════════ */
 
 /* ── GET /api/notifications ─────────────────────────────────────────────── */
 router.get("/notifications", requireAuth as any, async (req, res) => {
@@ -753,6 +807,7 @@ router.get("/notifications", requireAuth as any, async (req, res) => {
         res.json({ notifications: [], unread: 0 });
         return;
       }
+      logger.error({ err: error }, "[notifications] select error");
       res.status(500).json({ error: error.message });
       return;
     }
@@ -766,6 +821,7 @@ router.get("/notifications", requireAuth as any, async (req, res) => {
 
     res.json({ notifications: data ?? [], unread: unreadCount ?? 0 });
   } catch (err) {
+    logger.error({ err }, "[notifications] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -778,6 +834,7 @@ router.put("/notifications/read-all", requireAuth as any, async (req, res) => {
     await svc.from("post_notifications").update({ read: true }).eq("user_id", user.id).eq("read", false);
     res.json({ ok: true });
   } catch (err) {
+    logger.error({ err }, "[notifications/read-all] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -791,13 +848,14 @@ router.put("/notifications/:id/read", requireAuth as any, async (req, res) => {
       .eq("id", req.params["id"]).eq("user_id", user.id);
     res.json({ ok: true });
   } catch (err) {
+    logger.error({ err }, "[notifications/:id/read] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
 
-/* ═══════════════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════════
    §8  OWNER MODERATION
-═══════════════════════════════════════════════════════════════════════ */
+═════════════════════════════════════════════════════════════════════════════════ */
 
 /* ── GET /api/owner/reports — Review queue ──────────────────────────────── */
 router.get("/owner/reports", requireAuth as any, async (req, res) => {
@@ -814,9 +872,14 @@ router.get("/owner/reports", requireAuth as any, async (req, res) => {
       .order("created_at", { ascending: false })
       .limit(limit);
 
-    if (error) { res.status(500).json({ error: error.message }); return; }
+    if (error) { 
+      logger.error({ err: error }, "[owner/reports] select error");
+      res.status(500).json({ error: error.message }); 
+      return; 
+    }
     res.json({ reports: data ?? [] });
   } catch (err) {
+    logger.error({ err }, "[owner/reports] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -841,6 +904,7 @@ router.put("/owner/reports/:id", requireAuth as any, async (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
+    logger.error({ err }, "[owner/reports/:id] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
