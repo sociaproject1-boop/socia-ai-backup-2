@@ -2,10 +2,11 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Sparkles, Mail, Lock, User as UserIcon, ArrowRight,
+  Mail, Lock, User as UserIcon, ArrowRight,
   AlertCircle, CheckCircle, RefreshCw, Loader2,
 } from "lucide-react";
 import { useAuth, EMAIL_CONFIRMATION_REQUIRED } from "@/lib/authContext";
+import sociaMarkUrl from "@assets/splash2/mark.png";
 
 type Mode = "signin" | "signup";
 
@@ -67,24 +68,45 @@ export default function Auth() {
     return (
       <div className="relative flex min-h-full flex-col items-center justify-center px-6 text-center overflow-hidden">
         <div className="relative z-10 flex flex-col items-center">
+          {/* Logo mark */}
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0, y: -8 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+            className="mb-5 flex items-center justify-center"
+            style={GPU}
+          >
+            <img
+              src={sociaMarkUrl}
+              alt="Socia"
+              style={{
+                width: 80,
+                height: 80,
+                objectFit: "contain",
+                filter:
+                  "drop-shadow(0 0 18px rgba(168,85,247,0.65)) drop-shadow(0 0 8px rgba(236,72,153,0.45))",
+              }}
+            />
+          </motion.div>
+
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 280, damping: 22 }}
-            className="mb-6 grid h-20 w-20 place-items-center rounded-3xl"
+            transition={{ type: "spring", stiffness: 280, damping: 22, delay: 0.1 }}
+            className="mb-6 grid h-16 w-16 place-items-center rounded-3xl"
             style={{
               background: "linear-gradient(135deg, #7c3aed 0%, #ec4899 60%, #3b82f6 100%)",
               boxShadow: "0 8px 28px -6px rgba(124,58,237,0.45)",
               ...GPU,
             }}
           >
-            <CheckCircle className="h-9 w-9 text-white" strokeWidth={2} />
+            <CheckCircle className="h-8 w-8 text-white" strokeWidth={2} />
           </motion.div>
 
           <motion.h2
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+            transition={{ delay: 0.18 }}
             className="font-display text-2xl font-bold text-white"
           >
             Check your email
@@ -92,7 +114,7 @@ export default function Auth() {
           <motion.p
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.18 }}
+            transition={{ delay: 0.24 }}
             className="mt-3 max-w-xs text-sm text-white/60"
           >
             We sent a confirmation link to{" "}
@@ -104,7 +126,7 @@ export default function Auth() {
             whileTap={{ scale: 0.96 }}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.24 }}
+            transition={{ delay: 0.30 }}
             onClick={() => { setCheckEmail(false); setMode("signin"); }}
             className="mt-8 flex h-12 w-full max-w-xs items-center justify-center gap-2 rounded-2xl font-display text-sm font-semibold text-white"
             style={{
@@ -142,57 +164,81 @@ export default function Auth() {
   return (
     <div
       className="relative flex min-h-full flex-col overflow-hidden"
-      style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 28px)` }}
+      style={{ paddingTop: `calc(env(safe-area-inset-top, 0px) + 20px)` }}
     >
-      {/* Subtle static top accent — single non-animated radial gradient */}
+      {/* Subtle radial top accent */}
       <div
         aria-hidden="true"
         style={{
           position: "absolute",
           inset: 0,
-          background: "radial-gradient(65% 42% at 50% -5%, rgba(120,50,220,0.14) 0%, transparent 68%)",
+          background: "radial-gradient(65% 42% at 50% -5%, rgba(120,50,220,0.16) 0%, transparent 68%)",
           pointerEvents: "none",
           zIndex: 0,
         }}
       />
 
       <div className="relative z-10 flex flex-1 flex-col px-6 pb-8">
-        {/* Logo */}
+
+        {/* ── Official Socia "S" mark ─────────────────────────────────── */}
         <motion.div
-          initial={{ scale: 0.82, opacity: 0, y: -10 }}
+          initial={{ scale: 0.78, opacity: 0, y: -12 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
-          transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-          className="mx-auto mt-4 grid h-24 w-24 place-items-center rounded-[28px]"
-          style={{
-            background: "linear-gradient(135deg, #7c3aed 0%, #a855f7 45%, #ec4899 100%)",
-            boxShadow: "0 8px 30px -6px rgba(168,85,247,0.5), inset 0 1px 0 rgba(255,255,255,0.14)",
-            ...GPU,
-          }}
+          transition={{ duration: 0.70, ease: [0.22, 1, 0.36, 1] }}
+          className="mx-auto mt-6 mb-1 flex items-center justify-center"
+          style={{ width: "min(30vw, 116px)", height: "min(30vw, 116px)", ...GPU }}
         >
-          <Sparkles
-            className="h-10 w-10 text-white"
-            strokeWidth={2.1}
+          <img
+            src={sociaMarkUrl}
+            alt="Socia"
+            draggable={false}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              filter:
+                "drop-shadow(0 0 20px rgba(168,85,247,0.65)) drop-shadow(0 0 8px rgba(59,130,246,0.35)) drop-shadow(0 0 4px rgba(236,72,153,0.40))",
+            }}
           />
         </motion.div>
 
+        {/* ── Wordmark: "Socia" ──────────────────────────────────────── */}
         <motion.h1
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-          className="mt-7 text-center font-display text-4xl font-bold tracking-tight"
+          transition={{ delay: 0.15, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          className="mt-5 text-center font-display text-4xl font-bold tracking-tight"
         >
           <span className="text-gradient">Socia</span>
         </motion.h1>
+
+        {/* ── Tagline ──────────────────────────────────────────────── */}
         <motion.p
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={{ delay: 0.22 }}
           className="mt-2 text-center text-sm text-white/55"
         >
           Where imagination becomes feed.
         </motion.p>
 
-        {/* Form */}
+        {/* ── Neon underline — matches splash screen ────────────────── */}
+        <motion.div
+          initial={{ scaleX: 0 }}
+          animate={{ scaleX: 1 }}
+          transition={{ delay: 0.38, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+          style={{
+            height: 2.5,
+            width: "min(22vw, 80px)",
+            margin: "10px auto 0",
+            borderRadius: 999,
+            background: "linear-gradient(90deg, #ec4899 0%, #a855f7 50%, #3b82f6 100%)",
+            boxShadow: "0 0 10px rgba(168,85,247,0.65)",
+            transformOrigin: "left center",
+          }}
+        />
+
+        {/* ── Form ──────────────────────────────────────────────────── */}
         <AnimatePresence mode="wait">
           <motion.form
             key={mode}
@@ -201,7 +247,7 @@ export default function Auth() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.22 }}
             onSubmit={submit}
-            className="mt-10 space-y-3"
+            className="mt-9 space-y-3"
           >
             {mode === "signup" && (
               <Field icon={UserIcon} placeholder="Display name" type="text" value={name} onChange={setName} />
@@ -236,7 +282,6 @@ export default function Auth() {
               )}
             </AnimatePresence>
 
-            {/* CTA button — clean gradient, no aurora animation */}
             <motion.button
               whileTap={{ scale: 0.975 }}
               type="submit"
@@ -262,12 +307,12 @@ export default function Auth() {
           </motion.form>
         </AnimatePresence>
 
-        {/* Divider */}
+        {/* ── Divider ──────────────────────────────────────────────── */}
         <div className="my-5 flex items-center gap-3 text-[10px] uppercase tracking-widest text-white/30">
           <span className="h-px flex-1 bg-white/08" />or<span className="h-px flex-1 bg-white/08" />
         </div>
 
-        {/* Google button */}
+        {/* ── Google ───────────────────────────────────────────────── */}
         <motion.button
           whileTap={{ scale: 0.97 }}
           onClick={handleGoogle}
@@ -287,6 +332,7 @@ export default function Auth() {
           {loading ? "Connecting…" : "Continue with Google"}
         </motion.button>
 
+        {/* ── Toggle signin / signup ────────────────────────────────── */}
         <div className="mt-auto pt-8 text-center text-xs text-white/50">
           {mode === "signin" ? (
             <button
