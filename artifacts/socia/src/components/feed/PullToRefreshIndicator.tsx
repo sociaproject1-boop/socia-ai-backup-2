@@ -176,13 +176,6 @@ export function PullToRefreshIndicator({ phase, indicatorRef }: Props) {
         Pull down to refresh
       </span>
 
-      {/* Keyframe injected once */}
-      <style>{`
-        @keyframes ptr-spin {
-          from { transform: rotate(0deg);   }
-          to   { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }

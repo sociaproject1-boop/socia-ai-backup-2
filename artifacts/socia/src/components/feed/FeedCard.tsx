@@ -10,7 +10,7 @@
  *
  * Guest gate: onGuestAction prop intercepts engagement for non-logged-in users.
  */
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import {
@@ -39,6 +39,7 @@ interface Props {
 }
 
 /* ── Spinning music disc — TikTok-style ───────────────────────────────── */
+/* H-4: keyframe lives in index.css as @keyframes feedcard-disc-spin — no inline <style> */
 const DISC_SPIN_STYLE: React.CSSProperties = {
   animation: "feedcard-disc-spin 4s linear infinite",
   willChange: "transform",
@@ -51,14 +52,7 @@ function MusicDisc({ sound, soundId, navigate, size = 44 }: {
   size?: number;
 }) {
   return (
-    <>
-      <style>{`
-        @keyframes feedcard-disc-spin {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-      `}</style>
-      <motion.button
+    <motion.button
         whileTap={{ scale: 0.88 }}
         onClick={(e) => { e.stopPropagation(); navigate(`/sounds/${soundId}`); }}
         aria-label="View sound"
@@ -98,7 +92,6 @@ function MusicDisc({ sound, soundId, navigate, size = 44 }: {
           }}
         />
       </motion.button>
-    </>
   );
 }
 
@@ -117,7 +110,8 @@ function fmtCount(n: number): string {
   return String(n);
 }
 
-export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenViewer, onCommentCountChange, onGuestAction }: Props) {
+/* H-1: memo prevents re-renders when post data and callbacks haven't changed */
+export const FeedCard = memo(function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenViewer, onCommentCountChange, onGuestAction }: Props) {
   const [, navigate]   = useLocation();
   const me             = useAppStore((s) => s.user);
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
@@ -566,4 +560,4 @@ export function FeedCard({ post, onLike, onSave, onComment, onDelete, onOpenView
       </div>
     </article>
   );
-}
+});

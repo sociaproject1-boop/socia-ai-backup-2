@@ -49,7 +49,14 @@ const BASE_POST_SELECT = `
   media:post_media(id, url, type, width, height, duration, position)
 `;
 
-/** Enrich posts with real aggregate counts + viewer like/save status + sound metadata. */
+/** Enrich posts with real aggregate counts + viewer like/save status + sound metadata.
+ *
+ * C-1/C-3 optimisation: likes and saves are fetched once with (post_id, user_id) so
+ * both aggregate counts AND viewer-specific has_liked/has_saved are derived from the
+ * same result set — eliminating the two extra viewer-specific queries that previously
+ * ran in a second Promise.all when viewerId was present.
+ * Query count: was 6 (with viewer) / 4 (without), now always 4.
+ */
 async function enrichPosts(posts: any[], viewerId: string | null) {
   if (!posts.length) return [];
 
@@ -59,38 +66,34 @@ async function enrichPosts(posts: any[], viewerId: string | null) {
   /* Collect distinct sound IDs from this batch */
   const soundIds = [...new Set(posts.map((p: any) => p.sound_id).filter(Boolean))];
 
-  /* Real aggregate counts (more accurate than cached, used for display) */
+  /* Single round-trip: likes and saves include user_id so viewer status is derived here */
   const [likesRes, commentsRes, savesRes, soundsRes] = await Promise.all([
-    svc.from("likes").select("post_id").in("post_id", postIds),
+    svc.from("likes").select("post_id, user_id").in("post_id", postIds),
     svc.from("comments").select("post_id").in("post_id", postIds),
-    svc.from("saves").select("post_id").in("post_id", postIds),
+    svc.from("saves").select("post_id, user_id").in("post_id", postIds),
     soundIds.length > 0
       ? svc.from("sounds").select("id, title, cover_image, audio_url, usage_count, creator_id").in("id", soundIds)
       : Promise.resolve({ data: [] as any[] }),
   ]);
 
-  /* Build sound lookup map */
-  const soundMap = new Map<string, any>();
-  (soundsRes.data ?? []).forEach((s: any) => soundMap.set(s.id, s));
+  /* Build lookup maps — count aggregates and viewer status in one pass each */
+  const soundMap    = new Map<string, any>();
+  const likeMap     = new Map<string, number>();
+  const commentMap  = new Map<string, number>();
+  const saveMap     = new Map<string, number>();
+  const likedSet    = new Set<string>();
+  const savedSet    = new Set<string>();
 
-  const likeMap = new Map<string, number>();
-  const commentMap = new Map<string, number>();
-  const saveMap = new Map<string, number>();
-  (likesRes.data ?? []).forEach((r: any) => likeMap.set(r.post_id, (likeMap.get(r.post_id) ?? 0) + 1));
-  (commentsRes.data ?? []).forEach((r: any) => commentMap.set(r.post_id, (commentMap.get(r.post_id) ?? 0) + 1));
-  (savesRes.data ?? []).forEach((r: any) => saveMap.set(r.post_id, (saveMap.get(r.post_id) ?? 0) + 1));
-
-  /* Viewer-specific like/save status */
-  let likedSet = new Set<string>();
-  let savedSet = new Set<string>();
-  if (viewerId) {
-    const [vLikes, vSaves] = await Promise.all([
-      svc.from("likes").select("post_id").in("post_id", postIds).eq("user_id", viewerId),
-      svc.from("saves").select("post_id").in("post_id", postIds).eq("user_id", viewerId),
-    ]);
-    (vLikes.data ?? []).forEach((r: any) => likedSet.add(r.post_id));
-    (vSaves.data ?? []).forEach((r: any) => savedSet.add(r.post_id));
-  }
+  (soundsRes.data    ?? []).forEach((s: any) => soundMap.set(s.id, s));
+  (likesRes.data     ?? []).forEach((r: any) => {
+    likeMap.set(r.post_id, (likeMap.get(r.post_id) ?? 0) + 1);
+    if (viewerId && r.user_id === viewerId) likedSet.add(r.post_id);
+  });
+  (commentsRes.data  ?? []).forEach((r: any) => commentMap.set(r.post_id, (commentMap.get(r.post_id) ?? 0) + 1));
+  (savesRes.data     ?? []).forEach((r: any) => {
+    saveMap.set(r.post_id, (saveMap.get(r.post_id) ?? 0) + 1);
+    if (viewerId && r.user_id === viewerId) savedSet.add(r.post_id);
+  });
 
   return posts.map((p: any) => ({
     ...p,
@@ -145,14 +148,15 @@ router.get("/posts", async (req, res) => {
     const sort   = req.query["sort"] as string | undefined; // "trending" | "newest"
     const svc    = db();
 
-    /* Fetch a larger set for trending sort (so scoring has more to rank) */
-    const fetchLimit = sort === "trending" ? Math.min(limit * 5, 100) : limit;
-
+    /* C-2/C-3: fetch exactly the requested page — no over-fetching.
+     * Trending sort is applied in-memory on the page returned by the DB,
+     * which preserves correct pagination (no double-offset bug) and avoids
+     * fetching up to 5× more rows than needed. */
     const { data, error } = await svc
       .from("posts")
       .select(BASE_POST_SELECT)
       .order("created_at", { ascending: false })
-      .range(offset, offset + fetchLimit - 1);
+      .range(offset, offset + limit - 1);
 
     if (error) {
       logger.error({ err: error }, "[posts] select error");
@@ -164,7 +168,6 @@ router.get("/posts", async (req, res) => {
 
     if (sort === "trending") {
       posts = posts.sort((a, b) => trendingScore(b) - trendingScore(a));
-      posts = posts.slice(offset, offset + limit);
     }
 
     res.json({ posts });

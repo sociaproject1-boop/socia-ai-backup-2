@@ -478,3 +478,15 @@ html.light {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
+
+/* H-4: feedcard music disc — previously injected inline per-instance via <style> tag */
+@keyframes feedcard-disc-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* H-4: pull-to-refresh spinner — previously injected inline per-instance via <style> tag */
+@keyframes ptr-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
