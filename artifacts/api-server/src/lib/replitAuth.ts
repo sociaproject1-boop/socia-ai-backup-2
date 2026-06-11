@@ -159,6 +159,14 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
         };
         setCachedUser(token, authedUser);
         attachUser(req, authedUser);
+        /* Fire-and-forget: guarantee public.users row exists for every verified session.
+         * ensureUserRow is a no-op if the row is already there, so it's safe to call
+         * on every request without performance cost beyond the first sign-in. */
+        void ensureUserRow(authedUser.id, {
+          email:     authedUser.email,
+          name:      authedUser.name ?? undefined,
+          avatarUrl: (sbUser.user_metadata?.["avatar_url"] ?? sbUser.user_metadata?.["picture"] ?? undefined) as string | undefined,
+        });
         next();
         return;
       }
@@ -178,6 +186,11 @@ export const requireAuth: RequestHandler = async (req, res, next) => {
     };
     setCachedUser(token, authedUser);
     attachUser(req, authedUser);
+    /* Fire-and-forget: same guarantee for legacy-JWT sessions */
+    void ensureUserRow(authedUser.id, {
+      email: authedUser.email,
+      name:  authedUser.name ?? undefined,
+    });
     next();
     return;
   }
