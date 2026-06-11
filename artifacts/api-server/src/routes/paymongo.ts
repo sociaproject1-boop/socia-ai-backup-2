@@ -548,14 +548,14 @@ router.get("/community-support/history", requireAuth, async (req: Request, res: 
     return res.json({ contributions: [] });
   }
   return res.json({
-    contributions: (data ?? []).map((r) => ({
-      ref:             r.id,
-      amount_centavos: r.amount_centavos,
-      status:          r.status,
-      payment_method:  r.payment_method,
-      paid_at:         r.paid_at,
-      created_at:      r.created_at,
-      paymongo_ref:    r.paymongo_session_id,
+    contributions: (data ?? []).map((r: Record<string, unknown>) => ({
+      ref:             r["id"],
+      amount_centavos: r["amount_centavos"],
+      status:          r["status"],
+      payment_method:  r["payment_method"],
+      paid_at:         r["paid_at"],
+      created_at:      r["created_at"],
+      paymongo_ref:    r["paymongo_session_id"],
     })),
   });
 });

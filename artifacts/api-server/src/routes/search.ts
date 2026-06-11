@@ -129,7 +129,7 @@ router.get("/search", async (req, res) => {
     const posts = (postsRes.data ?? []) as any[];
     const users = (usersRes.data ?? []) as any[];
 
-    res.json({
+    return res.json({
       posts,
       users,
       hasMore: Math.max(posts.length, users.length) >= limit,
@@ -137,7 +137,7 @@ router.get("/search", async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, "[search]");
-    res.status(500).json({ error: "search_error" });
+    return res.status(500).json({ error: "search_error" });
   }
 });
 

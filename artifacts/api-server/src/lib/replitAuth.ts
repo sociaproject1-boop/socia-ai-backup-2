@@ -195,10 +195,11 @@ export interface QuotaResult {
 }
 
 export async function consumeGenerationQuota(
-  sb: SupabaseClient,
+  sb: SupabaseClient | null,
   kind: "image" | "video",
 ): Promise<QuotaResult> {
   try {
+    if (!sb) throw new Error("No Supabase client — quota check skipped");
     const { data, error } = await sb.rpc("consume_generation_quota", { p_kind: kind });
     if (error) throw new Error(error.message);
     const r = data as Partial<QuotaResult> | null;

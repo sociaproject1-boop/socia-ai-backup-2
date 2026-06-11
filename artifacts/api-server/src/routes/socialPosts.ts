@@ -248,7 +248,7 @@ router.get("/posts/feed/saved", requireAuth as any, async (req, res) => {
     const posts = await enrichPosts(data ?? [], viewer.id);
     /* Preserve save order */
     const ordered = savedIds
-      .map((id) => posts.find((p) => p.id === id))
+      .map((id: string) => posts.find((p: { id: string }) => p.id === id))
       .filter(Boolean);
     res.json({ posts: ordered });
   } catch (err) {
@@ -372,7 +372,7 @@ router.post("/posts", requireAuth as any, async (req, res) => {
         try {
           const handles = [
             ...new Set(
-              (trimmedCaption.match(/@([\w.]+)/g) ?? []).map((m) =>
+              (trimmedCaption.match(/@([\w.]+)/g) ?? []).map((m: string) =>
                 m.slice(1).toLowerCase(),
               ),
             ),

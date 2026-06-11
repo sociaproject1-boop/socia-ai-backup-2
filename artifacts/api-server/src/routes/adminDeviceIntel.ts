@@ -178,7 +178,7 @@ router.get("/admin/ip-intel", requireAdmin(), async (req, res) => {
       summary: {
         unique_ips:     ipMap.size,
         suspicious_ips: ipProfiles.filter((p) => p.is_suspicious).length,
-        total_logins:   auditRows?.filter((r) => r.action === "login").length ?? 0,
+        total_logins:   auditRows?.filter((r: { action: string }) => r.action === "login").length ?? 0,
       },
       daily_fraud_pattern: Object.entries(dayBuckets)
         .sort(([a], [b]) => a.localeCompare(b))
