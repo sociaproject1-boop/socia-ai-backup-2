@@ -112,8 +112,9 @@ function parseSelectCols(rawSelect: string, mainTable: string): string {
         const segs = withoutFkey.split("_");
         fkCol = segs.length >= 2 ? segs.slice(-2).join("_") : (segs[segs.length - 1] ?? "id");
       }
+      // Cast both sides to text to handle uuid vs text type mismatches (e.g. users.id=text, pulses.user_id=uuid)
       exprs.push(
-        `(SELECT row_to_json(t.*) FROM (SELECT ${innerSql} FROM "${relTable}" t WHERE t."id" = "${mainTable}"."${fkCol}" LIMIT 1) t) AS "${alias}"`
+        `(SELECT row_to_json(t.*) FROM (SELECT ${innerSql} FROM "${relTable}" t WHERE t."id"::text = "${mainTable}"."${fkCol}"::text LIMIT 1) t) AS "${alias}"`
       );
     } else {
       // No FK hint: decide direction by convention
@@ -123,8 +124,9 @@ function parseSelectCols(rawSelect: string, mainTable: string): string {
       if (isForwardFk) {
         // FK on current table: currentTable.{alias}_id → relTable.id
         const fkCol = `${alias}_id`;
+        // Cast both sides to text to handle uuid vs text type mismatches
         exprs.push(
-          `(SELECT row_to_json(t.*) FROM (SELECT ${innerSql} FROM "${relTable}" t WHERE t."id" = "${mainTable}"."${fkCol}" LIMIT 1) t) AS "${alias}"`
+          `(SELECT row_to_json(t.*) FROM (SELECT ${innerSql} FROM "${relTable}" t WHERE t."id"::text = "${mainTable}"."${fkCol}"::text LIMIT 1) t) AS "${alias}"`
         );
       } else {
         // FK on related table: relTable.{mainTable_singular}_id → mainTable.id

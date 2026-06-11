@@ -47,6 +47,7 @@ export const users = pgTable("users", {
   socialLinkedin: text("social_linkedin").notNull().default(""),
   privacySettings: jsonb("privacy_settings"),
   passwordHash: text("password_hash"),
+  lastSeen: timestamp("last_seen", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
