@@ -16,12 +16,17 @@ const READ_TABLES = new Set([
   "ai_plans", "payment_receipts", "credit_ledger", "funding_pools",
   "alert_settings", "user_notifications", "conversations", "messages",
   "socia_gpt_memory",
+  // billing & config tables used by frontend
+  "app_config", "community_funding", "plans", "topup_packages",
+  "payment_methods_config", "payment_settings", "payment_orders",
+  "admins", "typing_status",
 ]);
 
 const WRITE_TABLES = new Set([
   "users", "pulses", "follows", "sounds", "stars", "messages",
   "conversations", "socia_gpt_memory", "credit_ledger",
   "user_notifications", "alert_settings", "typing_status",
+  "payment_orders",
 ]);
 
 /** POST /api/db-proxy */
