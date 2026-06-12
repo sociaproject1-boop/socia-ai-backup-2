@@ -115,7 +115,7 @@ export default function SocialNotificationsPage() {
             whileTap={{ scale: 0.92 }}
             onClick={markAll}
             className="text-[11px] font-semibold px-3 py-1.5 rounded-full"
-            style={{ background: "rgba(168,85,247,0.15)", color: "var(--accent-primary)" }}
+            style={{ color: "#1D9BF0" }}
           >
             Mark all read
           </motion.button>
@@ -150,9 +150,9 @@ export default function SocialNotificationsPage() {
             initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
             className="mt-24 flex flex-col items-center gap-4 px-8 text-center"
           >
-            <div className="h-16 w-16 rounded-2xl grid place-items-center"
-              style={{ background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.2)" }}>
-              <Bell className="h-7 w-7" style={{ color: "var(--accent-primary)", opacity: 0.7 }} />
+            <div className="h-16 w-16 rounded-full grid place-items-center"
+              style={{ border: "1px solid #2F3336" }}>
+              <Bell className="h-7 w-7" style={{ color: "#71767B" }} />
             </div>
             <div>
               <p className="font-semibold app-text">No activity yet</p>
@@ -170,7 +170,7 @@ export default function SocialNotificationsPage() {
               transition={{ delay: Math.min(i * 0.02, 0.12) }}
               onClick={() => tapItem(n)}
               className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
-              style={{ background: n.read ? "transparent" : "rgba(168,85,247,0.04)" }}
+              style={{ background: n.read ? "transparent" : "rgba(29,155,240,0.04)", borderBottom: "1px solid #2F3336" }}
             >
               {/* Avatar */}
               <div className="relative shrink-0">
@@ -179,7 +179,7 @@ export default function SocialNotificationsPage() {
                     style={{ border: "1.5px solid rgba(255,255,255,0.1)" }} />
                 ) : (
                   <div className="h-11 w-11 rounded-full grid place-items-center text-sm font-bold text-white"
-                    style={{ background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))" }}>
+                    style={{ background: "#2F3336" }}>
                     {(n.actor?.name || "?").charAt(0).toUpperCase()}
                   </div>
                 )}
@@ -197,8 +197,8 @@ export default function SocialNotificationsPage() {
 
               {/* Unread dot */}
               {!n.read && (
-                <div className="h-2.5 w-2.5 rounded-full shrink-0"
-                  style={{ background: "var(--accent-primary)", boxShadow: "0 0 6px 1px var(--accent-glow)" }} />
+                <div className="h-2 w-2 rounded-full shrink-0"
+                  style={{ background: "#1D9BF0" }} />
               )}
             </motion.button>
           ))}

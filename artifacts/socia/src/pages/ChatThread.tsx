@@ -221,7 +221,7 @@ const AudioPlayer = memo(function AudioPlayer({ url }: { url: string }) {
       <button
         onClick={toggle}
         disabled={loadError}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 text-white disabled:opacity-40"
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#1D9BF0] text-white disabled:opacity-40"
       >
         {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
       </button>
@@ -233,7 +233,7 @@ const AudioPlayer = memo(function AudioPlayer({ url }: { url: string }) {
           onClick={handleSeek}
         >
           <div
-            className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 transition-[width] duration-100"
+            className="absolute inset-y-0 left-0 rounded-full bg-[#1D9BF0] transition-[width] duration-100"
             style={{ width: `${progress * 100}%` }}
           />
         </div>
@@ -408,7 +408,7 @@ const MessageBubble = memo(function MessageBubble({
     <div className="h-6 w-6 shrink-0 overflow-hidden rounded-full border border-white/10">
       {peerAvatar
         ? <img src={peerAvatar} alt="" loading="lazy" className="h-full w-full object-cover" />
-        : <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-[10px] font-bold text-white">{peerName.charAt(0)}</div>}
+        : <div className="h-full w-full bg-[#2F3336] grid place-items-center text-[10px] font-bold text-white">{peerName.charAt(0)}</div>}
     </div>
   );
 
@@ -447,7 +447,7 @@ const MessageBubble = memo(function MessageBubble({
           {replyPreview && !isImage && !isAudio && (
             <div
               className={"mb-1.5 flex items-start gap-1.5 rounded-xl px-3 py-2 border-l-2 "
-                + (mine ? "border-purple-400/50 bg-purple-500/10" : "border-white/20 bg-white/5")}
+                + (mine ? "border-[#1D9BF0]/40 bg-[#1D9BF0]/10" : "border-white/20 bg-white/5")}
               style={{ maxWidth: 240 }}
             >
               <CornerUpLeft className="h-3 w-3 shrink-0 mt-0.5 text-white/30" />
@@ -501,11 +501,11 @@ const MessageBubble = memo(function MessageBubble({
                 onChange={(e) => onEditChange(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onEditSave(); } if (e.key === "Escape") onEditCancel(); }}
                 rows={2}
-                className="w-full resize-none rounded-xl border border-purple-500/50 bg-[#0a0a0a] px-3 py-2 text-sm text-white outline-none focus:border-purple-400"
+                className="w-full resize-none rounded-xl border border-[#2F3336] bg-[#16181C] px-3 py-2 text-sm text-white outline-none focus:border-[#1D9BF0]"
               />
               <div className="flex justify-end gap-2">
                 <button onClick={onEditCancel} className="rounded-lg px-2.5 py-1 text-[11px] text-white/50 hover:bg-white/5">Cancel</button>
-                <button onClick={onEditSave} className="rounded-lg bg-purple-600/80 px-2.5 py-1 text-[11px] text-white hover:bg-purple-500">Save</button>
+                <button onClick={onEditSave} className="rounded-lg bg-[#1D9BF0] px-2.5 py-1 text-[11px] text-white hover:bg-[#1a8fd1]">Save</button>
               </div>
             </div>
 
@@ -548,7 +548,7 @@ const MessageBubble = memo(function MessageBubble({
                 </button>
                 <button
                   onClick={() => onUsePrompt(promptText || msg.text || "")}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-[0_4px_14px_-4px_rgba(236,72,153,0.55)] active:scale-95"
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#1D9BF0] px-2.5 py-1.5 text-[11px] font-semibold text-white active:scale-95"
                 >
                   <Wand2 className="h-3 w-3" />
                   Use prompt
@@ -560,7 +560,7 @@ const MessageBubble = memo(function MessageBubble({
             /* ── Text bubble ───────────────────────────────────────── */
             <div className={
               mine
-                ? `${isGrouped ? "rounded-2xl rounded-tr-md" : ""} ${isGroupedNext ? "rounded-br-2xl" : "rounded-br-md"} rounded-2xl bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 px-3.5 py-2 text-sm text-white shadow-[0_4px_18px_-4px_rgba(236,72,153,0.45)]`
+                ? `${isGrouped ? "rounded-2xl rounded-tr-md" : ""} ${isGroupedNext ? "rounded-br-2xl" : "rounded-br-md"} rounded-2xl bg-[#1D9BF0] px-3.5 py-2 text-sm text-white`
                 : `${isGrouped ? "rounded-2xl rounded-tl-md" : ""} ${isGroupedNext ? "rounded-bl-2xl" : "rounded-bl-md"} rounded-2xl border border-white/[0.06] bg-[#0d0d0d] px-3.5 py-2 text-sm text-white`
             }>
               {msg.text}
@@ -580,7 +580,7 @@ const MessageBubble = memo(function MessageBubble({
               key={emoji}
               className={
                 "flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs cursor-default " +
-                (iMine ? "bg-purple-600/40 border border-purple-500/50" : "bg-white/10 border border-white/10")
+                (iMine ? "bg-[#1D9BF0]/30 border border-[#1D9BF0]/50" : "bg-white/10 border border-white/10")
               }
             >
               {emoji}{count > 1 && <span className="text-[10px] text-white/60">{count}</span>}
@@ -594,7 +594,7 @@ const MessageBubble = memo(function MessageBubble({
         <div className={"flex items-center gap-1.5 mt-0.5 " + (mine ? "justify-end pr-1" : "justify-start pl-8")}>
           {!mine && replyIconOpacity > 0.05 && (
             <CornerUpLeft
-              className="h-3 w-3 text-purple-400 shrink-0"
+              className="h-3 w-3 text-[#1D9BF0] shrink-0"
               style={{ opacity: replyIconOpacity }}
             />
           )}
@@ -603,7 +603,7 @@ const MessageBubble = memo(function MessageBubble({
           )}
           {mine && replyIconOpacity > 0.05 && (
             <CornerUpLeft
-              className="h-3 w-3 text-purple-400 shrink-0 scale-x-[-1]"
+              className="h-3 w-3 text-[#1D9BF0] shrink-0 scale-x-[-1]"
               style={{ opacity: replyIconOpacity }}
             />
           )}
@@ -695,7 +695,7 @@ function TypingDots() {
 function AttachBtn({ icon: Icon, label, onClick }: { icon: typeof Send; label: string; onClick: () => void }) {
   return (
     <motion.button whileTap={{ scale: 0.95 }} onClick={onClick} className="flex flex-col items-center gap-1 rounded-xl px-3 py-2 hover:bg-white/5">
-      <span className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-purple-600/80 via-pink-500/70 to-blue-500/80 text-white">
+      <span className="grid h-9 w-9 place-items-center rounded-full bg-[#1D9BF0] text-white">
         <Icon className="h-4 w-4" />
       </span>
       <span className="text-[10px] text-white/70">{label}</span>
@@ -1121,7 +1121,7 @@ export default function ChatThread() {
               {peerAvatar ? (
                 <img src={peerAvatar} alt="" loading="lazy" className="h-full w-full object-cover" />
               ) : (
-                <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-xs font-bold text-white">
+                <div className="h-full w-full bg-[#2F3336] grid place-items-center text-xs font-bold text-white">
                   {peerName.charAt(0)}
                 </div>
               )}
@@ -1164,13 +1164,13 @@ export default function ChatThread() {
                 isVerified={Boolean(otherUser?.is_verified)}
                 size="sm"
               />
-              {nickname && <span className="text-[10px] font-normal text-purple-300/60">(nickname)</span>}
+              {nickname && <span className="text-[10px] font-normal text-[#71767B]">(nickname)</span>}
             </button>
             <AnimatePresence mode="wait">
               {peerTyping ? (
                 <motion.div key="typing" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="flex items-center gap-1">
                   <TypingDots />
-                  <span className="text-[11px] text-purple-300/80">typing…</span>
+                  <span className="text-[11px] text-[#71767B]">typing…</span>
                 </motion.div>
               ) : (
                 <motion.div key="status" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className={"text-[11px] " + (peerOnline ? "text-emerald-400/80" : peerAway ? "text-amber-400/70" : "text-white/40")}>
@@ -1213,7 +1213,7 @@ export default function ChatThread() {
                 {peerAvatar ? (
                   <img src={peerAvatar} alt="" loading="lazy" className="h-full w-full object-cover" />
                 ) : (
-                  <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-lg font-bold text-white">
+                  <div className="h-full w-full bg-[#2F3336] grid place-items-center text-lg font-bold text-white">
                     {peerName.charAt(0)}
                   </div>
                 )}
@@ -1232,7 +1232,7 @@ export default function ChatThread() {
               <div ref={topSentinelRef} className="h-px" />
               {loadingOlder && (
                 <div className="flex justify-center py-3">
-                  <div className="h-5 w-5 rounded-full border-2 border-white/20 border-t-purple-400 animate-spin" />
+                  <div className="h-5 w-5 rounded-full border-2 border-white/20 border-t-[#1D9BF0] animate-spin" />
                 </div>
               )}
               {!hasMore && messages.length > 0 && !loadingOlder && (
@@ -1307,7 +1307,7 @@ export default function ChatThread() {
                       <div className="h-6 w-6 shrink-0 overflow-hidden rounded-full border border-white/10">
                         {peerAvatar
                           ? <img src={peerAvatar} alt="" loading="lazy" className="h-full w-full object-cover" />
-                          : <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-[10px] font-bold text-white">{peerName.charAt(0)}</div>}
+                          : <div className="h-full w-full bg-[#2F3336] grid place-items-center text-[10px] font-bold text-white">{peerName.charAt(0)}</div>}
                       </div>
                       <div className="rounded-2xl rounded-bl-md border border-white/[0.05] bg-[#0d0d0d] px-4 py-3">
                         <TypingDots />
@@ -1329,7 +1329,7 @@ export default function ChatThread() {
                   {peerAvatar ? (
                     <img src={peerAvatar} alt="Seen" loading="lazy" className="h-4 w-4 rounded-full object-cover ring-1 ring-blue-400/60" />
                   ) : (
-                    <div className="h-4 w-4 rounded-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-[7px] font-bold text-white ring-1 ring-blue-400/60">
+                    <div className="h-4 w-4 rounded-full bg-[#1D9BF0] grid place-items-center text-[7px] font-bold text-white">
                       {peerName.charAt(0)}
                     </div>
                   )}
@@ -1367,7 +1367,7 @@ export default function ChatThread() {
               <button
                 onClick={scrollToBottom}
                 className="flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-white shadow-xl"
-                style={{ background: "linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))" }}
+                style={{ background: "#1D9BF0" }}
               >
                 <ChevronDown className="h-3.5 w-3.5" />
                 New message
@@ -1403,11 +1403,11 @@ export default function ChatThread() {
               initial={{ opacity: 0, y: 6, height: 0 }}
               animate={{ opacity: 1, y: 0, height: "auto" }}
               exit={{ opacity: 0, y: 6, height: 0 }}
-              className="flex items-center gap-2.5 border-t border-purple-500/20 bg-purple-500/8 px-4 py-2 overflow-hidden"
+              className="flex items-center gap-2.5 border-t border-[#2F3336] bg-[#16181C] px-4 py-2 overflow-hidden"
             >
-              <CornerUpLeft className="h-3.5 w-3.5 shrink-0 text-purple-400" />
+              <CornerUpLeft className="h-3.5 w-3.5 shrink-0 text-[#1D9BF0]" />
               <div className="flex-1 min-w-0">
-                <span className="text-[10.5px] font-semibold text-purple-300 block">
+                <span className="text-[10.5px] font-semibold text-[#1D9BF0] block">
                   {replyTo.sender_id === myId ? "Replying to yourself" : `Replying to ${peerName}`}
                 </span>
                 <span className="text-[11px] text-white/40 truncate block">
@@ -1450,7 +1450,7 @@ export default function ChatThread() {
             <div className="flex flex-1 items-end rounded-2xl border border-white/[0.06] bg-[#0a0a0a] px-4 py-0">
               {uploading ? (
                 <div className="flex h-10 flex-1 items-center gap-2 text-xs text-white/60">
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-purple-500" />
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-[#1D9BF0]" />
                   Uploading…
                 </div>
               ) : isRecording ? (
@@ -1500,7 +1500,7 @@ export default function ChatThread() {
                 whileTap={{ scale: 0.9 }}
                 onClick={send}
                 disabled={!text.trim() || uploading}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 text-white shadow-[0_4px_18px_-4px_rgba(236,72,153,0.55)] disabled:opacity-40"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#1D9BF0] text-white disabled:opacity-40"
               >
                 <Send className="h-4 w-4" />
               </motion.button>
@@ -1696,7 +1696,7 @@ export default function ChatThread() {
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="mb-4 text-center text-sm font-semibold text-white">
-                Set nickname for <span className="text-purple-300">{otherUser?.name || peerName}</span>
+                Set nickname for <span className="text-[#1D9BF0]">{otherUser?.name || peerName}</span>
               </h3>
               <input
                 autoFocus
@@ -1705,7 +1705,7 @@ export default function ChatThread() {
                 onKeyDown={(e) => { if (e.key === "Enter") handleSaveNickname(); if (e.key === "Escape") setNicknamingOpen(false); }}
                 placeholder={otherUser?.name || "Nickname…"}
                 maxLength={40}
-                className="w-full rounded-xl border border-white/[0.08] bg-[#0a0a0a] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-purple-500"
+                className="w-full rounded-xl border border-white/[0.08] bg-[#0a0a0a] px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-[#1D9BF0]"
               />
               <p className="mt-1.5 text-[10px] text-white/30 text-center">Leave blank to use real name. Right-click the name in the header to reopen.</p>
               <div className="mt-4 flex gap-2">
@@ -1717,7 +1717,7 @@ export default function ChatThread() {
                 </button>
                 <button
                   onClick={handleSaveNickname}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-purple-600 to-pink-500 py-2.5 text-sm font-semibold text-white"
+                  className="flex-1 rounded-xl bg-[#1D9BF0] py-2.5 text-sm font-semibold text-white"
                 >
                   Save
                 </button>

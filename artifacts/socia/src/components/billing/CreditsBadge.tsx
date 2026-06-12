@@ -34,7 +34,7 @@ export function CreditsBadge({
           ? "linear-gradient(135deg,#f59e0b,#fbbf24)"
           : credits < 50
             ? "linear-gradient(135deg,#ef4444,#f97316)"
-            : "linear-gradient(135deg,#a855f7,#ec4899)",
+            : "#1D9BF0",
         ...styleProp,
       }}
       title="Credits & billing"

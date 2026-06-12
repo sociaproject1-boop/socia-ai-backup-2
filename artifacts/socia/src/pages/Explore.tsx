@@ -252,7 +252,7 @@ export default function Explore() {
             whileTap={{ scale: 0.95 }}
             onClick={load}
             className="rounded-full px-4 py-2 text-[13px] font-semibold text-white"
-            style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}
+            style={{ background: "#1D9BF0" }}
           >
             Retry
           </motion.button>

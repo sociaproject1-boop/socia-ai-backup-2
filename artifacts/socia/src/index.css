@@ -34,11 +34,11 @@
   --radius-3xl: calc(var(--radius) + 12px);
 }
 
-/* ─── Accent CSS properties (set by JS via applyPrefs) ─────────────────── */
+/* ─── Accent CSS properties (X / Twitter design system) ────────────────── */
 :root {
-  --accent-primary:   #a855f7;
-  --accent-secondary: #ec4899;
-  --accent-glow:      rgba(168, 85, 247, 0.30);
+  --accent-primary:   #1D9BF0;
+  --accent-secondary: #1D9BF0;
+  --accent-glow:      rgba(29, 155, 240, 0.25);
 }
 
 /* ─── DARK theme (AMOLED pure black) ─────────────────────────────────── */

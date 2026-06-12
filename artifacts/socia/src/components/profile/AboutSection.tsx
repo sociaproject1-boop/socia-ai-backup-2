@@ -195,7 +195,7 @@ export function AboutSection({ profile, isOwnProfile, onEditOpen }: Props) {
                     return (
                       <InfoRow icon={<Globe style={{ width: 13, height: 13 }} />}>
                         <a href={url} target="_blank" rel="noopener noreferrer"
-                          style={{ color: "#a855f7", textDecoration: "none" }}>{display}</a>
+                          style={{ color: "#1D9BF0", textDecoration: "none" }}>{display}</a>
                       </InfoRow>
                     );
                   })()}
@@ -213,14 +213,14 @@ export function AboutSection({ profile, isOwnProfile, onEditOpen }: Props) {
                   <SubLabel>Contact</SubLabel>
                   {profile.public_email && (
                     <InfoRow icon={<Mail style={{ width: 13, height: 13 }} />}>
-                      <a href={`mailto:${profile.public_email}`} style={{ color: "#a855f7", textDecoration: "none" }}>
+                      <a href={`mailto:${profile.public_email}`} style={{ color: "#1D9BF0", textDecoration: "none" }}>
                         {profile.public_email}
                       </a>
                     </InfoRow>
                   )}
                   {profile.public_phone && (
                     <InfoRow icon={<Phone style={{ width: 13, height: 13 }} />}>
-                      <a href={`tel:${profile.public_phone}`} style={{ color: "#a855f7", textDecoration: "none" }}>
+                      <a href={`tel:${profile.public_phone}`} style={{ color: "#1D9BF0", textDecoration: "none" }}>
                         {profile.public_phone}
                       </a>
                     </InfoRow>
@@ -261,7 +261,7 @@ export function AboutSection({ profile, isOwnProfile, onEditOpen }: Props) {
                     onClick={onEditOpen}
                     style={{
                       padding: "6px 16px", borderRadius: 8, border: "none",
-                      background: "rgba(168,85,247,0.15)", color: "#a855f7",
+                      background: "rgba(168,85,247,0.15)", color: "#1D9BF0",
                       fontSize: 12.5, fontWeight: 600, cursor: "pointer",
                     }}
                   >

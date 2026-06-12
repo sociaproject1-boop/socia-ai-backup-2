@@ -454,9 +454,9 @@ const PostCard = memo(function PostCard({
           <Bookmark
             className="h-7 w-7 drop-shadow-lg transition-all duration-150"
             style={{
-              fill:   post.has_saved ? "#a855f7" : "transparent",
-              color:  post.has_saved ? "#a855f7" : "white",
-              filter: post.has_saved ? "drop-shadow(0 0 8px #a855f790)" : undefined,
+              fill:   post.has_saved ? "#1D9BF0" : "transparent",
+              color:  post.has_saved ? "#1D9BF0" : "white",
+              filter: undefined,
             }}
           />
           <span className="text-[11px] font-semibold text-white drop-shadow leading-none">

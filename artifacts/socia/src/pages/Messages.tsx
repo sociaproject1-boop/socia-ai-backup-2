@@ -83,14 +83,14 @@ export default function Messages() {
                   onClick={() => { setComposeOpen(false); setSearching(true); setSearchQuery(""); setSearchResults([]); }}
                   className="flex w-full items-center gap-3 px-4 py-3.5 text-sm text-white/85 hover:bg-white/[0.06]"
                 >
-                  <MessageSquare className="h-4 w-4 text-purple-400" />
+                  <MessageSquare className="h-4 w-4 text-[#1D9BF0]" />
                   New Message
                 </button>
                 <button
                   onClick={() => { setComposeOpen(false); setGroupFlowOpen(true); }}
                   className="flex w-full items-center gap-3 border-t border-white/[0.06] px-4 py-3.5 text-sm text-white/85 hover:bg-white/[0.06]"
                 >
-                  <Users className="h-4 w-4 text-pink-400" />
+                  <Users className="h-4 w-4 text-[#1D9BF0]" />
                   New Group
                 </button>
               </motion.div>
@@ -113,15 +113,13 @@ export default function Messages() {
               <div className="flex items-center gap-2.5">
                 <div className={
                   "flex h-8 w-8 items-center justify-center rounded-full transition-all " +
-                  (ai.enabled
-                    ? "bg-gradient-to-br from-purple-600 via-pink-500 to-blue-500 shadow-[0_0_14px_rgba(168,85,247,0.5)]"
-                    : "bg-white/[0.08]")
+                  (ai.enabled ? "bg-[#1D9BF0]" : "bg-white/[0.08]")
                 }>
                   <Bot className={"h-4 w-4 " + (ai.enabled ? "text-white" : "text-white/50")} />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-white">AI Auto Reply</p>
-                  <p className={"text-[11px] " + (ai.enabled ? "text-purple-300" : "text-white/40")}>
+                  <p className={"text-[11px] " + (ai.enabled ? "text-[#1D9BF0]" : "text-white/40")}>
                     {ai.enabled
                       ? (ai.mode === "offline" ? "Offline mode — always on" : "Online mode — yields on activity")
                       : "Off — manual replies only"}
@@ -135,9 +133,7 @@ export default function Messages() {
                 onClick={() => ai.toggle(!ai.enabled, ai.mode)}
                 className={
                   "relative h-6 w-11 rounded-full transition-all duration-300 focus:outline-none disabled:opacity-50 " +
-                  (ai.enabled
-                    ? "bg-gradient-to-r from-purple-600 to-pink-500"
-                    : "bg-white/[0.12]")
+                  (ai.enabled ? "bg-[#1D9BF0]" : "bg-white/[0.12]")
                 }
                 aria-label={ai.enabled ? "Disable AI auto reply" : "Enable AI auto reply"}
               >
@@ -169,7 +165,7 @@ export default function Messages() {
                       className={
                         "flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-semibold transition-all disabled:opacity-50 " +
                         (ai.mode === "offline"
-                          ? "bg-purple-600/30 text-purple-300 border border-purple-500/40"
+                          ? "bg-[#1D9BF0]/20 text-[#1D9BF0] border border-[#1D9BF0]/40"
                           : "bg-white/[0.05] text-white/50 border border-white/[0.06] hover:bg-white/[0.08]")
                       }
                     >
@@ -235,7 +231,7 @@ export default function Messages() {
             {/* Search results */}
             {searchLoading && (
               <div className="py-8 text-center">
-                <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-purple-500 inline-block" />
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-[#1D9BF0] inline-block" />
               </div>
             )}
 
@@ -254,12 +250,12 @@ export default function Messages() {
                 {/* Avatar — tap → profile */}
                 <button
                   onClick={() => { setSearching(false); navigate(`/profile/${user.id}`); }}
-                  className="h-11 w-11 shrink-0 overflow-hidden rounded-full border border-white/10 hover:ring-2 hover:ring-purple-500/40 transition-all"
+                  className="h-11 w-11 shrink-0 overflow-hidden rounded-full border border-white/10 hover:ring-2 hover:ring-[#1D9BF0]/40 transition-all"
                 >
                   {user.avatar_url ? (
                     <img src={user.avatar_url} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-sm font-bold text-white">
+                    <div className="h-full w-full bg-[#2F3336] grid place-items-center text-sm font-bold text-white">
                       {user.name.charAt(0).toUpperCase()}
                     </div>
                   )}
@@ -309,7 +305,7 @@ export default function Messages() {
             <h3 className="text-xs font-semibold uppercase tracking-wide text-white/40">Groups</h3>
             <button
               onClick={() => setGroupFlowOpen(true)}
-              className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-purple-400 hover:bg-purple-500/10"
+              className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] text-[#1D9BF0] hover:bg-[#1D9BF0]/10"
             >
               <Plus className="h-3 w-3" /> New
             </button>
@@ -341,7 +337,7 @@ export default function Messages() {
                       {group.avatar_url ? (
                         <img src={group.avatar_url} alt="" className="h-full w-full object-cover" />
                       ) : (
-                        <div className="h-full w-full bg-gradient-to-br from-violet-600 via-purple-500 to-pink-600 grid place-items-center">
+                        <div className="h-full w-full bg-[#2F3336] grid place-items-center">
                           <Users className="h-5 w-5 text-white" />
                         </div>
                       )}
@@ -362,7 +358,7 @@ export default function Messages() {
                             : `${group.member_count ?? "?"} members`}
                         </p>
                         {(group.unread_count ?? 0) > 0 && (
-                          <span className="min-w-[18px] rounded-full bg-pink-500 px-1.5 py-0.5 text-center text-[10px] font-bold text-white neon-pulse">
+                          <span className="min-w-[18px] rounded-full bg-[#1D9BF0] px-1.5 py-0.5 text-center text-[10px] font-bold text-white">
                             {group.unread_count}
                           </span>
                         )}
@@ -491,7 +487,7 @@ function ConvRow({
             {avatar ? (
               <img src={avatar} alt="" className="h-full w-full object-cover" />
             ) : (
-              <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-sm font-bold text-white">
+              <div className="h-full w-full bg-[#2F3336] grid place-items-center text-sm font-bold text-white">
                 {name.charAt(0).toUpperCase()}
               </div>
             )}
@@ -530,7 +526,7 @@ function ConvRow({
               {preview || "Start a conversation"}
             </p>
             {unread && (
-              <span className="h-2 w-2 shrink-0 rounded-full bg-pink-500 neon-pulse" />
+              <span className="h-2 w-2 shrink-0 rounded-full bg-[#1D9BF0]" />
             )}
           </div>
         </div>

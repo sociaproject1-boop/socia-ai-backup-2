@@ -92,7 +92,7 @@ export function TopBar() {
               onClick={() => navigate("/auth?mode=signup")}
               className="rounded-full px-3 py-1.5 text-[12px] font-bold text-white"
               style={{
-                background: "linear-gradient(135deg,#a855f7,#ec4899)",
+                background: "#1D9BF0",
                 height: 30,
                 flexShrink: 0,
               }}

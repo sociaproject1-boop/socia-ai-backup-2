@@ -630,7 +630,7 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
                         <img src={avatarSrc} alt="avatar"
                           className={"h-full w-full object-cover " + (avatarUploading ? "opacity-50" : "")} />
                       ) : (
-                        <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-xl font-bold text-white">
+                        <div className="h-full w-full bg-[#2F3336] grid place-items-center text-xl font-bold text-white">
                           {avatarUploading
                             ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                             : initials}
@@ -978,7 +978,7 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
                 <FieldLabel label="Gender">
                   <div className="flex flex-wrap gap-2">
                     {GENDER_OPTIONS.map((g) => (
-                      <ChipBtn key={g} active={gender === g} onClick={() => setGender(g)} color="purple">{g}</ChipBtn>
+                      <ChipBtn key={g} active={gender === g} onClick={() => setGender(g)} color="blue">{g}</ChipBtn>
                     ))}
                   </div>
                 </FieldLabel>
@@ -1000,9 +1000,9 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
                 {locationData.displayName ? (
                   <div className="flex items-center gap-3 rounded-[13px] px-3.5 py-3"
                     style={{ background: "rgba(168,85,247,0.09)", border: "1px solid rgba(168,85,247,0.25)" }}>
-                    <MapPin style={{ width: 14, height: 14, color: "#a855f7", flexShrink: 0 }} />
+                    <MapPin style={{ width: 14, height: 14, color: "#1D9BF0", flexShrink: 0 }} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold truncate" style={{ color: "#a855f7" }}>
+                      <p className="text-[13px] font-semibold truncate" style={{ color: "#1D9BF0" }}>
                         {locationData.displayName}
                       </p>
                       <div className="flex gap-1.5 flex-wrap mt-0.5">
@@ -1014,7 +1014,7 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
                     <motion.button type="button" whileTap={{ scale: 0.9 }}
                       onClick={() => setLocationPickerOpen(true)}
                       className="flex-shrink-0 rounded-full px-2.5 py-1.5 text-[11px] font-semibold"
-                      style={{ background: "rgba(168,85,247,0.2)", color: "#a855f7" }}>
+                      style={{ background: "rgba(168,85,247,0.2)", color: "#1D9BF0" }}>
                       Change
                     </motion.button>
                   </div>
@@ -1052,7 +1052,7 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
               <SectionCard icon={<BarChart2 style={{ width: 14, height: 14 }} />} title="Profile Insights">
                 <div className="grid grid-cols-2 gap-2.5">
                   {[
-                    { icon: <Eye style={{ width: 16, height: 16 }} />,         label: "Profile Views",    value: profileViews,  color: "#a855f7" },
+                    { icon: <Eye style={{ width: 16, height: 16 }} />,         label: "Profile Views",    value: profileViews,  color: "#1D9BF0" },
                     { icon: <Link2 style={{ width: 16, height: 16 }} />,        label: "Link Clicks",      value: linkClicks,    color: "#3b82f6" },
                     { icon: <UserCheck style={{ width: 16, height: 16 }} />,    label: "Followers",        value: followerCount, color: "#06d6a0" },
                     { icon: <TrendingUp style={{ width: 16, height: 16 }} />,   label: "Engagement Score", value: followerCount > 0 ? Math.min(100, Math.round((followerCount * 3 + (profileViews || 0)) / 10)) : 0, color: "#f59e0b", suffix: "%" },
@@ -1090,7 +1090,7 @@ export function EditProfileModal({ open, onClose, onSaved, initialCoverUrl }: Pr
                         style={{
                           background: privacy.postsVisibility === v ? "rgba(168,85,247,0.18)" : "rgba(255,255,255,0.04)",
                           border:     privacy.postsVisibility === v ? "1px solid rgba(168,85,247,0.5)" : "1px solid rgba(255,255,255,0.07)",
-                          color:      privacy.postsVisibility === v ? "#a855f7" : "rgba(255,255,255,0.38)",
+                          color:      privacy.postsVisibility === v ? "#1D9BF0" : "rgba(255,255,255,0.38)",
                         }}
                       >{v}</motion.button>
                     ))}
@@ -1164,7 +1164,7 @@ function SectionCard({ icon, title, children }: { icon: React.ReactNode; title: 
       style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)" }}>
       <div className="flex items-center gap-2.5 px-4 py-3"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.055)" }}>
-        <span style={{ color: "#a855f7" }}>{icon}</span>
+        <span style={{ color: "#1D9BF0" }}>{icon}</span>
         <span className="text-[10.5px] font-black uppercase tracking-[0.17em]"
           style={{ color: "rgba(168,85,247,0.8)" }}
           dangerouslySetInnerHTML={{ __html: title }} />
@@ -1186,11 +1186,11 @@ function FieldLabel({ label, children }: { label: string; children: React.ReactN
 }
 
 function ChipBtn({ active, onClick, color, children }: {
-  active: boolean; onClick: () => void; color: "purple" | "pink"; children: React.ReactNode;
+  active: boolean; onClick: () => void; color: "blue" | "blue"; children: React.ReactNode;
 }) {
-  const a = color === "purple"
-    ? { bg: "rgba(168,85,247,0.18)", border: "rgba(168,85,247,0.5)", text: "#a855f7" }
-    : { bg: "rgba(236,72,153,0.18)", border: "rgba(236,72,153,0.5)", text: "#ec4899" };
+  const a = color === "blue"
+    ? { bg: "rgba(29,155,240,0.15)", border: "rgba(29,155,240,0.4)", text: "#1D9BF0" }
+    : { bg: "rgba(29,155,240,0.15)", border: "rgba(29,155,240,0.4)", text: "#1D9BF0" };
   return (
     <motion.button type="button" whileTap={{ scale: 0.93 }} onClick={onClick}
       className="rounded-full px-3 py-1.5 text-[11.5px] font-semibold transition-all"

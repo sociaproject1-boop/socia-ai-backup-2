@@ -77,7 +77,7 @@ function MusicDisc({ sound, soundId, navigate, size = 44 }: {
               draggable={false}
             />
           ) : (
-            <Music2 className="text-purple-300" style={{ width: size * 0.38, height: size * 0.38 }} />
+            <Music2 className="text-[#71767B]" style={{ width: size * 0.38, height: size * 0.38 }} />
           )}
         </span>
         {/* centre hole — static */}
@@ -230,11 +230,11 @@ export const FeedCard = memo(function FeedCard({ post, onLike, onSave, onComment
 
   return (
     <article
-      className="mx-3 my-2 overflow-hidden rounded-[18px]"
-      style={{ background: "rgba(14,14,14,1)", border: "1px solid rgba(255,255,255,0.07)" }}
+      className="w-full overflow-hidden"
+      style={{ borderBottom: "1px solid #2F3336" }}
     >
       {/* ── Header ────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 px-4 pt-3 pb-2">
+      <div className="flex items-start gap-3 px-4 pt-3 pb-2">
         <motion.button
           whileTap={{ scale: 0.92 }}
           onClick={() => navigate(isMe ? "/profile" : `/profile/${post.author_id}`)}
@@ -291,8 +291,8 @@ export const FeedCard = memo(function FeedCard({ post, onLike, onSave, onComment
             disabled={followWorking}
             className="rounded-full px-3 py-1 text-[11px] font-bold transition disabled:opacity-50 flex-shrink-0"
             style={isFollowing
-              ? { background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.12)" }
-              : { background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))", color: "white" }
+              ? { background: "transparent", color: "#E7E9EA", border: "1px solid #536471" }
+              : { background: "#E7E9EA", color: "#000000" }
             }
           >
             {isFollowing ? "Following" : "Follow"}
@@ -484,7 +484,6 @@ export const FeedCard = memo(function FeedCard({ post, onLike, onSave, onComment
       {/* ── Action bar: Like · Comment · Share · Save + view count ───── */}
       <div
         className="flex items-center px-2 pt-1 pb-2"
-        style={{ borderTop: media.length === 0 ? "1px solid rgba(255,255,255,0.05)" : undefined }}
       >
         {/* Like */}
         <motion.button
@@ -534,7 +533,7 @@ export const FeedCard = memo(function FeedCard({ post, onLike, onSave, onComment
         >
           <Bookmark
             className="h-[19px] w-[19px] transition-colors flex-shrink-0"
-            style={{ fill: post.has_saved ? "#a855f7" : "none", color: post.has_saved ? "#a855f7" : "rgba(255,255,255,0.65)" }}
+            style={{ fill: post.has_saved ? "#1D9BF0" : "none", color: post.has_saved ? "#1D9BF0" : "rgba(255,255,255,0.65)" }}
           />
         </motion.button>
 

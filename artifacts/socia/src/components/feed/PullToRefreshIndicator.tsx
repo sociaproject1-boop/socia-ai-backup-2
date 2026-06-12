@@ -103,7 +103,7 @@ export function PullToRefreshIndicator({ phase, indicatorRef }: Props) {
         left:       0,
         right:      0,
         height:     2,
-        background: "linear-gradient(90deg, #a855f7, #6366f1, #3b82f6)",
+        background: "#1D9BF0",
         opacity:    0.7,
       }} />
 

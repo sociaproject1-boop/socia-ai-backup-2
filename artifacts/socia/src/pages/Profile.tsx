@@ -44,10 +44,10 @@ interface AdminCardDef {
 const ADMIN_CARDS: AdminCardDef[] = [
   { iconPath: "M12 2L3 7v10l9 5 9-5V7L12 2zM12 12L5.5 8.5M12 12v9M12 12l6.5-3.5", label: "Admin Panel", sub: "Manage users, bans, payments\n& system settings", status: "ACTIVE", dot: "#22c55e", wave: false, waveColor: "#22c55e", href: "/admin" },
   { iconPath: "M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18", label: "AI Engine Monitor", sub: "Live engine performance\n& system resources", status: "ONLINE", dot: "#22c55e", wave: true, waveColor: "#22c55e", href: "/admin/ai-monitor" },
-  { iconPath: "M22 12h-4l-3 9L9 3 6 12H2", label: "Render Queue", sub: "Active & queued\ncinematic jobs", status: "LIVE", dot: "#a855f7", wave: true, waveColor: "#a855f7", href: "/admin/render-queue" },
+  { iconPath: "M22 12h-4l-3 9L9 3 6 12H2", label: "Render Queue", sub: "Active & queued\ncinematic jobs", status: "LIVE", dot: "#1D9BF0", wave: true, waveColor: "#1D9BF0", href: "/admin/render-queue" },
   { iconPath: "M12 2a10 10 0 100 20A10 10 0 0012 2zM2 12h4M18 12h4M12 2v4M12 18v4", label: "System Status", sub: "API • Database • Storage\n• CDN • Security", status: "ALL SYSTEMS GO", dot: "#22c55e", wave: false, waveColor: "#22c55e", href: "/admin/system-status" },
   { iconPath: "M3 10h18M7 15h1m4 0h1M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z", label: "Payment Monitor", sub: "PayMongo health & checkout\nmaintenance controls", status: "LIVE", dot: "#34d399", wave: true, waveColor: "#34d399", href: "/owner/payments" },
-  { iconPath: "M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 7h10v10H7V7z", label: "AI Command Center", sub: "Providers • balances • spend\n• generation metrics", status: "MONITORING", dot: "#a855f7", wave: true, waveColor: "#a855f7", href: "/owner/ai" },
+  { iconPath: "M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 7h10v10H7V7z", label: "AI Command Center", sub: "Providers • balances • spend\n• generation metrics", status: "MONITORING", dot: "#1D9BF0", wave: true, waveColor: "#1D9BF0", href: "/owner/ai" },
 ];
 
 function AdminCard({ card, navigate }: { card: AdminCardDef; navigate: (to: string) => void }) {
@@ -392,7 +392,7 @@ export default function Profile() {
                           className="h-full w-full object-cover"
                           onError={() => setAvatarBroken(true)} />
                       ) : (
-                        <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-2xl font-bold text-white">
+                        <div className="h-full w-full bg-gradient-to-br bg-[#2F3336] grid place-items-center text-2xl font-bold text-white">
                           {initials}
                         </div>
                       )}
@@ -447,7 +447,7 @@ export default function Profile() {
               </motion.button>
               <motion.button whileTap={{ scale: 0.97 }} onClick={() => navigate("/creator/dashboard")}
                 className="flex items-center gap-1.5 rounded-[14px] px-4 py-2.5 text-[13px] font-semibold"
-                style={{ background: "linear-gradient(135deg,rgba(168,85,247,0.15),rgba(236,72,153,0.15))", border: "1px solid rgba(168,85,247,0.3)", color: "#a855f7" }}>
+                style={{ background: "rgba(29,155,240,0.1)", border: "1px solid rgba(29,155,240,0.3)", color: "#1D9BF0" }}>
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5">
                   <path d="M2 12h12M2 8l4-4 3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
@@ -512,7 +512,7 @@ export default function Profile() {
       >
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full"
           style={{ background: "linear-gradient(135deg,rgba(168,85,247,0.22),rgba(236,72,153,0.12))", border: "1px solid rgba(168,85,247,0.28)" }}>
-          <Feather className="h-3.5 w-3.5 text-purple-400" />
+          <Feather className="h-3.5 w-3.5 text-[#1D9BF0]" />
         </span>
         <span className="flex-1 text-[13px] text-white/30">Write a Moment…</span>
         <span className="text-[10px] font-mono text-white/15">⌘E</span>
@@ -606,13 +606,13 @@ function ExtendedInfoRow({ user, showLocation, showBirthday, showRelStatus, cent
         link ? (
           <a key={text} href={link} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1 text-[12px] font-medium"
-            style={{ color: "#a855f7" }}>
-            <span className="text-purple-400">{icon}</span>
+            style={{ color: "#1D9BF0" }}>
+            <span className="text-[#1D9BF0]">{icon}</span>
             <span>{text}</span>
           </a>
         ) : (
           <span key={text} className="flex items-center gap-1 text-[12px] app-text-muted">
-            <span className="text-purple-400">{icon}</span>
+            <span className="text-[#1D9BF0]">{icon}</span>
             <span>{text}</span>
           </span>
         )

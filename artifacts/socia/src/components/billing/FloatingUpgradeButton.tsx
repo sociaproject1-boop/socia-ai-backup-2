@@ -48,7 +48,7 @@ export function FloatingUpgradeButton() {
 
   const tone = credits < 15
     ? { bg: "linear-gradient(135deg,#ef4444,#f97316)", glow: "rgba(239,68,68,0.55)" }
-    : { bg: "linear-gradient(135deg,#a855f7,#ec4899)", glow: "rgba(168,85,247,0.55)" };
+    : { bg: "#1D9BF0", glow: "rgba(29,155,240,0.45)" };
 
   const label = isFree ? "Upgrade" : credits < 15 ? "Top up now" : "Top up";
 

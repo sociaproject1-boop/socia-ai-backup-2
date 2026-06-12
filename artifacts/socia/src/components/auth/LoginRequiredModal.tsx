@@ -115,7 +115,7 @@ export function LoginRequiredModal({ open, onClose, toolName }: LoginRequiredMod
                 >
                   <span
                     className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
-                    style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}
+                    style={{ background: "#1D9BF0" }}
                   >
                     <Icon className="h-2.5 w-2.5 text-white" strokeWidth={2.5} />
                   </span>
@@ -131,7 +131,7 @@ export function LoginRequiredModal({ open, onClose, toolName }: LoginRequiredMod
               whileTap={{ scale: 0.97 }}
               onClick={() => { onClose(); navigate("/auth?mode=signup"); }}
               className="mb-2.5 w-full rounded-2xl py-3.5 text-[15px] font-bold text-white"
-              style={{ background: "linear-gradient(135deg,#7c3aed,#a855f7,#ec4899)" }}
+              style={{ background: "#1D9BF0" }}
             >
               Create Free Account
             </motion.button>
