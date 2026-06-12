@@ -261,14 +261,52 @@ class QueryBuilder {
     }
 
     if (this._orFilter) {
-      const orParts = this._orFilter.split(",").map((part) => {
-        const m = part.trim().match(/^(\w+)\.(ilike|eq|neq|gt|lt|gte|lte)\.(.+)$/);
+      /* PostgREST-style or() filter parser.
+       * Handles:
+       *   col.op.val                          → simple condition
+       *   and(col.op.val,col2.op.val2)        → AND group (for thread filters)
+       * Operator mapping: eq→= neq→!= gt→> lt→< gte→>= lte→<= ilike→ILIKE like→LIKE */
+      const SQL_OP: Record<string, string> = {
+        eq: "=", neq: "!=", gt: ">", lt: "<", gte: ">=", lte: "<=",
+        ilike: "ILIKE", like: "LIKE",
+      };
+
+      const splitTopLevel = (s: string): string[] => {
+        const result: string[] = [];
+        let depth = 0;
+        let cur = "";
+        for (const ch of s) {
+          if (ch === "(") depth++;
+          else if (ch === ")") depth--;
+          if (ch === "," && depth === 0) { result.push(cur.trim()); cur = ""; }
+          else cur += ch;
+        }
+        if (cur.trim()) result.push(cur.trim());
+        return result;
+      };
+
+      const parseCondition = (cond: string): string => {
+        const andMatch = cond.match(/^and\((.+)\)$/s);
+        if (andMatch) {
+          const inner = splitTopLevel(andMatch[1]!);
+          const innerSql = inner.map(parseCondition).filter(Boolean);
+          return innerSql.length ? `(${innerSql.join(" AND ")})` : "";
+        }
+        const m = cond.match(/^(\w+)\.(eq|neq|gt|lt|gte|lte|ilike|like|is)\.(.+)$/);
         if (!m) return "";
         const [, col, op, valStr] = m;
+        if (op === "is") {
+          if (valStr === "null") return `"${col}" IS NULL`;
+          if (valStr === "true") return `"${col}" IS TRUE`;
+          if (valStr === "false") return `"${col}" IS FALSE`;
+          return "";
+        }
         const ph = `$${i++}`;
-        params.push(op === "ilike" ? valStr : valStr);
-        return `"${col}" ${op === "ilike" ? "ILIKE" : op!.toUpperCase()} ${ph}`;
-      }).filter(Boolean);
+        params.push(valStr);
+        return `"${col}"::text ${SQL_OP[op!] ?? "="} ${ph}`;
+      };
+
+      const orParts = splitTopLevel(this._orFilter).map(parseCondition).filter(Boolean);
       if (orParts.length) parts.push(`(${orParts.join(" OR ")})`);
     }
 

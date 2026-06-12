@@ -113,6 +113,13 @@ function apiHeaders(extra?: Record<string, string>): Record<string, string> {
   return h;
 }
 
+/** Returns the current Supabase access token, or null if not signed in.
+ *  Used by other modules (e.g. useGroupChat) that need to attach the token
+ *  to their own fetch calls without importing the full supabase object. */
+export function getAccessToken(): string | null {
+  return _accessToken;
+}
+
 /* ── DB query shim (routes through /api/db-proxy) ────────────────────────── *
  * Preserves backend security model — all data reads/writes go through the
  * Express server which enforces auth and business logic.                       */

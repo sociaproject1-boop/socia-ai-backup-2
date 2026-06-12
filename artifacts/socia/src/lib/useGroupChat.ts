@@ -7,7 +7,7 @@
  *  - cleanup via supabase.removeChannel()
  */
 import { useEffect, useState, useCallback, useRef } from "react";
-import { supabase } from "./supabase";
+import { supabase, getAccessToken } from "./supabase";
 
 export interface GroupAttachment {
   url:   string;
@@ -60,9 +60,14 @@ export interface ChatGroup {
 
 /* ── API helpers ─────────────────────────────────────────────────────────── */
 async function apiFetch(path: string, opts?: RequestInit) {
+  const token = getAccessToken();
   const res = await fetch(`/api${path}`, {
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...(opts?.headers ?? {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(opts?.headers ?? {}),
+    },
     ...opts,
   });
   const json = await res.json().catch(() => ({}));
