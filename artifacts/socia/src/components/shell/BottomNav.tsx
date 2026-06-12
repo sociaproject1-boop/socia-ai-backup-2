@@ -1,27 +1,47 @@
 import { useLocation } from "wouter";
-import { Home, Search, Plus, Bell, Mail, Upload, Video, Image as ImageIcon, BookImage, X } from "lucide-react";
+import { Home, Search, Bell, Mail, X, Upload, Video, Image as ImageIcon, BookImage } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "@/lib/store";
 import { useState } from "react";
 import { GuestAuthModal } from "@/components/guest/GuestAuthModal";
+import markUrl from "@assets/splash2/mark.png";
 
 /* ── Tab definitions ─────────────────────────────────────────────────────── */
 
 const AUTH_TABS = [
-  { path: "/",             label: "Home",          icon: Home,   match: (l: string) => l === "/" },
-  { path: "/search",       label: "Search",        icon: Search, match: (l: string) => l.startsWith("/search") || l.startsWith("/explore") },
-  { path: "__create__",    label: "Post",          icon: Plus,   match: (_l: string) => false },
-  { path: "/notifications",label: "Notifications", icon: Bell,   match: (l: string) => l.startsWith("/notifications") },
-  { path: "/messages",     label: "Messages",      icon: Mail,   match: (l: string) => l.startsWith("/messages") },
+  { path: "/",              label: "Home",          icon: Home,   match: (l: string) => l === "/" },
+  { path: "/search",        label: "Search",        icon: Search, match: (l: string) => l.startsWith("/search") || l.startsWith("/explore") },
+  { path: "__create__",     label: "Socia",         icon: null,   match: (_l: string) => false },
+  { path: "/notifications", label: "Notifications", icon: Bell,   match: (l: string) => l.startsWith("/notifications") },
+  { path: "/messages",      label: "Messages",      icon: Mail,   match: (l: string) => l.startsWith("/messages") },
 ] as const;
 
 const GUEST_TABS = [
-  { path: "/",        label: "Home",    icon: Home,   match: (l: string) => l === "/" },
-  { path: "/explore", label: "Explore", icon: Search, match: (l: string) => l.startsWith("/explore") || l.startsWith("/hashtag") || l.startsWith("/search") },
-  { path: "__auth__", label: "Post",    icon: Plus,   match: (_l: string) => false },
-  { path: "__auth__", label: "Notify",  icon: Bell,   match: (_l: string) => false },
-  { path: "__auth__", label: "Messages",icon: Mail,   match: (_l: string) => false },
+  { path: "/",        label: "Home",          icon: Home,   match: (l: string) => l === "/" },
+  { path: "/explore", label: "Search",        icon: Search, match: (l: string) => l.startsWith("/explore") || l.startsWith("/hashtag") || l.startsWith("/search") },
+  { path: "__auth__", label: "Socia",         icon: null,   match: (_l: string) => false },
+  { path: "__auth__", label: "Notifications", icon: Bell,   match: (_l: string) => false },
+  { path: "__auth__", label: "Messages",      icon: Mail,   match: (_l: string) => false },
 ] as const;
+
+/* ── Socia S logo mark ───────────────────────────────────────────────────── */
+function SociaLogoMark({ size = 28 }: { size?: number }) {
+  return (
+    <img
+      src={markUrl}
+      alt="Socia"
+      style={{
+        width: size,
+        height: size,
+        objectFit: "contain",
+        display: "block",
+        pointerEvents: "none",
+        userSelect: "none",
+      }}
+      draggable={false}
+    />
+  );
+}
 
 /* ── Upload options sheet ─────────────────────────────────────────────────── */
 function UploadSheet({ open, onClose, onSelect }: {
@@ -153,16 +173,16 @@ export function BottomNav() {
       <nav style={{ ...navStyle, ...slideStyle }}>
         <ul style={{ display: "flex", alignItems: "stretch", padding: 0, margin: 0, listStyle: "none", width: "100%" }}>
           {tabs.map((tab, idx) => {
-            const active = tab.match(location);
-            const Icon = tab.icon;
-            const isCreate = tab.path === "__create__";
+            const active     = tab.match(location);
+            const Icon       = tab.icon;
+            const isCenter   = tab.label === "Socia";
             const isMessages = tab.label === "Messages" && isAuthenticated;
-            const badge = isMessages && unreadMessageCount > 0;
+            const badge      = isMessages && unreadMessageCount > 0;
 
             return (
               <li key={idx} style={{ flex: 1 }}>
                 <motion.button
-                  whileTap={{ scale: 0.86 }}
+                  whileTap={{ scale: isCenter ? 0.90 : 0.86 }}
                   transition={{ type: "spring", stiffness: 620, damping: 28 }}
                   onClick={() => handleTabClick(tab.path)}
                   aria-label={tab.label}
@@ -174,18 +194,21 @@ export function BottomNav() {
                     background: "none", border: "none", cursor: "pointer", minWidth: 0,
                   }}
                 >
-                  {isCreate ? (
-                    /* Plus button — outlined rectangle like X */
-                    <span style={{
-                      display: "inline-flex", alignItems: "center", justifyContent: "center",
-                      width: 34, height: 28,
-                      border: "2px solid #E7E9EA",
-                      borderRadius: 8,
-                      color: "#E7E9EA",
-                    }}>
-                      <Icon style={{ width: 16, height: 16 }} />
-                    </span>
-                  ) : (
+                  {isCenter ? (
+                    /* Socia brand logo mark in the center slot */
+                    <motion.span
+                      whileTap={{ scale: 0.88 }}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: 36,
+                        height: 36,
+                      }}
+                    >
+                      <SociaLogoMark size={30} />
+                    </motion.span>
+                  ) : Icon ? (
                     <span style={{ position: "relative", display: "inline-flex" }}>
                       <Icon style={{
                         width: 24, height: 24,
@@ -208,7 +231,7 @@ export function BottomNav() {
                         </span>
                       )}
                     </span>
-                  )}
+                  ) : null}
                 </motion.button>
               </li>
             );

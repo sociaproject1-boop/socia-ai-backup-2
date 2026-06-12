@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --force",
+    "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
     "build:cap": "PORT=3000 BASE_PATH=./ NODE_ENV=production vite build",
