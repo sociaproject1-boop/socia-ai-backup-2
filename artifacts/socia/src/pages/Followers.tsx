@@ -233,7 +233,7 @@ export default function FollowList({ mode }: Props) {
                         {u.avatar_url ? (
                           <img src={u.avatar_url} alt="" className="h-full w-full object-cover" loading="lazy" />
                         ) : (
-                          <div className="grid h-full w-full place-items-center bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 text-base font-bold text-white">
+                          <div className="grid h-full w-full place-items-center bg-[#1D9BF0] text-base font-bold text-white">
                             {initials}
                           </div>
                         )}

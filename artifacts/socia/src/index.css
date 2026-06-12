@@ -224,8 +224,7 @@ html.light {
 
   /* Accent gradient — uses JS-set CSS vars so colour changes apply everywhere */
   .text-gradient {
-    @apply bg-clip-text text-transparent;
-    background-image: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+    color: var(--accent-primary);
   }
   .bg-accent-gradient {
     background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));

@@ -117,7 +117,7 @@ export function MutualConnections({ profileUserId, viewerId }: Props) {
               {u.avatar_url ? (
                 <img src={u.avatar_url} alt={u.name ?? ""} className="h-full w-full object-cover" loading="lazy" />
               ) : (
-                <div className="h-full w-full bg-gradient-to-br from-purple-600 to-pink-500 grid place-items-center">
+                <div className="h-full w-full bg-[#1D9BF0] grid place-items-center">
                   <span className="text-[9px] font-bold text-white">
                     {(u.name ?? u.username ?? "?")[0]?.toUpperCase()}
                   </span>

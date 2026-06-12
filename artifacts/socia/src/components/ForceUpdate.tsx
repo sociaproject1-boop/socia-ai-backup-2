@@ -74,7 +74,7 @@ export default function ForceUpdate({
           display:        "inline-block",
           padding:        "14px 32px",
           borderRadius:   "999px",
-          background:     "linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #6366f1 100%)",
+          background:     "#1D9BF0",
           color:          "#fff",
           fontSize:       "15px",
           fontWeight:     600,

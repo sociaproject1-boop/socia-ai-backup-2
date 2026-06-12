@@ -498,7 +498,7 @@ export default function CreatePromptVideo() {
               />
               {/* Custom thumb */}
               <div
-                className="absolute h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white bg-gradient-to-br from-purple-500 to-pink-500 shadow-[0_0_8px_rgba(236,72,153,0.6)]"
+                className="absolute h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white bg-[#1D9BF0] shadow-[0_0_8px_rgba(236,72,153,0.6)]"
                 style={{ left: `${((duration - 2) / 8) * 100}%` }}
               />
             </div>
@@ -681,7 +681,7 @@ export default function CreatePromptVideo() {
           <span className="rounded-full border border-pink-500/20 bg-pink-900/15 px-2.5 py-0.5 text-[10px] text-pink-300/70">
             {style}
           </span>
-          <span className="rounded-full border border-purple-500/20 bg-purple-900/15 px-2.5 py-0.5 text-[10px] text-purple-300/70">
+          <span className="rounded-full border border-purple-500/20 bg-purple-900/15 px-2.5 py-0.5 text-[10px] text-[#1D9BF0]/70">
             {aspect}
           </span>
           <span className="rounded-full border border-white/[0.07] bg-white/[0.03] px-2.5 py-0.5 text-[10px] text-white/35">
@@ -700,7 +700,7 @@ export default function CreatePromptVideo() {
           onClick={handleGenerate}
           className={`relative flex w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl text-[15px] font-semibold text-white transition-all duration-200 ${
             canGenerate
-              ? "bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 shadow-[0_6px_32px_-6px_rgba(236,72,153,0.55)] hover:shadow-[0_6px_40px_-4px_rgba(236,72,153,0.70)] hover:brightness-110"
+              ? "bg-[#1D9BF0] shadow-[0_6px_32px_-6px_rgba(29,155,240,0.35)] hover:shadow-[0_6px_40px_-4px_rgba(29,155,240,0.50)] hover:brightness-110"
               : "bg-white/[0.05] text-white/20 cursor-not-allowed"
           }`}
           style={{ height: 52 }}
@@ -937,7 +937,7 @@ function VideoResultOverlay({
                 initial={{ scale: 0.7, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.25, type: "spring", stiffness: 300, damping: 22 }}
-                className="grid h-14 w-14 place-items-center rounded-full border border-white/20 bg-gradient-to-br from-purple-600/80 via-pink-500/80 to-blue-500/80"
+                className="grid h-14 w-14 place-items-center rounded-full border border-white/20 bg-[#1D9BF0]/80"
               >
                 <Play className="h-5 w-5 fill-white text-white ml-0.5" />
               </motion.span>
@@ -1002,7 +1002,7 @@ function VideoActionBtn({
       onClick={onClick}
       className={`flex flex-col items-center gap-1.5 rounded-xl border py-3 text-white transition-all ${
         primary || active
-          ? "border-pink-500/30 bg-gradient-to-b from-purple-600/30 to-pink-500/20 shadow-[0_4px_16px_-4px_rgba(236,72,153,0.3)]"
+          ? "border-[#1D9BF0]/30 bg-[#1D9BF0]/10 shadow-[0_4px_16px_-4px_rgba(29,155,240,0.2)]"
           : "border-white/[0.07] bg-white/[0.03]"
       }`}
     >

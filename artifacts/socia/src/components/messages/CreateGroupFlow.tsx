@@ -176,7 +176,7 @@ export function CreateGroupFlow({ myId, onClose, onCreate }: Props) {
                   <button
                     key={u.id}
                     onClick={() => toggle(u)}
-                    className="flex shrink-0 items-center gap-1.5 rounded-full border border-purple-500/40 bg-purple-600/20 px-2.5 py-1 text-xs text-purple-300"
+                    className="flex shrink-0 items-center gap-1.5 rounded-full border border-purple-500/40 bg-purple-600/20 px-2.5 py-1 text-xs text-[#1D9BF0]"
                   >
                     <span>{u.name || u.username}</span>
                     <X className="h-3 w-3" />
@@ -203,7 +203,7 @@ export function CreateGroupFlow({ myId, onClose, onCreate }: Props) {
                         {user.avatar_url ? (
                           <img src={user.avatar_url} alt="" className="h-full w-full object-cover" />
                         ) : (
-                          <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-sm font-bold text-white">
+                          <div className="h-full w-full bg-[#1D9BF0] grid place-items-center text-sm font-bold text-white">
                             {(user.name || user.username).charAt(0).toUpperCase()}
                           </div>
                         )}
@@ -289,7 +289,7 @@ export function CreateGroupFlow({ myId, onClose, onCreate }: Props) {
                       {u.avatar_url ? (
                         <img src={u.avatar_url} alt="" className="h-full w-full object-cover" />
                       ) : (
-                        <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-xs font-bold text-white">
+                        <div className="h-full w-full bg-[#1D9BF0] grid place-items-center text-xs font-bold text-white">
                           {(u.name || u.username).charAt(0).toUpperCase()}
                         </div>
                       )}
@@ -314,7 +314,7 @@ export function CreateGroupFlow({ myId, onClose, onCreate }: Props) {
             animate={{ opacity: 1 }}
             className="flex flex-1 flex-col items-center justify-center gap-4"
           >
-            <Loader2 className="h-10 w-10 animate-spin text-purple-500" />
+            <Loader2 className="h-10 w-10 animate-spin text-[#1D9BF0]" />
             <p className="text-sm text-white/60">Creating "{groupName}"…</p>
           </motion.div>
         )}

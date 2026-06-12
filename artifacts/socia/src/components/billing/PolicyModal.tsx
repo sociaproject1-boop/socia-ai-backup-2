@@ -76,10 +76,10 @@ function planIconLg(p: PolicyPlanCode) {
 
 function planGradient(p: PolicyPlanCode): string {
   switch (p) {
-    case "premium":     return "linear-gradient(135deg,#a855f7,#ec4899)";
-    case "elite":       return "linear-gradient(135deg,#f59e0b,#ec4899)";
-    case "super_elite": return "linear-gradient(135deg,#06b6d4,#a855f7)";
-    case "cinematic":   return "linear-gradient(135deg,#ec4899,#f59e0b)";
+    case "premium":     return "#1D9BF0";
+    case "elite":       return "#f59e0b";
+    case "super_elite": return "#06b6d4";
+    case "cinematic":   return "#f59e0b";
   }
 }
 

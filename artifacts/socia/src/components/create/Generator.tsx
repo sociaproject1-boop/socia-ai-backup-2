@@ -224,7 +224,7 @@ export function Generator({ mode, title, subtitle }: Props) {
           whileTap={{ scale: canGenerate ? 0.98 : 1 }}
           disabled={!canGenerate}
           onClick={generate}
-          className="relative flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 font-display text-base font-semibold text-white shadow-[0_8px_28px_-4px_rgba(236,72,153,0.55)] disabled:opacity-50 disabled:cursor-not-allowed"
+          className="relative flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl bg-[#1D9BF0] font-display text-base font-semibold text-white shadow-[0_8px_28px_-4px_rgba(29,155,240,0.35)] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Sparkles className="h-5 w-5" />
           {loading ? "Generating…" : "Generate"}
@@ -551,7 +551,7 @@ function LoadingOverlay({ isVideo }: { isVideo: boolean }) {
           <motion.div
             className="h-full rounded-full"
             style={{
-              background: "linear-gradient(90deg, #a855f7, #ec4899, #3b82f6)",
+              background: "#1D9BF0",
             }}
             animate={{ width: `${(progress * 100).toFixed(2)}%` }}
             transition={{ duration: 0.6, ease: "easeOut" }}
@@ -627,7 +627,7 @@ function ResultOverlay({
               <motion.span
                 initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.2, type: "spring", stiffness: 320, damping: 20 }}
-                className="grid h-14 w-14 place-items-center rounded-full border border-white/20 bg-gradient-to-br from-purple-600/80 via-pink-500/80 to-blue-500/80"
+                className="grid h-14 w-14 place-items-center rounded-full border border-white/20 bg-[#1D9BF0]/80"
               >
                 <Play className="h-6 w-6 fill-white text-white" />
               </motion.span>
@@ -686,7 +686,7 @@ function ResultBtn({ icon: Icon, label, onClick, primary, disabled, spin }: { ic
         "flex h-12 items-center justify-center gap-2 rounded-2xl text-sm font-semibold transition-opacity " +
         (disabled ? "opacity-70 " : "") +
         (primary
-          ? "bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 text-white"
+          ? "bg-[#1D9BF0] text-white"
           : "border border-white/[0.06] bg-[#141414] text-white/85")
       }
     >

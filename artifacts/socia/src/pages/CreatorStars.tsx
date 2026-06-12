@@ -113,7 +113,7 @@ export default function CreatorStars() {
         <Star className="h-10 w-10 text-yellow-400" />
         <p className="font-bold text-white">Sign in to use Creator Stars</p>
         <button onClick={() => navigate("/")}
-          className="rounded-full bg-gradient-to-r from-purple-600 to-pink-500 px-6 py-2.5 text-sm font-bold text-white">
+          className="rounded-full bg-[#1D9BF0] px-6 py-2.5 text-sm font-bold text-white">
           Go Home
         </button>
       </div>
@@ -149,7 +149,7 @@ export default function CreatorStars() {
 
           <div className="relative flex items-start justify-between">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-purple-400">Your Star Balance</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#1D9BF0]">Your Star Balance</p>
               {walletLoading ? (
                 <div className="mt-2 h-10 w-32 animate-pulse rounded-xl bg-white/10" />
               ) : (
@@ -278,7 +278,7 @@ export default function CreatorStars() {
                         <p className="text-[13px] font-bold text-white truncate">{u.name || u.username}</p>
                         {u.username && <p className="text-[11px] text-white/40">@{u.username}</p>}
                       </div>
-                      <div className="flex items-center gap-1 text-purple-400">
+                      <div className="flex items-center gap-1 text-[#1D9BF0]">
                         <Star className="h-3.5 w-3.5" />
                         <span className="text-[11px] font-bold">Send</span>
                         <ChevronRight className="h-3.5 w-3.5" />
@@ -294,7 +294,7 @@ export default function CreatorStars() {
               <div className="mt-6 flex flex-col items-center gap-3 py-8 text-center">
                 <div className="h-16 w-16 rounded-2xl grid place-items-center"
                   style={{ background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.2)" }}>
-                  <Star className="h-7 w-7 text-purple-400" />
+                  <Star className="h-7 w-7 text-[#1D9BF0]" />
                 </div>
                 <div>
                   <p className="text-[14px] font-bold text-white">Support a Creator</p>
@@ -353,7 +353,7 @@ export default function CreatorStars() {
                       {isAdminGrant ? (
                         <div className="h-10 w-10 rounded-full shrink-0 flex items-center justify-center"
                           style={{ background: "linear-gradient(135deg,rgba(168,85,247,0.3),rgba(236,72,153,0.2))", border: "1px solid rgba(168,85,247,0.4)" }}>
-                          <Zap className="h-5 w-5 text-purple-300" />
+                          <Zap className="h-5 w-5 text-[#1D9BF0]" />
                         </div>
                       ) : other?.avatar_url ? (
                         <img src={other.avatar_url} alt={otherName}
@@ -376,7 +376,7 @@ export default function CreatorStars() {
 
                       {/* Amount */}
                       <div className="flex items-center gap-1 shrink-0">
-                        <Star className={`h-3.5 w-3.5 ${isSent && !isAdminGrant ? "text-purple-400" : "fill-yellow-400 text-yellow-400"}`} />
+                        <Star className={`h-3.5 w-3.5 ${isSent && !isAdminGrant ? "text-[#1D9BF0]" : "fill-yellow-400 text-yellow-400"}`} />
                         <span className={`text-[14px] font-black ${isSent && !isAdminGrant ? "text-white" : "text-yellow-400"}`}>
                           {isSent && !isAdminGrant ? "-" : "+"}{tx.amount}
                         </span>

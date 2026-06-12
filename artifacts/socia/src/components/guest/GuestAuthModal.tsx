@@ -103,7 +103,7 @@ export function GuestAuthModal({ open, onClose, action }: Props) {
                 <div key={perk} className="flex items-center gap-2.5">
                   <span
                     className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                    style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}
+                    style={{ background: "#1D9BF0" }}
                   >
                     ✓
                   </span>
@@ -117,7 +117,7 @@ export function GuestAuthModal({ open, onClose, action }: Props) {
               whileTap={{ scale: 0.97 }}
               onClick={() => { onClose(); navigate("/auth?mode=signup"); }}
               className="mb-3 w-full rounded-2xl py-3.5 text-[15px] font-bold text-white"
-              style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}
+              style={{ background: "#1D9BF0" }}
             >
               Create Account — It's Free
             </motion.button>

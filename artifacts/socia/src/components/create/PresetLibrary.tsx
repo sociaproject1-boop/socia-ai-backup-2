@@ -41,21 +41,21 @@ const CATEGORIES: CategoryDef[] = [
     label: "Product Photo",
     emoji: "📸",
     match: ["luxury product", "apple commercial", "ecommerce conversion", "studio lighting"],
-    gradient: "linear-gradient(135deg,#a855f7,#7c3aed)",
-    accent: "#a855f7",
+    gradient: "#1D9BF0",
+    accent: "#1D9BF0",
   },
   {
     label: "Fashion",
     emoji: "👗",
     match: ["fashion editorial", "streetwear", "nike style", "runway"],
-    gradient: "linear-gradient(135deg,#ec4899,#be185d)",
-    accent: "#ec4899",
+    gradient: "#1D9BF0",
+    accent: "#1D9BF0",
   },
   {
     label: "Anime",
     emoji: "⚡",
     match: ["anime style", "anime"],
-    gradient: "linear-gradient(135deg,#6366f1,#a855f7)",
+    gradient: "#1D9BF0",
     accent: "#818cf8",
   },
   {
@@ -358,7 +358,7 @@ function PresetSheet({
                   onClick={() => onUse(preset)}
                   style={{
                     width: "100%", height: 50, borderRadius: 14,
-                    background: "linear-gradient(135deg,#a855f7,#ec4899)",
+                    background: "#1D9BF0",
                     border: "none", cursor: "pointer",
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                     fontSize: 15, fontWeight: 700, color: "#fff",
@@ -377,7 +377,7 @@ function PresetSheet({
                     border: "1px solid rgba(168,85,247,0.2)",
                     borderRadius: 12,
                   }}>
-                    <Lock style={{ width: 14, height: 14, color: "#a855f7", flexShrink: 0 }} />
+                    <Lock style={{ width: 14, height: 14, color: "#1D9BF0", flexShrink: 0 }} />
                     <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.55)", lineHeight: 1.4 }}>
                       Sign in to generate with this preset — it takes 30 seconds.
                     </p>
@@ -387,7 +387,7 @@ function PresetSheet({
                     onClick={() => onUse(preset)}
                     style={{
                       width: "100%", height: 50, borderRadius: 14,
-                      background: "linear-gradient(135deg,#a855f7,#ec4899)",
+                      background: "#1D9BF0",
                       border: "none", cursor: "pointer",
                       display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                       fontSize: 15, fontWeight: 700, color: "#fff",
@@ -439,7 +439,7 @@ export function PresetLibrary() {
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{
               width: 28, height: 28, borderRadius: 8,
-              background: "linear-gradient(135deg,#a855f7,#ec4899)",
+              background: "#1D9BF0",
               display: "grid", placeItems: "center",
             }}>
               <Wand2 style={{ width: 14, height: 14, color: "#fff" }} />
@@ -462,7 +462,7 @@ export function PresetLibrary() {
             style={{
               display: "flex", alignItems: "center", gap: 3,
               background: "none", border: "none", cursor: "pointer",
-              fontSize: 12, fontWeight: 600, color: "#a855f7",
+              fontSize: 12, fontWeight: 600, color: "#1D9BF0",
             }}
           >
             Explore all
@@ -557,7 +557,7 @@ export function PresetLibrary() {
                 background: "rgba(168,85,247,0.15)",
                 display: "grid", placeItems: "center",
               }}>
-                <ArrowRight style={{ width: 16, height: 16, color: "#a855f7" }} />
+                <ArrowRight style={{ width: 16, height: 16, color: "#1D9BF0" }} />
               </div>
               <span style={{ fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.35)", textAlign: "center" }}>
                 View all

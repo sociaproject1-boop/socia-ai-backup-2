@@ -63,7 +63,7 @@ export function ComingSoonScreen({
             className="mb-4 grid h-14 w-14 place-items-center rounded-2xl"
             style={{
               background:
-                "linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%)",
+                "#1D9BF0",
               boxShadow: "0 14px 30px -8px rgba(168,85,247,0.65)",
             }}
           >

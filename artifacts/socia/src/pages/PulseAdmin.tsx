@@ -119,7 +119,7 @@ export default function PulseAdmin() {
               >
                 {/* Author */}
                 <div className="flex items-center gap-3 px-4 py-3">
-                  <div className="h-10 w-10 rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-purple-600 to-pink-500 grid place-items-center text-sm font-bold text-white">
+                  <div className="h-10 w-10 rounded-full overflow-hidden flex-shrink-0 bg-[#1D9BF0] grid place-items-center text-sm font-bold text-white">
                     {author.avatar_url
                       ? <img src={author.avatar_url} className="h-full w-full object-cover" alt="" />
                       : initials}

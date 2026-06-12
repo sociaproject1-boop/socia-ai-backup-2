@@ -10,7 +10,7 @@ export default function NotFound() {
         <p className="mt-3 text-sm text-white/60">This corner of Socia doesn't exist yet.</p>
         <button
           onClick={() => navigate("/")}
-          className="mt-6 rounded-2xl bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 px-5 py-2.5 text-sm font-semibold text-white"
+          className="mt-6 rounded-2xl bg-[#1D9BF0] px-5 py-2.5 text-sm font-semibold text-white"
         >
           Back home
         </button>

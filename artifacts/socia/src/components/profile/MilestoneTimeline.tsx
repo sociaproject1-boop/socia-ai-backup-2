@@ -42,7 +42,7 @@ export function MilestoneTimeline({ userProfile, posts = [], supporterTier }: Pr
       title: "Joined Socia",
       subtitle: "Became part of the Socia community",
       date: userProfile.created_at,
-      gradient: "from-purple-500/20 to-blue-500/20",
+      gradient: "from-[#1D9BF0]/20 to-[#1D9BF0]/10",
       accent: "#a78bfa",
     });
   }
@@ -95,7 +95,7 @@ export function MilestoneTimeline({ userProfile, posts = [], supporterTier }: Pr
       title: "First Creation",
       subtitle: "Published their first post on Socia",
       date: firstPost.created_at,
-      gradient: "from-pink-500/20 to-rose-500/20",
+      gradient: "from-[#1D9BF0]/20 to-[#1D9BF0]/10",
       accent: "#f472b6",
     });
   }
@@ -143,7 +143,7 @@ export function MilestoneTimeline({ userProfile, posts = [], supporterTier }: Pr
       <div className="flex flex-col items-center gap-3 px-8 py-16 text-center">
         <div className="grid h-16 w-16 place-items-center rounded-[20px] float"
           style={{ background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.2)" }}>
-          <Calendar className="h-7 w-7 text-purple-400" />
+          <Calendar className="h-7 w-7 text-[#1D9BF0]" />
         </div>
         <p className="font-display text-[15px] font-bold text-white">No milestones yet</p>
         <p className="text-[12px] text-white/40 max-w-[200px]">Achievements will appear here as you grow.</p>

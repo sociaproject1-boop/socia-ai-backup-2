@@ -355,7 +355,7 @@ export function PulseViewer({
             >
               {group.user.avatar_url
                 ? <img src={group.user.avatar_url} className="h-full w-full object-cover" alt="" />
-                : <div className="h-full w-full bg-gradient-to-br from-purple-600 to-pink-500" />
+                : <div className="h-full w-full bg-[#1D9BF0]" />
               }
             </button>
 

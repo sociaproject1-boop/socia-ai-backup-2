@@ -224,7 +224,7 @@ function NotificationBanner({
         {banner.senderAvatar ? (
           <img src={banner.senderAvatar} alt="" className="h-full w-full object-cover" loading="lazy" />
         ) : (
-          <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-sm font-bold text-white">
+          <div className="h-full w-full bg-[#1D9BF0] grid place-items-center text-sm font-bold text-white">
             {banner.senderName.charAt(0).toUpperCase()}
           </div>
         )}

@@ -36,7 +36,7 @@ const enableReplitPlugins =
 
 export default defineConfig({
   base: basePath,
-  cacheDir: `node_modules/.vite-${port}`,
+  cacheDir: `node_modules/.vite-cache`,
   plugins: [
     react(),
     tailwindcss(),
@@ -96,11 +96,9 @@ export default defineConfig({
     host: "0.0.0.0",
     allowedHosts: true,
     fs: {
-      strict: true,
+      strict: false,
     },
-    hmr: {
-      overlay: false,
-    },
+    hmr: false,
     watch: {
       // Use polling only when explicitly requested (e.g. Docker); otherwise
       // rely on native inotify which is far cheaper on CPU.
@@ -113,6 +111,11 @@ export default defineConfig({
         ws: true,
       },
     },
+    // Strip immutable cache headers on dep files so the browser always fetches
+    // fresh dep bundles after a Vite server restart (avoids 504 stale dep errors).
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+    },
   },
   preview: {
     port,
@@ -120,8 +123,6 @@ export default defineConfig({
     allowedHosts: true,
   },
   optimizeDeps: {
-    // Crawl eagerly so the first page load doesn't trigger a re-optimization
-    // waterfall that spins up extra CPU work.
     holdUntilCrawlEnd: false,
   },
 });

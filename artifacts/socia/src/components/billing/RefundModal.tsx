@@ -163,7 +163,7 @@ export function RefundModal({ open, onClose, subscriptionType }: RefundModalProp
             {/* Header */}
             <div className="flex items-center gap-3 px-5 pt-5 pb-4 border-b border-white/5">
               <div className="grid h-9 w-9 place-items-center rounded-xl"
-                   style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
+                   style={{ background: "#1D9BF0" }}>
                 <Receipt className="h-4 w-4 text-white" />
               </div>
               <div className="flex-1">
@@ -236,7 +236,7 @@ export function RefundModal({ open, onClose, subscriptionType }: RefundModalProp
                   <button
                     onClick={() => setStep("form")}
                     className="w-full rounded-2xl py-3 text-[13px] font-semibold text-white flex items-center justify-center gap-2"
-                    style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}
+                    style={{ background: "#1D9BF0" }}
                   >
                     Continue to request form <ChevronRight className="h-4 w-4" />
                   </button>
@@ -316,7 +316,7 @@ export function RefundModal({ open, onClose, subscriptionType }: RefundModalProp
                       onClick={handleSubmit}
                       disabled={submitting}
                       className="flex-1 rounded-2xl py-3 text-[13px] font-semibold text-white disabled:opacity-50 flex items-center justify-center gap-2"
-                      style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}
+                      style={{ background: "#1D9BF0" }}
                     >
                       {submitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Submitting…</> : "Submit request"}
                     </button>
@@ -346,7 +346,7 @@ export function RefundModal({ open, onClose, subscriptionType }: RefundModalProp
                   </div>
                   <button onClick={onClose}
                           className="w-full rounded-2xl py-3 text-[13px] font-semibold text-white"
-                          style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
+                          style={{ background: "#1D9BF0" }}>
                     Done
                   </button>
                 </div>

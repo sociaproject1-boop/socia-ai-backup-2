@@ -202,7 +202,7 @@ export function SendPromptSheet({ open, prompt, onClose }: Props) {
                     "h-full rounded-full transition-[width] " +
                     (remaining === 0
                       ? "bg-gradient-to-r from-rose-500 to-red-600"
-                      : "bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500")
+                      : "bg-[#1D9BF0]")
                   }
                   style={{ width: `${Math.min(100, (count / limit) * 100)}%` }}
                 />
@@ -377,7 +377,7 @@ function PersonRow({
       }>
         {avatar
           ? <img src={avatar} alt="" loading="lazy" className="h-full w-full object-cover" />
-          : <div className="grid h-full w-full place-items-center bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 text-xs font-bold text-white">
+          : <div className="grid h-full w-full place-items-center bg-[#1D9BF0] text-xs font-bold text-white">
               {(name || "?").charAt(0).toUpperCase()}
             </div>}
       </div>
@@ -395,7 +395,7 @@ function PersonRow({
           "flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition " +
           (disabled
             ? "border border-white/10 bg-white/5 text-white/35"
-            : "bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 text-white shadow-[0_4px_18px_-6px_rgba(236,72,153,0.55)] active:scale-95")
+            : "bg-[#1D9BF0] text-white shadow-[0_4px_18px_-6px_rgba(29,155,240,0.35)] active:scale-95")
         }
       >
         {sending

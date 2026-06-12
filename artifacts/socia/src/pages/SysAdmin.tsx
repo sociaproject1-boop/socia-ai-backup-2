@@ -172,7 +172,7 @@ function EnterpriseSidebar({
         {!collapsed && (
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13px] font-black text-white tracking-tight">Socia Admin</p>
-            <p className="text-[9px] font-bold uppercase tracking-widest text-purple-400/60">
+            <p className="text-[9px] font-bold uppercase tracking-widest text-[#1D9BF0]/60">
               Fraud Command Center
             </p>
           </div>
@@ -225,13 +225,13 @@ function EnterpriseSidebar({
                     />
                   )}
                   <item.icon className={`relative h-4 w-4 flex-shrink-0 transition-colors ${
-                    isActive ? "text-purple-400" : "group-hover:text-white/60"
+                    isActive ? "text-[#1D9BF0]" : "group-hover:text-white/60"
                   }`} />
                   {!collapsed && (
                     <span className="relative flex-1 truncate">{item.label}</span>
                   )}
                   {!collapsed && isActive && (
-                    <ChevronRight className="relative ml-auto h-3 w-3 flex-shrink-0 text-purple-400/50" />
+                    <ChevronRight className="relative ml-auto h-3 w-3 flex-shrink-0 text-[#1D9BF0]/50" />
                   )}
                 </button>
               );
@@ -256,12 +256,12 @@ function EnterpriseSidebar({
       {/* Admin profile */}
       <div className="border-t border-white/[0.06] p-3">
         {collapsed ? (
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-purple-500/30 to-pink-500/20 text-[11px] font-black text-purple-300">
+          <div className="grid h-9 w-9 place-items-center rounded-xl bg-[#1D9BF0]/20 text-[11px] font-black text-[#1D9BF0]">
             {username.charAt(0).toUpperCase()}
           </div>
         ) : (
           <div className="flex items-center gap-2.5 rounded-xl border border-white/[0.04] bg-white/[0.02] px-3 py-2.5">
-            <div className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg bg-gradient-to-br from-purple-500/30 to-pink-500/20 text-[11px] font-black text-purple-300">
+            <div className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg bg-[#1D9BF0]/20 text-[11px] font-black text-[#1D9BF0]">
               {username.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
@@ -2039,7 +2039,7 @@ function FundingTab() {
         <div className="mb-4">
           <div className="mb-3 rounded-2xl border border-purple-500/20 bg-purple-500/5 p-4">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-[10.5px] font-semibold uppercase tracking-wider text-purple-300">
+              <span className="text-[10.5px] font-semibold uppercase tracking-wider text-[#1D9BF0]">
                 Phase {stats.funding.unlock_phase} — Community Funding
               </span>
               {stats.funding.is_goal_reached && (
@@ -2104,7 +2104,7 @@ function FundingTab() {
                       {new Date(d.created_at).toLocaleDateString()}
                     </p>
                     {d.reference_no && (
-                      <p className="text-[11px] text-purple-300 mt-0.5 font-mono">Ref: {d.reference_no}</p>
+                      <p className="text-[11px] text-[#1D9BF0] mt-0.5 font-mono">Ref: {d.reference_no}</p>
                     )}
                   </div>
                   <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold capitalize ${
@@ -2118,7 +2118,7 @@ function FundingTab() {
                 {/* Screenshot */}
                 {d.screenshot_url && (
                   <a href={d.screenshot_url} target="_blank" rel="noopener noreferrer"
-                     className="inline-flex items-center gap-1.5 text-[11px] text-purple-400 hover:text-purple-300">
+                     className="inline-flex items-center gap-1.5 text-[11px] text-[#1D9BF0] hover:text-[#1D9BF0]">
                     <ExternalLink className="h-3 w-3" /> View screenshot
                   </a>
                 )}
@@ -2546,7 +2546,7 @@ function StudioAdminTab() {
       <div className="flex items-start justify-between">
         <div>
           <h2 className="flex items-center gap-2 text-base font-bold text-white">
-            <Clapperboard className="h-5 w-5 text-purple-400" /> AI Studio Control Panel
+            <Clapperboard className="h-5 w-5 text-[#1D9BF0]" /> AI Studio Control Panel
           </h2>
           <p className="mt-1 text-xs text-white/45">
             Configure rendering engines, credit costs, plan access, and frame limits.
@@ -2600,7 +2600,7 @@ function StudioAdminTab() {
               {/* Header row */}
               <div className="flex items-center gap-3 px-4 py-3">
                 <div className={"flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition " +
-                  (model.enabled ? "bg-purple-500/25 text-purple-400" : "bg-white/[0.05] text-white/30")}>
+                  (model.enabled ? "bg-purple-500/25 text-[#1D9BF0]" : "bg-white/[0.05] text-white/30")}>
                   <Zap className="h-4 w-4" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -2646,7 +2646,7 @@ function StudioAdminTab() {
                       {PLAN_OPTS.map(({ v, label }) => (
                         <button key={v} onClick={() => update(model.id, { minPlan: v })}
                           className={"flex-1 rounded-lg border py-2 text-[11px] font-medium transition " +
-                            (model.minPlan === v ? "border-purple-500/50 bg-purple-500/15 text-purple-300" : "border-white/[0.08] bg-white/[0.03] text-white/45 hover:border-white/15")}>
+                            (model.minPlan === v ? "border-purple-500/50 bg-purple-500/15 text-[#1D9BF0]" : "border-white/[0.08] bg-white/[0.03] text-white/45 hover:border-white/15")}>
                           {label}
                         </button>
                       ))}
@@ -2682,13 +2682,13 @@ function StudioAdminTab() {
           <Film className="h-3.5 w-3.5" /> Render Usage Monitor
         </h3>
         <p className="text-xs text-white/30 leading-relaxed">
-          Per-engine render usage tracking is recorded via <code className="text-purple-400/70">usage_receipts</code> in Supabase.
+          Per-engine render usage tracking is recorded via <code className="text-[#1D9BF0]/70">usage_receipts</code> in Supabase.
           Filter by <code className="text-white/40">tool = 'video_generation'</code> to see multiframe renders.
           Full engine-level breakdown (credits consumed per model) requires the
           <code className="text-white/40"> admin/usage/stats</code> endpoint enhancement.
         </p>
         <button onClick={() => window.open("/sys-admin", "_self")}
-          className="mt-3 flex items-center gap-1.5 text-xs font-medium text-purple-400 hover:text-purple-300 transition">
+          className="mt-3 flex items-center gap-1.5 text-xs font-medium text-[#1D9BF0] hover:text-[#1D9BF0] transition">
           View Usage Analytics <ChevronRight className="h-3 w-3" />
         </button>
       </div>

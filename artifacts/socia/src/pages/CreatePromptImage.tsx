@@ -209,7 +209,7 @@ function AspectRect({ w, h, active }: { w: number; h: number; active: boolean })
   return (
     <div
       style={{ width: pw, height: ph }}
-      className={`rounded-[2px] border-[1.5px] transition-colors ${active ? "border-violet-400/80" : "border-white/22"}`}
+      className={`rounded-[2px] border-[1.5px] transition-colors ${active ? "border-[#1D9BF0]/40" : "border-white/22"}`}
     />
   );
 }
@@ -424,7 +424,7 @@ export default function CreatePromptImage() {
                 </span>
                 <button
                   onClick={() => setShowExamples((v) => !v)}
-                  className="flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-2.5 py-1 text-[10.5px] text-white/65 transition hover:border-violet-400/30 hover:bg-violet-500/10 hover:text-violet-200"
+                  className="flex items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-2.5 py-1 text-[10.5px] text-white/65 transition hover:border-[#1D9BF0]/40 hover:bg-violet-500/10 hover:text-[#1D9BF0]"
                 >
                   <Lightbulb className="h-3 w-3" />
                   Examples
@@ -511,7 +511,7 @@ export default function CreatePromptImage() {
               >
                 <ChevronDown className={`h-3 w-3 transition-transform ${showNeg ? "rotate-180" : ""}`} />
                 Negative prompt <span className="text-white/30">(optional)</span>
-                <span className="ml-auto flex items-center gap-0.5 text-[10px] text-violet-300/80">
+                <span className="ml-auto flex items-center gap-0.5 text-[10px] text-[#1D9BF0]/80">
                   {showNeg ? "hide" : "Add"} {!showNeg && <span className="text-[12px] leading-none">+</span>}
                 </span>
               </button>
@@ -528,7 +528,7 @@ export default function CreatePromptImage() {
                       onChange={(e) => setNegPrompt(e.target.value)}
                       rows={2}
                       placeholder="What to exclude: blurry, watermark, distorted face…"
-                      className="mt-2.5 w-full resize-none rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-[12px] leading-relaxed text-white/65 placeholder:text-white/25 focus:outline-none focus:border-violet-400/30"
+                      className="mt-2.5 w-full resize-none rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-[12px] leading-relaxed text-white/65 placeholder:text-white/25 focus:outline-none focus:border-[#1D9BF0]/40"
                     />
                   </motion.div>
                 )}
@@ -562,7 +562,7 @@ export default function CreatePromptImage() {
         {/* ASPECT RATIO — floating neon cards */}
         <div className="mt-7 px-4">
           <div className="mb-3 flex items-center gap-2">
-            <span aria-hidden className="h-[10px] w-[3px] rounded-full bg-gradient-to-b from-violet-400 to-indigo-500 shadow-[0_0_8px_rgba(139,92,246,0.7)]" />
+            <span aria-hidden className="h-[10px] w-[3px] rounded-full bg-gradient-to-b from-[#1D9BF0] to-[#1566b0] shadow-[0_0_8px_rgba(29,155,240,0.6)]" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">Aspect Ratio</p>
           </div>
           <div className="grid grid-cols-5 gap-2">
@@ -606,7 +606,7 @@ export default function CreatePromptImage() {
                           onClick={() => setLighting(lighting === id ? "" : id)}
                           className={`flex flex-1 flex-col items-center gap-1.5 rounded-lg border py-2.5 transition-all ${
                             active
-                              ? "border-violet-500/40 bg-gradient-to-b from-violet-900/30 to-indigo-900/15 text-violet-200"
+                              ? "border-[#1D9BF0]/40 bg-gradient-to-b from-[#1D9BF0]/10 to-[#1D9BF0]/5 text-[#1D9BF0]"
                               : "border-white/[0.07] text-white/30 hover:border-white/[0.12] hover:text-white/55"
                           }`}
                         >
@@ -630,7 +630,7 @@ export default function CreatePromptImage() {
                           onClick={() => setLens(lens === id ? "" : id)}
                           className={`flex flex-1 flex-col items-center gap-0.5 rounded-lg border py-2 transition-all ${
                             active
-                              ? "border-violet-500/40 bg-gradient-to-b from-violet-900/30 to-indigo-900/15 text-white"
+                              ? "border-[#1D9BF0]/40 bg-gradient-to-b from-[#1D9BF0]/10 to-[#1D9BF0]/5 text-white"
                               : "border-white/[0.07] text-white/30 hover:border-white/[0.12] hover:text-white/55"
                           }`}
                         >
@@ -719,7 +719,7 @@ export default function CreatePromptImage() {
                     onClick={() => setHistFilter(f)}
                     className={`rounded-md px-2.5 py-1 text-[10px] font-medium transition ${
                       histFilter === f
-                        ? "bg-violet-900/25 border border-violet-500/25 text-violet-200"
+                        ? "bg-violet-900/25 border border-[#1D9BF0]/40 text-[#1D9BF0]"
                         : "text-white/25 hover:text-white/45"
                     }`}
                   >
@@ -947,7 +947,7 @@ function LoadingOverlay() {
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-[15px] font-semibold tabular-nums text-white/95 drop-shadow-[0_0_10px_rgba(167,139,250,0.65)]">{pct}%</span>
-              <span className="text-[8.5px] font-medium uppercase tracking-[0.2em] text-violet-300/70">AI</span>
+              <span className="text-[8.5px] font-medium uppercase tracking-[0.2em] text-[#1D9BF0]/70">AI</span>
             </div>
           </div>
         </div>
@@ -1229,7 +1229,7 @@ function AspectCard({
       onClick={onClick}
       className={`relative flex h-[82px] flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl border transition-all ${
         active
-          ? "border-violet-400/55 bg-gradient-to-b from-violet-600/20 via-violet-700/10 to-indigo-900/10 text-white"
+          ? "border-[#1D9BF0]/40 bg-gradient-to-b from-[#1D9BF0]/20 to-[#1D9BF0]/10 text-white"
           : "border-white/10 bg-white/[0.03] text-white/70 hover:border-white/20"
       }`}
     >
@@ -1244,7 +1244,7 @@ function AspectCard({
       <span className={`relative z-10 text-[11px] font-bold leading-none tabular-nums ${active ? "text-white" : "text-white/85"}`}>
         {a.label}
       </span>
-      <span className={`relative z-10 text-[9px] leading-none ${active ? "text-violet-200/80" : "text-white/40"}`}>
+      <span className={`relative z-10 text-[9px] leading-none ${active ? "text-[#1D9BF0]/80" : "text-white/40"}`}>
         {a.name}
       </span>
     </motion.button>

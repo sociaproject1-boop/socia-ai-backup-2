@@ -233,7 +233,7 @@ export default function GroupThread() {
             {group?.avatar_url ? (
               <img src={group.avatar_url} alt="" className="h-full w-full object-cover" />
             ) : (
-              <div className="h-full w-full bg-gradient-to-br from-violet-600 via-purple-500 to-pink-600 grid place-items-center">
+              <div className="h-full w-full bg-[#1D9BF0] grid place-items-center">
                 <Users className="h-5 w-5 text-white" />
               </div>
             )}
@@ -315,7 +315,7 @@ export default function GroupThread() {
 
         {loading && (
           <div className="flex justify-center py-10">
-            <Loader2 className="h-6 w-6 animate-spin text-purple-500/60" />
+            <Loader2 className="h-6 w-6 animate-spin text-[#1D9BF0]/60" />
           </div>
         )}
 
@@ -358,7 +358,7 @@ export default function GroupThread() {
                     {msg.sender?.avatar_url ? (
                       <img src={msg.sender.avatar_url} alt="" className="h-full w-full object-cover" />
                     ) : (
-                      <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-[10px] font-bold text-white">
+                      <div className="h-full w-full bg-[#1D9BF0] grid place-items-center text-[10px] font-bold text-white">
                         {(msg.sender?.name ?? "?").charAt(0).toUpperCase()}
                       </div>
                     )}
@@ -379,7 +379,7 @@ export default function GroupThread() {
                     className={
                       "rounded-2xl px-3.5 py-2.5 " +
                       (isMine
-                        ? "rounded-tr-sm bg-gradient-to-br from-purple-600 to-pink-600 text-white"
+                        ? "rounded-tr-sm bg-[#1D9BF0] text-white"
                         : "rounded-tl-sm bg-white/[0.08] text-white/90")
                     }
                   >
@@ -533,7 +533,7 @@ export default function GroupThread() {
                 {group?.avatar_url ? (
                   <img src={group.avatar_url} alt="" className="h-full w-full object-cover" />
                 ) : (
-                  <div className="h-full w-full bg-gradient-to-br from-violet-600 via-purple-500 to-pink-600 grid place-items-center">
+                  <div className="h-full w-full bg-[#1D9BF0] grid place-items-center">
                     <Users className="h-8 w-8 text-white" />
                   </div>
                 )}
@@ -552,7 +552,7 @@ export default function GroupThread() {
                       {m.user.avatar_url ? (
                         <img src={m.user.avatar_url} alt="" className="h-full w-full object-cover" />
                       ) : (
-                        <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-sm font-bold text-white">
+                        <div className="h-full w-full bg-[#1D9BF0] grid place-items-center text-sm font-bold text-white">
                           {m.user.name.charAt(0).toUpperCase()}
                         </div>
                       )}
@@ -651,7 +651,7 @@ export default function GroupThread() {
               <div className="flex gap-2 overflow-x-auto border-b border-white/[0.06] px-4 py-2 no-scrollbar">
                 {addSelected.map((u) => (
                   <button key={u.id} onClick={() => setAddSelected((p) => p.filter((x) => x.id !== u.id))}
-                    className="flex shrink-0 items-center gap-1 rounded-full border border-purple-500/40 bg-purple-600/20 px-2.5 py-1 text-xs text-purple-300">
+                    className="flex shrink-0 items-center gap-1 rounded-full border border-purple-500/40 bg-purple-600/20 px-2.5 py-1 text-xs text-[#1D9BF0]">
                     {u.name || u.username}<X className="h-3 w-3 ml-0.5" />
                   </button>
                 ))}
@@ -666,7 +666,7 @@ export default function GroupThread() {
                       className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 active:bg-white/[0.05]">
                       <div className="h-10 w-10 overflow-hidden rounded-full border border-white/10 shrink-0">
                         {u.avatar_url ? <img src={u.avatar_url} alt="" className="h-full w-full object-cover" /> :
-                          <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-sm font-bold text-white">
+                          <div className="h-full w-full bg-[#1D9BF0] grid place-items-center text-sm font-bold text-white">
                             {(u.name || u.username).charAt(0).toUpperCase()}
                           </div>}
                       </div>

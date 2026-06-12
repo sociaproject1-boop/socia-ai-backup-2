@@ -290,9 +290,9 @@ export function CommunityFunding() {
       >
         {/* Ambient glow orbs — pointer-events:none, GPU-safe */}
         <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full opacity-20"
-             style={{ background: "radial-gradient(circle, #a855f7, transparent)" }} />
+             style={{ background: "radial-gradient(circle, #1D9BF0, transparent)" }} />
         <div className="pointer-events-none absolute -bottom-6 -left-6 h-24 w-24 rounded-full opacity-15"
-             style={{ background: "radial-gradient(circle, #ec4899, transparent)" }} />
+             style={{ background: "radial-gradient(circle, #1D9BF0, transparent)" }} />
 
         {/* Payment-confirmed glow ring — opacity-only transition, GPU-composited */}
         <AnimatePresence>
@@ -315,7 +315,7 @@ export function CommunityFunding() {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <div className="grid h-7 w-7 place-items-center rounded-xl"
-                   style={{ background: "linear-gradient(135deg,#a855f7,#3b82f6,#ec4899)" }}>
+                   style={{ background: "#1D9BF0" }}>
                 <BadgeCheck className="h-3.5 w-3.5 text-white" />
               </div>
               <span className="text-[10px] font-bold uppercase tracking-widest text-purple-400">
@@ -378,7 +378,7 @@ export function CommunityFunding() {
                 animate={{ width: `${pct}%` }}
                 transition={{ duration: 1.2, ease: "easeOut", delay: 0.1 }}
                 className="h-full rounded-full"
-                style={{ background: "linear-gradient(90deg,#a855f7,#ec4899)" }}
+                style={{ background: "#1D9BF0" }}
               />
             </div>
             <div className="mb-4 flex items-center justify-between">
@@ -392,7 +392,7 @@ export function CommunityFunding() {
           whileTap={{ scale: 0.97 }}
           onClick={() => setShowModal(true)}
           className="w-full rounded-2xl py-3 text-sm font-bold text-white"
-          style={{ background: "linear-gradient(135deg,#a855f7,#3b82f6,#ec4899)", boxShadow: "0 8px 24px -8px rgba(168,85,247,0.55)" }}
+          style={{ background: "#1D9BF0", boxShadow: "0 8px 24px -8px rgba(29,155,240,0.35)" }}
         >
           <BadgeCheck className="mr-1.5 inline h-4 w-4" /> {copy.triggerCta}
         </motion.button>
@@ -408,7 +408,7 @@ export function CommunityFunding() {
       >
         <div className="flex items-center gap-2 mb-3">
           <div className="grid h-6 w-6 place-items-center rounded-lg"
-               style={{ background: "linear-gradient(135deg,#a855f7,#3b82f6)" }}>
+               style={{ background: "#1D9BF0" }}>
             <BadgeCheck className="h-3 w-3 text-white" />
           </div>
           <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] text-purple-400">
@@ -459,7 +459,7 @@ export function CommunityFunding() {
                   >
                     <div className="flex items-center gap-2.5">
                       <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[10px] font-bold text-white"
-                           style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}>
+                           style={{ background: "#1D9BF0" }}>
                         {(s.username[0] ?? "?").toUpperCase()}
                       </div>
                       <div>
@@ -902,7 +902,7 @@ function SupportModal({
                 <button
                   onClick={handleResume}
                   className="mt-2.5 w-full rounded-xl py-2 text-[12.5px] font-bold text-white"
-                  style={{ background: "linear-gradient(135deg,#a855f7,#ec4899)" }}
+                  style={{ background: "#1D9BF0" }}
                 >
                   {copy.resumeCta} · ₱{Math.floor(resumable.amount_centavos / 100).toLocaleString()}
                 </button>
@@ -920,7 +920,7 @@ function SupportModal({
                     aria-pressed={active}
                     className="flex-1 rounded-full py-1.5 text-[10.5px] font-bold transition-colors"
                     style={{
-                      background: active ? "linear-gradient(135deg,#a855f7,#ec4899)" : "rgba(255,255,255,0.05)",
+                      background: active ? "#1D9BF0" : "rgba(255,255,255,0.05)",
                       color: active ? "#fff" : "rgba(255,255,255,0.55)",
                       border: active ? "1px solid transparent" : "1px solid rgba(255,255,255,0.08)",
                     }}
@@ -1043,7 +1043,7 @@ function SupportModal({
                 aria-busy={busy}
                 className="w-full rounded-2xl py-3.5 text-[14px] font-bold text-white disabled:opacity-90"
                 style={{
-                  background: "linear-gradient(135deg,#a855f7,#ec4899)",
+                  background: "#1D9BF0",
                   boxShadow: "0 10px 24px -8px rgba(168,85,247,0.55)",
                 }}
               >

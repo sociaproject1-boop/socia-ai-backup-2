@@ -219,7 +219,7 @@ export default function UserProfile() {
           "flex h-9 items-center gap-1.5 rounded-full px-4 text-xs font-semibold text-white disabled:opacity-60 " +
           (followed
             ? "border border-white/20 bg-white/[0.06]"
-            : "bg-gradient-to-r from-purple-600 via-pink-500 to-blue-500 shadow-[0_4px_18px_-4px_rgba(236,72,153,0.45)]")
+            : "bg-[#1D9BF0] shadow-[0_4px_18px_-4px_rgba(29,155,240,0.35)]")
         }
       >
         {followed ? <><UserCheck className="h-3.5 w-3.5" /> Following</> : <><UserPlus className="h-3.5 w-3.5" /> Follow</>}
@@ -461,7 +461,7 @@ export default function UserProfile() {
                   style={{ border: "3px solid #000", boxShadow: "0 2px 16px rgba(0,0,0,0.6)" }}>
                   {avatarSrc
                     ? <img src={avatarSrc} alt={profile.name ?? ""} loading="lazy" className="h-full w-full object-cover" />
-                    : <div className="h-full w-full bg-gradient-to-br from-purple-600 via-pink-500 to-blue-600 grid place-items-center text-2xl font-bold text-white">{initials}</div>
+                    : <div className="h-full w-full bg-[#1D9BF0] grid place-items-center text-2xl font-bold text-white">{initials}</div>
                   }
                 </div>
                 </SupporterProfileRing>

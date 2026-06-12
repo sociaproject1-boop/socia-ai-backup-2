@@ -187,7 +187,7 @@ export function PeopleYouMayKnow({ viewerId, excludeId }: Props) {
                   <img src={user.avatar_url} alt={user.name ?? ""}
                     className="h-full w-full object-cover" loading="lazy" />
                 ) : (
-                  <div className="h-full w-full bg-gradient-to-br from-purple-600 to-pink-500 grid place-items-center">
+                  <div className="h-full w-full bg-[#1D9BF0] grid place-items-center">
                     <span className="text-[11px] font-bold text-white">{initial}</span>
                   </div>
                 )}
