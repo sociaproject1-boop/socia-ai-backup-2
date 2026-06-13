@@ -191,7 +191,11 @@ export default function Profile() {
     return () => observer.disconnect();
   }, [hasMorePosts, loadMorePosts]);
 
-  /* ── Live follower / following counts ──────────────────────────────── */
+  /* ── Live follower / following counts ──────────────────────────────── *
+   * Read from the denormalized users.followers / users.following columns.
+   * These are kept in sync by the follow_user / unfollow_user Supabase RPCs
+   * and are NOT subject to the RLS restrictions on the raw follows table that
+   * caused count queries to silently return 0. */
   const [liveFollowers, setLiveFollowers] = useState<number | null>(null);
   const [liveFollowing, setLiveFollowing] = useState<number | null>(null);
 
@@ -199,13 +203,15 @@ export default function Profile() {
     if (!user?.id) return;
     let cancelled = false;
     (async () => {
-      const [flrs, flng] = await Promise.all([
-        supabase.from("follows").select("*", { count: "exact", head: true }).eq("following_id", user.id),
-        supabase.from("follows").select("*", { count: "exact", head: true }).eq("follower_id",  user.id),
-      ]);
-      if (cancelled) return;
-      if (!flrs.error) setLiveFollowers(flrs.count ?? 0);
-      if (!flng.error) setLiveFollowing(flng.count ?? 0);
+      const { data, error } = await supabase
+        .from("users")
+        .select("followers, following")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (cancelled || error || !data) return;
+      const row = data as { followers: number | null; following: number | null };
+      setLiveFollowers(row.followers ?? 0);
+      setLiveFollowing(row.following ?? 0);
     })();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps

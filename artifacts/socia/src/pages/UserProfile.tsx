@@ -69,17 +69,18 @@ export default function UserProfile() {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const uid = session?.user?.id;
-      const [profileData, followRes, followersRes, followingRes] = await Promise.all([
+      // Fetch profile (includes denormalized followers/following from users table)
+      // and check if the viewer already follows this user.
+      // Do NOT query the raw follows table for counts — RLS can silently return 0.
+      const [profileData, followRes] = await Promise.all([
         fetchProfile(requestedFor),
         uid
           ? supabase.from("follows").select("*").eq("follower_id", uid).eq("following_id", requestedFor).maybeSingle()
           : Promise.resolve({ data: null, error: null }),
-        supabase.from("follows").select("*", { count: "exact", head: true }).eq("following_id", requestedFor),
-        supabase.from("follows").select("*", { count: "exact", head: true }).eq("follower_id",  requestedFor),
       ]);
       if (cancelled) return;
-      const counts = { followers: followersRes.count ?? 0, following: followingRes.count ?? 0 };
-      setProfile(profileData ? { ...profileData, ...counts } : null);
+      // profileData already contains followers / following from the users table
+      setProfile(profileData ?? null);
       setFollowed(!!(followRes.data));
       setLoading(false);
     })();
@@ -588,7 +589,6 @@ export default function UserProfile() {
                 supporterTier={supporterTier}
               />
             </div>
-          </div>
         </>
       )}
 
