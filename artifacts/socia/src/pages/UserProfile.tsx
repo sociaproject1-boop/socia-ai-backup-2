@@ -396,17 +396,16 @@ export default function UserProfile() {
         </>
       ) : (
         /* ══════════════════════════════════════════════════════════
-           STANDARD USER LAYOUT — Facebook-style
+           STANDARD USER LAYOUT — X (Twitter) style
         ══════════════════════════════════════════════════════════ */
         <>
-          {/* ── Cover photo section ───────────────────────────────── */}
-          <div className="relative overflow-hidden" style={{ height: 200 }}>
+          {/* ── Cover photo — 180px ────────────────────────────────── */}
+          <div className="relative overflow-hidden" style={{ height: 180 }}>
             {profile.cover_photo_url ? (
               <img
                 src={profile.cover_photo_url}
                 alt="cover"
                 className="absolute inset-0 w-full h-full object-cover object-center"
-                style={{ display: "block" }}
               />
             ) : (
               <div
@@ -426,93 +425,109 @@ export default function UserProfile() {
                 <ArrowLeft className="h-4 w-4" />
               </button>
             </div>
-
-            {/* Bottom gradient */}
-            <div className="absolute bottom-0 left-0 right-0 pointer-events-none"
-              style={{ height: 64, background: "linear-gradient(to bottom, transparent, rgba(0,0,0,0.6))" }} />
           </div>
 
-          {/* ── Avatar + identity (overlapping cover by 44px) ────── */}
-          <div className="px-4 pb-8" style={{ marginTop: -44 }}>
-
-            {/* Avatar row */}
-            <div className="flex items-end justify-between mb-3">
-              <div
-                className="relative cursor-pointer"
-                onClick={() => hasActivePulse
-                  ? openPulseViewer(
-                      [{ user: { id: profile.id, name: profile.name, username: profile.username, avatar_url: profile.avatar_url ?? null }, pulses: viewedUserPulses, has_unviewed: viewedUserPulses.some(p => !p.is_viewed) } satisfies PulseFeedGroup],
-                      0, 0
-                    )
-                  : undefined
-                }
-              >
-                {hasActivePulse && (
-                  <>
-                    <div className="pulse-ring-anim absolute rounded-full pointer-events-none"
-                      style={{ inset: -7, background: "conic-gradient(from 0deg,#ff006e,#8338ec,#3a86ff,#06d6a0,#ffbe0b,#ff006e)", zIndex: 0 }} />
-                    <div className="absolute rounded-full pointer-events-none"
-                      style={{ inset: -4, background: "#000", zIndex: 1 }} />
-                  </>
-                )}
-                <div className="relative" style={{ zIndex: 2 }}>
-                <SupporterProfileRing tier={supporterTier} size={88}>
-                <div className="h-[88px] w-[88px] overflow-hidden rounded-full"
-                  style={{ border: "3px solid #000", boxShadow: "0 2px 16px rgba(0,0,0,0.6)" }}>
-                  {avatarSrc
-                    ? <img src={avatarSrc} alt={profile.name ?? ""} loading="lazy" className="h-full w-full object-cover" />
-                    : <div className="h-full w-full bg-[#1D9BF0] grid place-items-center text-2xl font-bold text-white">{initials}</div>
-                  }
-                </div>
+          {/* ── Avatar + action buttons (overlapping cover) ──────── */}
+          <div className="px-4 flex items-end justify-between" style={{ marginTop: -44 }}>
+            {/* Avatar */}
+            <div
+              className="relative cursor-pointer"
+              onClick={() => hasActivePulse
+                ? openPulseViewer(
+                    [{ user: { id: profile.id, name: profile.name, username: profile.username, avatar_url: profile.avatar_url ?? null }, pulses: viewedUserPulses, has_unviewed: viewedUserPulses.some(p => !p.is_viewed) } satisfies PulseFeedGroup],
+                    0, 0
+                  )
+                : undefined
+              }
+            >
+              {hasActivePulse && (
+                <>
+                  <div className="pulse-ring-anim absolute rounded-full pointer-events-none"
+                    style={{ inset: -7, background: "conic-gradient(from 0deg,#ff006e,#8338ec,#3a86ff,#06d6a0,#ffbe0b,#ff006e)", zIndex: 0 }} />
+                  <div className="absolute rounded-full pointer-events-none"
+                    style={{ inset: -4, background: "#000", zIndex: 1 }} />
+                </>
+              )}
+              <div className="relative" style={{ zIndex: 2 }}>
+                <SupporterProfileRing tier={supporterTier} size={84}>
+                  <div className="h-[84px] w-[84px] overflow-hidden rounded-full"
+                    style={{ border: "3px solid #000" }}>
+                    {avatarSrc
+                      ? <img src={avatarSrc} alt={profile.name ?? ""} loading="lazy" className="h-full w-full object-cover" />
+                      : <div className="h-full w-full bg-[#1D9BF0] grid place-items-center text-2xl font-bold text-white">{initials}</div>
+                    }
+                  </div>
                 </SupporterProfileRing>
                 <div className="absolute bottom-0.5 right-0.5" style={{ zIndex: 3 }}>
-                  <OnlineDot status={presenceStatus} size={14} />
-                </div>
+                  <OnlineDot status={presenceStatus} size={13} />
                 </div>
               </div>
-              <div className="relative z-10"><ActionButtons /></div>
             </div>
 
-            {/* Name / username / bio */}
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="font-display text-[22px] font-bold leading-tight text-white">
-                  {profile.name || profile.username || "Unknown"}
-                </h2>
-                {profile.is_owner && (
-                  <NameBadges isOwner={profile.is_owner} isVerified={profile.is_verified} size="md" />
-                )}
-                {supporterTier && (
-                  <FoundingSupporterBadge tier={supporterTier} size={22} />
-                )}
-              </div>
+            {/* Action buttons — right side, X-style outlined */}
+            <div className="flex items-center gap-2 pb-1">
+              <ActionButtons />
+            </div>
+          </div>
+
+          {/* ── Identity section ──────────────────────────────────── */}
+          <div className="px-4 mt-3 pb-2">
+            {/* Name + badges */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <h2 className="text-[19px] font-bold text-[#E7E9EA] leading-tight">
+                {profile.name || profile.username || "Unknown"}
+              </h2>
+              {profile.is_owner && (
+                <NameBadges isOwner={profile.is_owner} isVerified={profile.is_verified} size="md" />
+              )}
               {supporterTier && (
-                <div className="mt-1"><SupporterLabel tier={supporterTier} /></div>
+                <FoundingSupporterBadge tier={supporterTier} size={18} />
               )}
-              {profile.username && (
-                <p className="mt-0.5 flex items-center gap-1.5 text-sm text-white/50">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.1em]">
-                    {presenceStatus === "online" ? "Online now" : presenceStatus === "away" ? "Away" : "Offline"}
-                  </span>
-                  · @{profile.username}
-                </p>
-              )}
-              {profile.bio && (
-                <p className="mt-2.5 text-[13px] leading-relaxed text-white/60 max-w-sm whitespace-pre-line">{profile.bio}</p>
-              )}
-              <UserSocialLinks
-                facebook={profile.social_facebook}
-                instagram={profile.social_instagram}
-                tiktok={profile.social_tiktok}
-              />
             </div>
+            {supporterTier && (
+              <div className="mt-0.5"><SupporterLabel tier={supporterTier} /></div>
+            )}
 
-            {/* Stats */}
-            <div className="mt-5 flex overflow-hidden rounded-[18px] border border-white/[0.06] bg-white/[0.03]">
-              <StatBox label="Followers" value={profile.followers ?? 0} onClick={() => navigate(`/followers/${userId}`)} />
-              <div className="my-3 w-px self-stretch bg-white/[0.06]" />
-              <StatBox label="Following" value={profile.following ?? 0} onClick={() => navigate(`/following/${userId}`)} />
+            {/* @username + presence */}
+            {profile.username && (
+              <p className="mt-0.5 flex items-center gap-1.5 text-[14px]" style={{ color: "#71767B" }}>
+                <OnlineDot status={presenceStatus} size={7} />
+                @{profile.username}
+              </p>
+            )}
+
+            {/* Bio */}
+            {profile.bio && (
+              <p className="mt-2 text-[14px] leading-[1.5] text-[#E7E9EA] max-w-sm whitespace-pre-line">{profile.bio}</p>
+            )}
+
+            {/* Social links */}
+            <UserSocialLinks
+              facebook={profile.social_facebook}
+              instagram={profile.social_instagram}
+              tiktok={profile.social_tiktok}
+            />
+
+            {/* Following / Followers — X-style inline text */}
+            <div className="mt-3 flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => navigate(`/following/${userId}`)}
+                className="flex items-center gap-1 text-[14px]"
+              >
+                <span className="font-bold text-[#E7E9EA]">{compact(profile.following ?? 0)}</span>
+                <span style={{ color: "#71767B" }}>Following</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate(`/followers/${userId}`)}
+                className="flex items-center gap-1 text-[14px]"
+              >
+                <span className="font-bold text-[#E7E9EA]">{compact(profile.followers ?? 0)}</span>
+                <span style={{ color: "#71767B" }}>Followers</span>
+              </button>
             </div>
+          </div>
 
             {/* About — collapsible accordion */}
             <AboutSection

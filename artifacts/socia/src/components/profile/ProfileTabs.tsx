@@ -207,11 +207,11 @@ export function ProfileTabs({
 
       {/* ── Tab content (swipe-enabled) ──────────────────────────────────── */}
       <div
-        className={isAllTab ? "" : "px-4 pt-4"}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-      >
+  className={isAllTab ? "pt-0" : "px-4 pt-0"}
+  onTouchStart={onTouchStart}
+  onTouchMove={onTouchMove}
+  onTouchEnd={onTouchEnd}
+>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={activeTab}
@@ -321,8 +321,8 @@ function TabButton({
       {active && (
         <motion.span
           layoutId="sociaTabUnderline"
-          className="absolute inset-x-2 bottom-0 h-[2.5px] rounded-full"
-          style={{ background: "linear-gradient(90deg,#a855f7,#ec4899,#3b82f6)" }}
+          className="absolute inset-x-0 bottom-0 rounded-full"
+          style={{ height: 4, background: "#1D9BF0", borderRadius: 2 }}
           transition={{ type: "spring", stiffness: 400, damping: 35 }}
         />
       )}

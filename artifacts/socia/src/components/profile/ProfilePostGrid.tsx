@@ -134,12 +134,15 @@ function FeedPostCard({ post, index }: { post: SocialPost; index: number }) {
 
   return (
     <motion.article
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.18) }}
-      className="mx-3 my-2 overflow-hidden rounded-[18px]"
-      style={{ background: "rgba(14,14,14,1)", border: "1px solid rgba(255,255,255,0.07)" }}
-    >
+  initial={{ opacity: 0, y: 8 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.2, delay: Math.min(index * 0.03, 0.18) }}
+  className="w-full overflow-hidden"
+  style={{
+    background: "transparent",
+    borderBottom: "1px solid rgba(255,255,255,0.08)"
+  }}
+>
       {/* Author row */}
       <div className="flex items-center gap-3 px-4 pt-3.5 pb-2">
         <motion.div
@@ -179,23 +182,26 @@ function FeedPostCard({ post, index }: { post: SocialPost; index: number }) {
 
       {/* Media thumbnail */}
       {hasMedia && firstMedia && (
-        <div
-          className="cursor-pointer overflow-hidden"
-          style={{ maxHeight: 320, background: "#0a0a0a" }}
+       <div
+  className="cursor-pointer overflow-hidden"
+  style={{
+    maxHeight: 520,
+    background: "#000"
+  }}
           onClick={() => navigate(`/post/${post.id}`)}
         >
           {isVideo ? (
-            <video src={firstMedia.url} className="w-full object-cover" style={{ maxHeight: 320 }}
+            <video src={firstMedia.url} className="w-full object-cover" style={{ maxHeight: 520 }}
               muted playsInline preload="metadata" />
           ) : (
             <img src={firstMedia.url} alt={post.caption ?? ""} className="w-full object-cover"
-              style={{ maxHeight: 320 }} loading="lazy" />
+              style={{ maxHeight: 520 }} loading="lazy" />
           )}
         </div>
       )}
 
       {/* Engagement stats + action strip */}
-      <div className="px-4 pt-2 pb-1">
+      <div className="px-4 pt-1 pb-2">
         {/* Counts row */}
         {((post.like_count ?? 0) > 0 || (post.comment_count ?? 0) > 0) && (
           <div
@@ -216,26 +222,26 @@ function FeedPostCard({ post, index }: { post: SocialPost; index: number }) {
         )}
 
         {/* Action buttons */}
-        <div className="flex items-center gap-0 -mx-2 pb-1">
+       <div className="flex items-center justify-between pb-1">
           <ActionBtn
             icon={<Heart className="h-4 w-4" style={{ fill: post.has_liked ? "#f43f5e" : "none", color: post.has_liked ? "#f43f5e" : "rgba(255,255,255,0.55)" }} />}
-            label="Like"
+            label=""
             active={post.has_liked}
             onClick={() => navigate(`/post/${post.id}`)}
           />
           <ActionBtn
             icon={<MessageSquare className="h-4 w-4" style={{ color: "rgba(255,255,255,0.55)" }} />}
-            label="Comment"
+            label=""
             onClick={() => navigate(`/post/${post.id}`)}
           />
           <ActionBtn
             icon={<Share2 className="h-4 w-4" style={{ color: "rgba(255,255,255,0.55)" }} />}
-            label="Share"
+            label=""
             onClick={() => navigate(`/post/${post.id}`)}
           />
           <ActionBtn
             icon={<Bookmark className="h-4 w-4" style={{ fill: post.has_saved ? "#a855f7" : "none", color: post.has_saved ? "#a855f7" : "rgba(255,255,255,0.55)" }} />}
-            label="Save"
+            label=""
             active={post.has_saved}
             onClick={() => navigate(`/post/${post.id}`)}
           />

@@ -333,11 +333,11 @@ export default function Profile() {
         </>
       ) : (
         /* ══════════════════════════════════════════════════════════════
-           STANDARD USER LAYOUT — Instagram-style
+           STANDARD USER LAYOUT — X (Twitter) style
         ══════════════════════════════════════════════════════════════ */
         <>
-          {/* Cover photo — 150px */}
-          <div className="relative overflow-hidden" style={{ height: 150 }}>
+          {/* Cover photo — 180px, X-style */}
+          <div className="relative overflow-hidden" style={{ height: 180 }}>
             {coverPhotoUrl ? (
               <img src={coverPhotoUrl} alt="cover"
                 className="absolute inset-0 w-full h-full object-cover object-center" />
@@ -346,7 +346,7 @@ export default function Profile() {
                 style={{ background: "linear-gradient(160deg,#0d0b1a 0%,#1a0e2e 45%,#0a0c18 100%)" }} />
             )}
 
-            {/* Settings button */}
+            {/* Settings button — top right */}
             <div className="absolute top-0 right-3 flex gap-2 z-10"
               style={{ paddingTop: `calc(env(safe-area-inset-top,0px) + 10px)` }}>
               <motion.button whileTap={{ scale: 0.88 }} onClick={() => navigate("/profile/settings")}
@@ -355,103 +355,106 @@ export default function Profile() {
                 <Settings style={{ width: 15, height: 15 }} />
               </motion.button>
             </div>
-
-            {/* Bottom gradient */}
-            <div className="absolute bottom-0 left-0 right-0 pointer-events-none"
-              style={{ height: 48, background: "linear-gradient(to bottom,transparent,rgba(0,0,0,0.65))" }} />
           </div>
 
-          {/* Avatar + Stats row */}
-          <div className="px-4" style={{ marginTop: -40 }}>
-            <div className="flex items-end justify-between">
-              {/* Avatar (left, with pulse ring) */}
-              <div
-                className="relative cursor-pointer"
-                onClick={() => hasActivePulse
-                  ? openPulseViewer(
-                      [{ user: { id: user!.id, name: user!.name, username: user!.handle, avatar_url: user!.avatar ?? null }, pulses: myPulses, has_unviewed: myPulses.some(p => !p.is_viewed) } satisfies PulseFeedGroup],
-                      0, 0
-                    )
-                  : setShowCreatePulse(true)
-                }
-              >
-                {hasActivePulse && (
-                  <>
-                    <div className="pulse-ring-anim absolute rounded-full pointer-events-none"
-                      style={{ inset: -7, background: "conic-gradient(from 0deg,#ff006e,#8338ec,#3a86ff,#06d6a0,#ffbe0b,#ff006e)", zIndex: 0 }} />
-                    <div className="absolute rounded-full pointer-events-none"
-                      style={{ inset: -4, background: "#000", zIndex: 1 }} />
-                  </>
-                )}
-                <div className="relative" style={{ zIndex: 2 }}>
-                  <SupporterProfileRing tier={supporterTier} size={88}>
-                    <div className="h-[88px] w-[88px] overflow-hidden rounded-full"
-                      style={{ border: "3px solid #000", boxShadow: "0 2px 16px rgba(0,0,0,0.6)" }}>
-                      {showAvatar ? (
-                        <img src={avatarSrc!} alt={user.name}
-                          className="h-full w-full object-cover"
-                          onError={() => setAvatarBroken(true)} />
-                      ) : (
-                        <div className="h-full w-full bg-gradient-to-br bg-[#2F3336] grid place-items-center text-2xl font-bold text-white">
-                          {initials}
-                        </div>
-                      )}
-                    </div>
-                  </SupporterProfileRing>
-                </div>
-              </div>
-
-              {/* Stats row — right of avatar */}
-              <div className="flex gap-5 pb-2">
-                <div className="text-center">
-                  <div className="font-display text-[17px] font-bold leading-none app-text">{compact(liveCreationsCount ?? realMyPosts.length)}</div>
-                  <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.1em] app-text-muted">Posts</div>
-                </div>
-                <motion.button whileTap={{ scale: 0.94 }} onClick={() => navigate(`/followers/${user.id}`)} className="text-center">
-                  <div className="font-display text-[17px] font-bold leading-none app-text">{compact(liveFollowers ?? user.followers)}</div>
-                  <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.1em] app-text-muted">Followers</div>
-                </motion.button>
-                <motion.button whileTap={{ scale: 0.94 }} onClick={() => navigate(`/following/${user.id}`)} className="text-center">
-                  <div className="font-display text-[17px] font-bold leading-none app-text">{compact(liveFollowing ?? user.following)}</div>
-                  <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.1em] app-text-muted">Following</div>
-                </motion.button>
+          {/* Avatar row: avatar bottom-left (overlapping cover), action buttons right */}
+          <div className="px-4 flex items-end justify-between" style={{ marginTop: -44 }}>
+            {/* Avatar */}
+            <div
+              className="relative cursor-pointer"
+              onClick={() => hasActivePulse
+                ? openPulseViewer(
+                    [{ user: { id: user!.id, name: user!.name, username: user!.handle, avatar_url: user!.avatar ?? null }, pulses: myPulses, has_unviewed: myPulses.some(p => !p.is_viewed) } satisfies PulseFeedGroup],
+                    0, 0
+                  )
+                : setShowCreatePulse(true)
+              }
+            >
+              {hasActivePulse && (
+                <>
+                  <div className="pulse-ring-anim absolute rounded-full pointer-events-none"
+                    style={{ inset: -7, background: "conic-gradient(from 0deg,#ff006e,#8338ec,#3a86ff,#06d6a0,#ffbe0b,#ff006e)", zIndex: 0 }} />
+                  <div className="absolute rounded-full pointer-events-none"
+                    style={{ inset: -4, background: "#000", zIndex: 1 }} />
+                </>
+              )}
+              <div className="relative" style={{ zIndex: 2 }}>
+                <SupporterProfileRing tier={supporterTier} size={84}>
+                  <div className="h-[84px] w-[84px] overflow-hidden rounded-full"
+                    style={{ border: "3px solid #000" }}>
+                    {showAvatar ? (
+                      <img src={avatarSrc!} alt={user.name}
+                        className="h-full w-full object-cover"
+                        onError={() => setAvatarBroken(true)} />
+                    ) : (
+                      <div className="h-full w-full bg-[#2F3336] grid place-items-center text-2xl font-bold text-white">
+                        {initials}
+                      </div>
+                    )}
+                  </div>
+                </SupporterProfileRing>
               </div>
             </div>
 
-            {/* Name / handle / bio */}
-            <div className="mt-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="font-display text-[20px] font-bold leading-tight app-text">{user.name}</h2>
-                {user.isOwner && <NameBadges isOwner={user.isOwner} isVerified={user.isVerified} size="md" />}
-                {supporterTier && !user.isOwner && (
-                  <FoundingSupporterBadge tier={supporterTier} size={20} />
-                )}
-              </div>
-              {supporterTier && !user.isOwner && (
-                <div className="mt-0.5"><SupporterLabel tier={supporterTier} /></div>
-              )}
-              <p className="mt-0.5 text-[12px] app-text-muted flex items-center gap-1.5">
-                <OnlineDot status={presenceStatus} size={7} />
-                @{user.handle}
-              </p>
-              {user.bio && (
-                <p className="mt-2 text-[13px] leading-relaxed app-text-muted max-w-sm whitespace-pre-line">{user.bio}</p>
-              )}
-            </div>
-
-            {/* Action buttons */}
-            <div className="mt-3 flex gap-2">
-              <motion.button whileTap={{ scale: 0.97 }} onClick={() => setEditModalOpen(true)}
-                className="flex-1 rounded-[14px] py-2.5 text-[13px] font-semibold tracking-wide app-surface app-text">
-                Edit Profile
-              </motion.button>
-              <motion.button whileTap={{ scale: 0.97 }} onClick={() => navigate("/creator/dashboard")}
-                className="flex items-center gap-1.5 rounded-[14px] px-4 py-2.5 text-[13px] font-semibold"
-                style={{ background: "rgba(29,155,240,0.1)", border: "1px solid rgba(29,155,240,0.3)", color: "#1D9BF0" }}>
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5">
+            {/* Action buttons — right side, X-style outlined */}
+            <div className="flex items-center gap-2 pb-1">
+              <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate("/creator/dashboard")}
+                className="grid h-9 w-9 place-items-center rounded-full text-white"
+                style={{ border: "1px solid rgba(255,255,255,0.2)" }}>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
                   <path d="M2 12h12M2 8l4-4 3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                Studio
+              </motion.button>
+              <motion.button whileTap={{ scale: 0.95 }} onClick={() => setEditModalOpen(true)}
+                className="rounded-full px-4 py-1.5 text-[14px] font-bold text-white"
+                style={{ border: "1px solid rgba(255,255,255,0.2)" }}>
+                Edit profile
+              </motion.button>
+            </div>
+          </div>
+
+          {/* Identity: Name / handle / bio / stats */}
+          <div className="px-4 mt-3">
+            {/* Name + badges */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <h2 className="text-[19px] font-bold text-[#E7E9EA] leading-tight">{user.name}</h2>
+              {user.isOwner && <NameBadges isOwner={user.isOwner} isVerified={user.isVerified} size="md" />}
+              {supporterTier && !user.isOwner && (
+                <FoundingSupporterBadge tier={supporterTier} size={18} />
+              )}
+            </div>
+            {supporterTier && !user.isOwner && (
+              <div className="mt-0.5"><SupporterLabel tier={supporterTier} /></div>
+            )}
+
+            {/* @handle + presence */}
+            <p className="mt-0.5 text-[14px] flex items-center gap-1.5" style={{ color: "#71767B" }}>
+              <OnlineDot status={presenceStatus} size={7} />
+              @{user.handle}
+            </p>
+
+            {/* Bio */}
+            {user.bio && (
+              <p className="mt-2 text-[14px] leading-[1.5] text-[#E7E9EA] max-w-sm whitespace-pre-line">{user.bio}</p>
+            )}
+
+            {/* Extended info chips */}
+            <ExtendedInfoRow user={user} showLocation={showLocation} showBirthday={showBirthday} showRelStatus={showRelStatus} />
+
+            {/* Social links */}
+            <SocialLinkRow user={user} />
+
+            {/* Following / Followers — X-style inline text */}
+            <div className="mt-3 flex items-center gap-4">
+              <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate(`/following/${user.id}`)}
+                className="flex items-center gap-1 text-[14px]">
+                <span className="font-bold text-[#E7E9EA]">{compact(liveFollowing ?? user.following)}</span>
+                <span style={{ color: "#71767B" }}>Following</span>
+              </motion.button>
+              <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate(`/followers/${user.id}`)}
+                className="flex items-center gap-1 text-[14px]">
+                <span className="font-bold text-[#E7E9EA]">{compact(liveFollowers ?? user.followers)}</span>
+                <span style={{ color: "#71767B" }}>Followers</span>
               </motion.button>
             </div>
           </div>
