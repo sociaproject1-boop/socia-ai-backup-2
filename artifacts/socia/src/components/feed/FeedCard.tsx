@@ -393,11 +393,11 @@ export const FeedCard = memo(function FeedCard({
         </div>
       )}
 
-      {/* ── Media — full width, rounded-2xl, slight horizontal margin ───── */}
+      {/* ── Media — same horizontal alignment as caption text ──────────── */}
       {media.length > 0 && (
         <div
-          className="relative mt-2 mx-4"
-          style={{ borderRadius: 16, overflow: "hidden" }}
+          className="relative mt-2"
+          style={{ marginLeft: 68, marginRight: 16, borderRadius: 16, overflow: "hidden" }}
           onClick={handleMediaTap}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
@@ -411,8 +411,8 @@ export const FeedCard = memo(function FeedCard({
                   key={`${post.id}-${mediaIndex}`}
                   src={currentMedia?.url}
                   alt={post.caption ?? ""}
-                  className="w-full object-cover"
-                  style={{ maxHeight: 520, minHeight: 200 }}
+                  className="w-full block"
+                  style={{ height: "auto", display: "block" }}
                   loading="lazy"
                   draggable={false}
                   initial={{ opacity: 0 }}
@@ -472,9 +472,9 @@ export const FeedCard = memo(function FeedCard({
       )}
 
       {/* ── Engagement bar: Comment | Repost | Like | Analytics  [Bookmark][Share] ── */}
-      <div className="flex items-center justify-between px-3 pt-1 pb-1" style={{ paddingLeft: 58 }}>
-        {/* Left group */}
-        <div className="flex items-center gap-1">
+      <div className="flex items-center justify-between pt-1 pb-1 pr-3" style={{ paddingLeft: 68 }}>
+        {/* Left group — wide gaps to match X */}
+        <div className="flex items-center gap-5">
           {/* Comment */}
           <ActionBtn onClick={handleCommentClick} count={post.comment_count ?? 0}>
             <MessageCircle className="h-[19px] w-[19px]" strokeWidth={1.75} />
