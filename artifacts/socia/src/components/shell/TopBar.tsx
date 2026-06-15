@@ -1,6 +1,7 @@
 import { useLocation } from "wouter";
 import { MessageCircle, Search, Bell, Radio, RefreshCw } from "lucide-react";
 import { useAppStore } from "@/lib/store";
+import { useDrawerStore } from "@/lib/drawerStore";
 import { motion } from "framer-motion";
 import { CreditsBadge } from "@/components/billing/CreditsBadge";
 import { RefundNotificationBell } from "@/components/refunds/RefundNotificationBell";
@@ -9,12 +10,13 @@ import { fetchNotifications } from "@/lib/postsClient";
 
 export function TopBar() {
   const [location, navigate] = useLocation();
-  const user   = useAppStore((s) => s.user);
+  const user          = useAppStore((s) => s.user);
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
-  const unread = useAppStore((s) => s.chats.some((c) => c.unread));
-  const navHidden = useAppStore((s) => s.navHidden);
-  const isHome    = location === "/";
-  const isExplore = location === "/explore" || location.startsWith("/explore");
+  const unread        = useAppStore((s) => s.chats.some((c) => c.unread));
+  const navHidden     = useAppStore((s) => s.navHidden);
+  const openDrawer    = useDrawerStore((s) => s.openDrawer);
+  const isHome        = location === "/";
+  const isExplore     = location === "/explore" || location.startsWith("/explore");
   const [notifUnread, setNotifUnread] = useState(0);
 
   useEffect(() => {
@@ -53,19 +55,55 @@ export function TopBar() {
         minHeight:     64,
       }}
     >
-      {/* ── Left: Logo / Page title ── */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.25 }}
-      >
-        {isHome
-          ? <h1 className="font-display text-[21px] font-bold text-gradient">Socia</h1>
-          : title
-          ? <h1 className="font-display text-[17px] font-semibold app-text">{title}</h1>
-          : <h1 className="font-display text-[21px] font-bold text-gradient">Socia</h1>
-        }
-      </motion.div>
+      {/* ── Left: Avatar (opens drawer) OR Logo / Page title ── */}
+      <div className="flex items-center gap-3 min-w-0">
+        {isAuthenticated && user ? (
+          /* Profile avatar — opens the X-style left drawer */
+          <motion.button
+            whileTap={{ scale: 0.88 }}
+            onClick={openDrawer}
+            aria-label="Open navigation menu"
+            style={{
+              width:        34,
+              height:       34,
+              borderRadius: "50%",
+              overflow:     "hidden",
+              border:       "1.5px solid rgba(255,255,255,0.18)",
+              background:   "#1D9BF0",
+              flexShrink:   0,
+              cursor:       "pointer",
+              padding:      0,
+              display:      "grid",
+              placeItems:   "center",
+            }}
+          >
+            {user.avatar ? (
+              <img
+                src={user.avatar}
+                alt={user.name}
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              />
+            ) : (
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
+                {user.name.charAt(0).toUpperCase()}
+              </span>
+            )}
+          </motion.button>
+        ) : null}
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.25 }}
+        >
+          {isHome
+            ? <h1 className="font-display text-[21px] font-bold text-gradient">Socia</h1>
+            : title
+            ? <h1 className="font-display text-[17px] font-semibold app-text">{title}</h1>
+            : <h1 className="font-display text-[21px] font-bold text-gradient">Socia</h1>
+          }
+        </motion.div>
+      </div>
 
       {/* ── Right: Action buttons ── */}
       <div className="flex items-center" style={{ gap: 8 }}>

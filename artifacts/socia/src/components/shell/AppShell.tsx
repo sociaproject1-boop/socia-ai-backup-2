@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { TopBar }    from "./TopBar";
 import { BottomNav } from "./BottomNav";
+import { XDrawer }   from "./XDrawer";
 import { useAuth }   from "@/lib/authContext";
 import { useAppStore } from "@/lib/store";
 import { useNotifications, type BannerNotif } from "@/lib/useNotifications";
@@ -117,6 +118,8 @@ export function AppShell({ children }: Props) {
 
   return (
     <div className="app-bg relative h-[100dvh] w-full overflow-hidden">
+      {/* Global X-style left drawer — mounted once, available on every screen */}
+      <XDrawer />
       <div className="mx-auto flex h-[100dvh] w-full max-w-[480px] flex-col">
         {/* ── TopBar collapse wrapper ─────────────────────────────────────
              Grid-row trick: 1fr→0fr collapses the layout space in sync with
