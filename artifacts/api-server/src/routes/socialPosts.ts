@@ -509,7 +509,18 @@ router.post("/posts/:id/save", requireAuth as any, async (req, res) => {
    §4  COMMENTS
 ═════════════════════════════════════════════════════════════════════════════════ */
 
-const COMMENT_SELECT = "*, author:users!comments_author_id_fkey(id, name, username, avatar_url)";
+/** Fetch author profiles for a list of comment rows and attach them as `author`. */
+async function attachCommentAuthors(comments: any[]): Promise<any[]> {
+  if (!comments.length) return comments;
+  const authorIds = [...new Set(comments.map((c: any) => c.author_id).filter(Boolean))];
+  const { data: users } = await db()
+    .from("users")
+    .select("id, name, username, avatar_url")
+    .in("id", authorIds);
+  const userMap: Record<string, any> = {};
+  for (const u of (users as any[] ?? [])) userMap[u.id] = u;
+  return comments.map((c: any) => ({ ...c, author: userMap[c.author_id] ?? null }));
+}
 
 /* ── GET /api/posts/:id/comments ───────────────────────────────────────── */
 router.get("/posts/:id/comments", async (req, res) => {
@@ -521,7 +532,7 @@ router.get("/posts/:id/comments", async (req, res) => {
 
     let query = svc
       .from("comments")
-      .select(COMMENT_SELECT)
+      .select("*")
       .eq("post_id", req.params["id"])
       .order("created_at", { ascending: true })
       .range(offset, offset + limit - 1);
@@ -538,7 +549,8 @@ router.get("/posts/:id/comments", async (req, res) => {
       res.status(500).json({ error: error.message }); 
       return; 
     }
-    res.json({ comments: data ?? [] });
+    const comments = await attachCommentAuthors(data as any[] ?? []);
+    res.json({ comments });
   } catch (err) {
     logger.error({ err }, "[posts/comments] error");
     res.status(500).json({ error: "Internal error" });
@@ -564,7 +576,7 @@ router.post("/posts/:id/comments", requireAuth as any, async (req, res) => {
         content: content.trim(),
         parent_comment_id: parent_comment_id ?? null,
       })
-      .select(COMMENT_SELECT)
+      .select("*")
       .single();
 
     if (error) { 
@@ -587,7 +599,8 @@ router.post("/posts/:id/comments", requireAuth as any, async (req, res) => {
       }
     }
 
-    res.status(201).json({ comment: data });
+    const [withAuthor] = await attachCommentAuthors([data as any]);
+    res.status(201).json({ comment: withAuthor ?? data });
   } catch (err) {
     logger.error({ err }, "[posts/comments] error");
     res.status(500).json({ error: "Internal error" });
@@ -612,7 +625,7 @@ router.put("/posts/:id/comments/:cid", requireAuth as any, async (req, res) => {
       .from("comments")
       .update({ content: content.trim() })
       .eq("id", cid)
-      .select(COMMENT_SELECT)
+      .select("*")
       .single();
 
     if (error) { 
@@ -620,7 +633,8 @@ router.put("/posts/:id/comments/:cid", requireAuth as any, async (req, res) => {
       res.status(500).json({ error: error.message }); 
       return; 
     }
-    res.json({ comment: data });
+    const [withAuthor] = await attachCommentAuthors([data as any]);
+    res.json({ comment: withAuthor ?? data });
   } catch (err) {
     logger.error({ err }, "[posts/comments/:cid] error");
     res.status(500).json({ error: "Internal error" });

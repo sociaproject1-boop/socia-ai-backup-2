@@ -1,18 +1,19 @@
 /**
- * dbCompat.ts — PostgreSQL compatibility adapter.
+ * dbCompat.ts — Hybrid database router.
  *
- * Provides a Supabase-client-compatible API backed by direct PostgreSQL
- * queries (via pg Pool). This lets existing routes that call
- * `supabase.from("table").select/insert/update/delete` continue to work
- * without a full rewrite to Drizzle.
+ * Routes queries to the correct backend based on where each table lives:
  *
- * This is intentionally a minimal shim — it covers the patterns actually
- * used in this codebase, not the full Supabase PostgREST API.
+ *  • HELIUMDB_TABLES  → Replit PostgreSQL (pg Pool, direct SQL)
+ *  • everything else  → Supabase PostgreSQL (PostgREST REST API, service role)
+ *
+ * Both paths expose the same Supabase-client-compatible API so existing routes
+ * need no changes — just `svc.from("table").select/insert/update/delete`.
  */
 import pg from "pg";
 
 const { Pool } = pg;
 
+/* ── Replit PG pool ────────────────────────────────────────────────────── */
 function getReplitConnectionString(): string {
   const host = process.env["PGHOST"];
   const port = process.env["PGPORT"] ?? "5432";
@@ -32,6 +33,28 @@ if (!connectionString) {
 }
 
 const pool = new Pool({ connectionString });
+
+/* ── Supabase PostgREST config ─────────────────────────────────────────── */
+const SB_URL = (process.env["SUPABASE_URL"] ?? process.env["VITE_SUPABASE_URL"] ?? "").replace(/\/$/, "");
+const SB_KEY = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "";
+
+/**
+ * Tables that live in the Replit heliumdb PostgreSQL instance.
+ * All other tables are routed to Supabase via PostgREST.
+ */
+const HELIUMDB_TABLES = new Set([
+  "conversations", "messages",       // Drizzle-managed chat log
+  "users",                           // User profiles (synced on auth)
+  "credit_ledger",                   // Creator billing credits
+  "usage_receipts",                  // AI usage tracking
+  "render_jobs",                     // AI render queue
+  "socia_gpt_memory",                // SociaGPT memory profiles
+  "studio_projects",                 // Studio project blobs
+  "super_admins",                    // Admin accounts (bcrypt)
+  "admin_audit_log",                 // Admin activity audit
+  "ai_enforcement_events",           // AI governance events
+  "ai_governance_config",            // AI governance config
+]);
 
 /**
  * Parse a PostgREST-style select string into a PostgreSQL column list.
@@ -455,14 +478,208 @@ class QueryBuilder {
   }
 }
 
-/** Drop-in replacement for createClient(url, key).from(table) usage */
+/* ═══════════════════════════════════════════════════════════════════════════
+ * SupabaseRestBuilder — PostgREST-backed query builder for Supabase tables.
+ * Mirrors the QueryBuilder API so routes need zero changes.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+class SupabaseRestBuilder {
+  private _table:      string;
+  private _select:     string = "*";
+  private _method:     "GET" | "POST" | "PATCH" | "DELETE" = "GET";
+  private _body:       unknown = null;
+  private _filters:    Array<[string, string]> = [];
+  private _order:      string[] = [];
+  private _limit:      number | null = null;
+  private _offset:     number | null = null;
+  private _single:     boolean = false;
+  private _maybeSingle: boolean = false;
+  private _countOnly:  boolean = false;
+  private _upsert:     boolean = false;
+  private _onConflict: string | null = null;
+  private _ignoreDups: boolean = false;
+
+  constructor(table: string) { this._table = table; }
+
+  select(cols?: string, opts?: { count?: string; head?: boolean }) {
+    this._select = cols ?? "*";
+    if (opts?.count) this._countOnly = true;
+    return this;
+  }
+  insert(data: unknown)  { this._method = "POST";   this._body = data; return this; }
+  update(data: unknown)  { this._method = "PATCH";  this._body = data; return this; }
+  delete()               { this._method = "DELETE"; return this; }
+  upsert(data: unknown, opts?: { onConflict?: string; ignoreDuplicates?: boolean }) {
+    this._method = "POST"; this._body = data; this._upsert = true;
+    this._onConflict = opts?.onConflict ?? null;
+    this._ignoreDups = opts?.ignoreDuplicates ?? false;
+    return this;
+  }
+  onConflict(col: string) { this._onConflict = col; return this; }
+  ignoreDuplicates()       { this._ignoreDups = true; return this; }
+
+  eq(col: string, val: unknown)    { this._filters.push([col, `eq.${val}`]);         return this; }
+  neq(col: string, val: unknown)   { this._filters.push([col, `neq.${val}`]);        return this; }
+  gt(col: string, val: unknown)    { this._filters.push([col, `gt.${val}`]);         return this; }
+  gte(col: string, val: unknown)   { this._filters.push([col, `gte.${val}`]);        return this; }
+  lt(col: string, val: unknown)    { this._filters.push([col, `lt.${val}`]);         return this; }
+  lte(col: string, val: unknown)   { this._filters.push([col, `lte.${val}`]);        return this; }
+  in(col: string, vals: unknown[]) { this._filters.push([col, `in.(${vals.join(",")})`]); return this; }
+  is(col: string, val: unknown)    { this._filters.push([col, `is.${val}`]);         return this; }
+  ilike(col: string, val: unknown) { this._filters.push([col, `ilike.${String(val)}`]);  return this; }
+  like(col: string, val: unknown)  { this._filters.push([col, `like.${String(val)}`]);   return this; }
+  or(filter: string)               { this._filters.push(["or", `(${filter})`]);      return this; }
+  not(col: string, op: string, val: unknown) { this._filters.push([col, `not.${op}.${val}`]); return this; }
+  contains(col: string, val: unknown) { this._filters.push([col, `cs.${JSON.stringify(val)}`]); return this; }
+
+  order(col: string, opts?: { ascending?: boolean; nullsFirst?: boolean }) {
+    const dir  = opts?.ascending !== false ? "asc" : "desc";
+    const nuls = opts?.nullsFirst ? ".nullsfirst" : "";
+    this._order.push(`${col}.${dir}${nuls}`);
+    return this;
+  }
+  limit(n: number)               { this._limit  = n;  return this; }
+  range(from: number, to: number){ this._offset = from; this._limit = to - from + 1; return this; }
+
+  single()      { this._single      = true; return this._exec(); }
+  maybeSingle() { this._maybeSingle = true; return this._exec(); }
+
+  then(resolve: (r: unknown) => void, reject?: (e: unknown) => void) {
+    return this._exec().then(resolve, reject);
+  }
+  catch<T = never>(onRejected?: ((reason: unknown) => T | PromiseLike<T>) | null) {
+    return this._exec().catch(onRejected ?? undefined);
+  }
+  finally(onFinally?: (() => void) | null) {
+    return this._exec().finally(onFinally ?? undefined);
+  }
+  get [Symbol.toStringTag]() { return "SupabaseRestBuilder" as const; }
+
+  private async _exec(): Promise<{ data: unknown; error: { message: string } | null; count?: number | null }> {
+    if (!SB_URL || !SB_KEY) {
+      console.error("[dbCompat] Supabase URL/service key not set — cannot query table:", this._table);
+      return { data: null, error: { message: "Supabase not configured" } };
+    }
+
+    const baseUrl = `${SB_URL}/rest/v1/${encodeURIComponent(this._table)}`;
+    const params  = new URLSearchParams();
+
+    /* SELECT columns (also used as response projection for mutations) */
+    if (this._method === "GET") {
+      params.set("select", this._select);
+    }
+
+    /* Filters */
+    for (const [col, val] of this._filters) {
+      params.append(col, val);
+    }
+
+    /* ORDER / LIMIT / OFFSET */
+    if (this._order.length)    params.set("order",  this._order.join(","));
+    if (this._limit  !== null) params.set("limit",  String(this._limit));
+    if (this._offset !== null) params.set("offset", String(this._offset));
+
+    /* Upsert on_conflict column */
+    if (this._upsert && this._onConflict) params.set("on_conflict", this._onConflict);
+
+    /* Headers */
+    const headers: Record<string, string> = {
+      apikey:          SB_KEY,
+      Authorization:   `Bearer ${SB_KEY}`,
+      "Content-Type":  "application/json",
+    };
+
+    const preferParts: string[] = [];
+    if (this._method === "POST")  preferParts.push(this._upsert
+      ? (this._ignoreDups ? "resolution=ignore-duplicates" : "resolution=merge-duplicates")
+      : "return=representation");
+    if (this._method === "PATCH" || this._method === "DELETE") preferParts.push("return=representation");
+    if (this._countOnly) { preferParts.push("count=exact"); headers["Range"] = "0-0"; }
+    if (preferParts.length) headers["Prefer"] = preferParts.join(",");
+
+    const url = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+
+    try {
+      const res = await fetch(url, {
+        method:  this._method,
+        headers,
+        body: this._body !== null ? JSON.stringify(this._body) : undefined,
+      });
+
+      /* Count-only: read Content-Range header */
+      if (this._countOnly) {
+        const cr    = res.headers.get("content-range") ?? "";
+        const total = cr.includes("/") ? parseInt(cr.split("/")[1] ?? "0", 10) : 0;
+        return { data: null, error: null, count: isNaN(total) ? 0 : total };
+      }
+
+      if (!res.ok) {
+        let msg = `HTTP ${res.status} from Supabase`;
+        try { const e = await res.json() as { message?: string; error?: string }; msg = e.message ?? e.error ?? msg; } catch { /* */ }
+        return { data: null, error: { message: msg } };
+      }
+
+      const text = await res.text();
+      if (!text.trim()) {
+        return { data: (this._single || this._maybeSingle) ? null : [], error: null };
+      }
+
+      const parsed: unknown = JSON.parse(text);
+
+      if (this._single) {
+        if (Array.isArray(parsed)) {
+          if (!parsed.length) return { data: null, error: { message: "Row not found" } };
+          return { data: parsed[0], error: null };
+        }
+        return { data: parsed, error: null };
+      }
+      if (this._maybeSingle) {
+        if (Array.isArray(parsed)) return { data: parsed[0] ?? null, error: null };
+        return { data: parsed ?? null, error: null };
+      }
+      return { data: parsed, error: null };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[dbCompat] Supabase fetch error on table "${this._table}":`, msg);
+      return { data: null, error: { message: msg } };
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Supabase RPC caller via PostgREST /rest/v1/rpc/:fn
+ * ═══════════════════════════════════════════════════════════════════════════ */
+async function callSupabaseRpc(fn: string, args: Record<string, unknown> = {}): Promise<{ data: unknown; error: { message: string } | null }> {
+  if (!SB_URL || !SB_KEY) return { data: null, error: { message: "Supabase not configured" } };
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/rpc/${fn}`, {
+      method:  "POST",
+      headers: {
+        apikey:         SB_KEY,
+        Authorization:  `Bearer ${SB_KEY}`,
+        "Content-Type": "application/json",
+        Prefer:         "return=representation",
+      },
+      body: JSON.stringify(args),
+    });
+    const data = await res.json() as unknown;
+    if (!res.ok) return { data: null, error: { message: (data as { message?: string })?.message ?? `RPC ${fn} failed` } };
+    return { data, error: null };
+  } catch (err) {
+    return { data: null, error: { message: err instanceof Error ? err.message : String(err) } };
+  }
+}
+
+/** Drop-in replacement for createClient(url, key).from(table) usage.
+ *  Routes each table to the correct backend automatically. */
 export function createDbClient() {
   return {
-    from: (table: string) => new QueryBuilder(table),
-    rpc: async (fn: string, _args?: Record<string, unknown>): Promise<{ data: unknown; error: { message: string } | null }> => {
-      console.warn(`[dbCompat] rpc("${fn}") called — not supported, returning null`);
-      return { data: null, error: null };
+    from: (table: string): QueryBuilder | SupabaseRestBuilder =>
+      HELIUMDB_TABLES.has(table) ? new QueryBuilder(table) : new SupabaseRestBuilder(table),
+
+    rpc: async (fn: string, args?: Record<string, unknown>): Promise<{ data: unknown; error: { message: string } | null }> => {
+      return callSupabaseRpc(fn, args ?? {});
     },
+
     storage: {
       from: (_bucket: string) => ({
         createSignedUrl: async (_path: string, _expires: number) => ({
@@ -479,9 +696,10 @@ export function createDbClient() {
         }),
       }),
     },
+
     auth: {
       admin: {
-        signOut: async (_uid: string, _scope?: string) => ({ error: null }),
+        signOut:        async (_uid: string, _scope?: string) => ({ error: null }),
         updateUserById: async (_uid: string, _updates: Record<string, unknown>) => ({
           data: null as unknown,
           error: null as { message: string } | null,
@@ -492,7 +710,7 @@ export function createDbClient() {
   };
 }
 
-/** Convenience: create a compat client (ignores url/key — uses DATABASE_URL) */
+/** Convenience: create a compat client (url/key ignored — routing by HELIUMDB_TABLES) */
 export function createClient(_url?: string, _key?: string, _opts?: unknown) {
   return createDbClient();
 }
