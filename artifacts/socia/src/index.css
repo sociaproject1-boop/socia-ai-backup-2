@@ -489,3 +489,28 @@ html.light {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
+@keyframes pulse {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.55;
+  }
+
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(0.7);
+    opacity: 0.55;
+  }
+}
+
+@keyframes ptr-spin{
+  from{
+    transform:rotate(0deg);
+  }
+  to{
+    transform:rotate(360deg);
+  }
+}

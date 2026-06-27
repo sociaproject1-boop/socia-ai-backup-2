@@ -164,6 +164,10 @@ router.get("/posts", async (req, res) => {
       return;
     }
 
+    logger.info({
+  firstPost: data?.[0]
+}, "[DEBUG] First post");
+
     let posts = await enrichPosts(data ?? [], viewer);
 
     if (sort === "trending") {
@@ -884,7 +888,7 @@ router.get("/owner/reports", requireAuth as any, async (req, res) => {
 
     const { data, error } = await svc
       .from("reports")
-      .select("*, reporter:users!reports_reporter_id_fkey(id, name, username, avatar_url)")
+      .select("*")
       .eq("status", status)
       .order("created_at", { ascending: false })
       .limit(limit);
@@ -894,7 +898,15 @@ router.get("/owner/reports", requireAuth as any, async (req, res) => {
       res.status(500).json({ error: error.message }); 
       return; 
     }
-    res.json({ reports: data ?? [] });
+    const reports = await (async () => {
+      const ids = [...new Set((data ?? []).map((r: any) => r.reporter_id).filter(Boolean))];
+      if (!ids.length) return data ?? [];
+      const { data: users } = await svc.from("users").select("id, name, username, avatar_url").in("id", ids);
+      const map: Record<string, any> = {};
+      for (const u of (users as any[]) ?? []) map[u.id] = u;
+      return (data ?? []).map((r: any) => ({ ...r, reporter: map[r.reporter_id] ?? null }));
+    })();
+    res.json({ reports });
   } catch (err) {
     logger.error({ err }, "[owner/reports] error");
     res.status(500).json({ error: "Internal error" });

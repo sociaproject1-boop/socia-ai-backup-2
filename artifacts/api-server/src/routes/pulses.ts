@@ -49,6 +49,24 @@ function isAdmin(req: any): boolean {
 
 const router: IRouter = Router();
 
+/** Batch-fetch user profiles for rows and attach them under `fieldName`. */
+async function attachUsers(
+  rows: any[],
+  idCol: string,
+  fieldName: string,
+): Promise<any[]> {
+  if (!rows.length) return rows;
+  const ids = [...new Set(rows.map((r) => r[idCol]).filter(Boolean))];
+  if (!ids.length) return rows.map((r) => ({ ...r, [fieldName]: null }));
+  const { data: users } = await db()
+    .from("users")
+    .select("id, name, username, avatar_url")
+    .in("id", ids);
+  const map: Record<string, any> = {};
+  for (const u of (users as any[]) ?? []) map[u.id] = u;
+  return rows.map((r) => ({ ...r, [fieldName]: map[r[idCol]] ?? null }));
+}
+
 /* ── §1  Feed ──────────────────────────────────────────────────────────── */
 
 router.get("/pulses/feed", requireAuth, async (req, res) => {
@@ -59,14 +77,16 @@ router.get("/pulses/feed", requireAuth, async (req, res) => {
 
     const { data: pulses, error } = await svc
       .from("pulses")
-      .select("*, user:users!pulses_user_id_fkey(id, name, username, avatar_url)")
+      .select("*")
       .gt("expires_at", now)
       .neq("visibility", "private")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
 
-    const pulseIds = (pulses ?? []).map((p: any) => p.id);
+    const pulsesWithUsers = await attachUsers(pulses ?? [], "user_id", "user");
+
+    const pulseIds = pulsesWithUsers.map((p: any) => p.id);
     let viewedSet = new Set<string>();
     if (pulseIds.length > 0) {
       const { data: views } = await svc
@@ -78,7 +98,7 @@ router.get("/pulses/feed", requireAuth, async (req, res) => {
     }
 
     const groups = new Map<string, any>();
-    for (const pulse of pulses ?? []) {
+    for (const pulse of pulsesWithUsers) {
       const uid = pulse.user_id;
       if (!groups.has(uid)) {
         groups.set(uid, { user: pulse.user, pulses: [], has_unviewed: false });
@@ -274,12 +294,13 @@ router.get("/pulses/:id/views", requireAuth, async (req, res) => {
 
     const { data, count } = await svc
       .from("pulse_views")
-      .select("*, viewer:users!pulse_views_viewer_id_fkey(id, name, username, avatar_url)", { count: "exact" })
+      .select("*", { count: "exact" })
       .eq("pulse_id", pulseId)
       .order("viewed_at", { ascending: false })
       .limit(50);
 
-    res.json({ views: data ?? [], count: count ?? 0 });
+    const viewsWithUsers = await attachUsers(data ?? [], "viewer_id", "viewer");
+    res.json({ views: viewsWithUsers, count: count ?? 0 });
   } catch (err) {
     logger.error({ err }, "[pulses] views list error");
     res.status(500).json({ error: "Failed to get views" });
@@ -352,12 +373,13 @@ router.get("/pulses/admin/reported", requireAuth, async (req, res) => {
     const svc = db();
     const { data, error } = await svc
       .from("pulses")
-      .select("*, user:users!pulses_user_id_fkey(id, name, username, avatar_url)")
+      .select("*")
       .eq("is_reported", true)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
-    res.json(data ?? []);
+    const withUsers = await attachUsers(data ?? [], "user_id", "user");
+    res.json(withUsers);
   } catch (err) {
     logger.error({ err }, "[pulses] admin reported error");
     res.status(500).json({ error: "Failed to get reported pulses" });
