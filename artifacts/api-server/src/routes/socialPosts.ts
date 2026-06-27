@@ -42,67 +42,76 @@ function isOwnerUser(req: any): boolean {
   try { return (getAuthedUser(req).email ?? "").toLowerCase() === OWNER_EMAIL; } catch { return false; }
 }
 
-const BASE_POST_SELECT = `
-  id, author_id, caption, type, view_count, created_at, updated_at,
-  sound_id,
-  author:users!posts_author_id_fkey(id, name, username, avatar_url, is_verified, is_owner, subscription_status),
-  media:post_media(id, url, type, width, height, duration, position)
-`;
+const BASE_POST_SELECT = `id, author_id, caption, type, view_count, created_at, updated_at, sound_id`;
 
-/** Enrich posts with real aggregate counts + viewer like/save status + sound metadata.
+/** Enrich posts with real aggregate counts + author profiles + media + viewer like/save status + sound metadata.
  *
- * C-1/C-3 optimisation: likes and saves are fetched once with (post_id, user_id) so
- * both aggregate counts AND viewer-specific has_liked/has_saved are derived from the
- * same result set — eliminating the two extra viewer-specific queries that previously
- * ran in a second Promise.all when viewerId was present.
- * Query count: was 6 (with viewer) / 4 (without), now always 4.
+ * Six parallel queries per batch:
+ *   likes, comments, saves, sounds — engagement aggregates
+ *   users  — author profiles (via dbCompat → heliumdb)
+ *   post_media — media rows (via dbCompat → Supabase PostgREST)
+ *
+ * Author and media are fetched in the same round-trip as engagement data so
+ * the response always includes full profile info and media — no FK-join dependency.
  */
 async function enrichPosts(posts: any[], viewerId: string | null) {
   if (!posts.length) return [];
 
   const svc = db();
-  const postIds = posts.map((p: any) => p.id);
+  const postIds   = posts.map((p: any) => p.id);
+  const authorIds = [...new Set(posts.map((p: any) => p.author_id).filter(Boolean))];
+  const soundIds  = [...new Set(posts.map((p: any) => p.sound_id).filter(Boolean))];
 
-  /* Collect distinct sound IDs from this batch */
-  const soundIds = [...new Set(posts.map((p: any) => p.sound_id).filter(Boolean))];
-
-  /* Single round-trip: likes and saves include user_id so viewer status is derived here */
-  const [likesRes, commentsRes, savesRes, soundsRes] = await Promise.all([
+  const [likesRes, commentsRes, savesRes, soundsRes, authorsRes, mediaRes] = await Promise.all([
     svc.from("likes").select("post_id, user_id").in("post_id", postIds),
     svc.from("comments").select("post_id").in("post_id", postIds),
     svc.from("saves").select("post_id, user_id").in("post_id", postIds),
     soundIds.length > 0
       ? svc.from("sounds").select("id, title, cover_image, audio_url, usage_count, creator_id").in("id", soundIds)
       : Promise.resolve({ data: [] as any[] }),
+    authorIds.length > 0
+      ? svc.from("users").select("id, name, username, avatar_url, is_verified, is_owner, subscription_status").in("id", authorIds)
+      : Promise.resolve({ data: [] as any[] }),
+    postIds.length > 0
+      ? svc.from("post_media").select("id, post_id, url, type, width, height, duration, position").in("post_id", postIds)
+      : Promise.resolve({ data: [] as any[] }),
   ]);
 
-  /* Build lookup maps — count aggregates and viewer status in one pass each */
-  const soundMap    = new Map<string, any>();
-  const likeMap     = new Map<string, number>();
-  const commentMap  = new Map<string, number>();
-  const saveMap     = new Map<string, number>();
-  const likedSet    = new Set<string>();
-  const savedSet    = new Set<string>();
+  const authorMap  = new Map<string, any>();
+  const mediaByPost = new Map<string, any[]>();
+  const soundMap   = new Map<string, any>();
+  const likeMap    = new Map<string, number>();
+  const commentMap = new Map<string, number>();
+  const saveMap    = new Map<string, number>();
+  const likedSet   = new Set<string>();
+  const savedSet   = new Set<string>();
 
-  (soundsRes.data    ?? []).forEach((s: any) => soundMap.set(s.id, s));
-  (likesRes.data     ?? []).forEach((r: any) => {
+  (authorsRes.data  ?? []).forEach((u: any) => authorMap.set(u.id, u));
+  (mediaRes.data    ?? []).forEach((m: any) => {
+    const arr = mediaByPost.get(m.post_id) ?? [];
+    arr.push(m);
+    mediaByPost.set(m.post_id, arr);
+  });
+  (soundsRes.data   ?? []).forEach((s: any) => soundMap.set(s.id, s));
+  (likesRes.data    ?? []).forEach((r: any) => {
     likeMap.set(r.post_id, (likeMap.get(r.post_id) ?? 0) + 1);
     if (viewerId && r.user_id === viewerId) likedSet.add(r.post_id);
   });
-  (commentsRes.data  ?? []).forEach((r: any) => commentMap.set(r.post_id, (commentMap.get(r.post_id) ?? 0) + 1));
-  (savesRes.data     ?? []).forEach((r: any) => {
+  (commentsRes.data ?? []).forEach((r: any) => commentMap.set(r.post_id, (commentMap.get(r.post_id) ?? 0) + 1));
+  (savesRes.data    ?? []).forEach((r: any) => {
     saveMap.set(r.post_id, (saveMap.get(r.post_id) ?? 0) + 1);
     if (viewerId && r.user_id === viewerId) savedSet.add(r.post_id);
   });
 
   return posts.map((p: any) => ({
     ...p,
+    author:        authorMap.get(p.author_id) ?? null,
     like_count:    likeMap.get(p.id) ?? 0,
     comment_count: commentMap.get(p.id) ?? 0,
     save_count:    saveMap.get(p.id) ?? 0,
     has_liked:     likedSet.has(p.id),
     has_saved:     savedSet.has(p.id),
-    media:         (p.media ?? []).sort((a: any, b: any) => a.position - b.position),
+    media:         (mediaByPost.get(p.id) ?? []).sort((a: any, b: any) => a.position - b.position),
     sound:         p.sound_id ? (soundMap.get(p.sound_id) ?? null) : null,
   }));
 }

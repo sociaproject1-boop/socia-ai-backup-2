@@ -132,70 +132,72 @@ export function useMessages(myId: string | null, otherId: string | null) {
   const [loadingOlder,  setLoadingOlder]  = useState(false);
   const seenIds = useRef(new Set<string>());
 
-  const threadFilter = useCallback(() =>
-    `and(sender_id.eq.${myId},receiver_id.eq.${otherId}),` +
-    `and(sender_id.eq.${otherId},receiver_id.eq.${myId})`,
-  [myId, otherId]);
-
   const load = useCallback(async () => {
     if (!myId || !otherId) {
       setLoading(false);
       return;
     }
 
-    /* Fetch the most-recent PAGE_SIZE messages (desc) then reverse to asc.
-       Fetching one extra lets us know if there are older pages. */
-    const { data, error: qErr } = await supabase
-      .from("messages")
-      .select("*")
-      .or(threadFilter())
-      .order("created_at", { ascending: false })
-      .limit(CHAT_PAGE_SIZE + 1);
+    /* Fetch thread via API endpoint — the server uses user's JWT (RLS applies)
+       and returns messages already ordered oldest→newest. */
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) { setLoading(false); return; }
 
-    if (qErr) {
-      console.error("[Chat] useMessages load:", qErr.code, qErr.message);
+      const url = `/api/messages/thread?otherId=${encodeURIComponent(otherId)}&limit=${CHAT_PAGE_SIZE}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+
+      if (!res.ok) {
+        console.error("[Chat] useMessages load HTTP", res.status);
+        seenIds.current = new Set();
+        setMessages([]);
+        setError(null);
+        setHasMore(false);
+      } else {
+        const json = await res.json() as { messages: SupabaseMessage[]; hasMore: boolean };
+        const rows = json.messages ?? [];
+        seenIds.current = new Set(rows.map((m) => m.id));
+        setMessages(rows);
+        setHasMore(json.hasMore ?? false);
+        setError(null);
+      }
+    } catch (err) {
+      console.error("[Chat] useMessages load error:", err);
       seenIds.current = new Set();
       setMessages([]);
       setError(null);
       setHasMore(false);
-    } else {
-      const raw = (data ?? []) as SupabaseMessage[];
-      const more = raw.length > CHAT_PAGE_SIZE;
-      const rows = (more ? raw.slice(0, CHAT_PAGE_SIZE) : raw).reverse();
-      seenIds.current = new Set(rows.map((m) => m.id));
-      setMessages(rows);
-      setHasMore(more);
-      setError(null);
     }
     setLoading(false);
-  }, [myId, otherId, threadFilter]);
+  }, [myId, otherId]);
 
   /** Load the page of messages older than the oldest currently loaded. */
   const loadOlder = useCallback(async (oldestCreatedAt: string) => {
     if (!myId || !otherId || loadingOlder) return;
     setLoadingOlder(true);
     try {
-      const { data, error: qErr } = await supabase
-        .from("messages")
-        .select("*")
-        .or(threadFilter())
-        .lt("created_at", oldestCreatedAt)
-        .order("created_at", { ascending: false })
-        .limit(CHAT_PAGE_SIZE + 1);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
 
-      if (!qErr) {
-        const raw = (data ?? []) as SupabaseMessage[];
-        const more = raw.length > CHAT_PAGE_SIZE;
-        const rows = (more ? raw.slice(0, CHAT_PAGE_SIZE) : raw).reverse();
+      const url =
+        `/api/messages/thread?otherId=${encodeURIComponent(otherId)}` +
+        `&limit=${CHAT_PAGE_SIZE}&before=${encodeURIComponent(oldestCreatedAt)}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+
+      if (res.ok) {
+        const json = await res.json() as { messages: SupabaseMessage[]; hasMore: boolean };
+        const rows = json.messages ?? [];
         const newOnes = rows.filter((m) => !seenIds.current.has(m.id));
         newOnes.forEach((m) => seenIds.current.add(m.id));
         if (newOnes.length > 0) setMessages((prev) => [...newOnes, ...prev]);
-        setHasMore(more);
+        setHasMore(json.hasMore ?? false);
       }
     } finally {
       setLoadingOlder(false);
     }
-  }, [myId, otherId, loadingOlder, threadFilter]);
+  }, [myId, otherId, loadingOlder]);
 
   useEffect(() => {
     seenIds.current.clear();
@@ -259,85 +261,47 @@ export function useConversations(myId: string | null) {
       return;
     }
 
-    /* ── Step 1: fetch all messages involving me ─────────────────────── *
-     *  SELECT * so missing optional columns (edited, edited_at, …) on   *
-     *  older schemas can never break the inbox.                          */
-    // 100 rows covers ~50 distinct conversations with 2 messages each, which
-    // is enough for any real inbox.  500 was causing a large initial payload
-    // and a slow second-query user-batch fetch on every Messages page mount.
-    const { data: msgs, error: msgErr } = await supabase
-      .from("messages")
-      .select("*")
-      .or(`sender_id.eq.${myId},receiver_id.eq.${myId}`)
-      .order("created_at", { ascending: false })
-      .limit(100);
-
-    if (msgErr) {
-      console.error("[Chat] useConversations messages ERROR:", msgErr);
-      /* Do NOT clear conversations — keep the last known good list      *
-       * so the inbox doesn't visually "disappear" on a transient error. */
-      setLoading(false);
-      return;
-    }
-
-    /* ── Step 2: collect unique other-user IDs ───────────────────────── */
-    const otherIdSet = new Set<string>();
-    for (const m of (msgs ?? [])) {
-      otherIdSet.add(m.sender_id === myId ? m.receiver_id : m.sender_id);
-    }
-    const otherIds = [...otherIdSet];
-
-    /* ── Step 3: batch-fetch those users ─────────────────────────────── */
-    const userMap = new Map<string, ConversationUser>();
-
-    if (otherIds.length > 0) {
-      const { data: users, error: uErr } = await supabase
-        .from("users")
-        .select("*")
-        .in("id", otherIds);
-
-      if (uErr) {
-        console.error("[Chat] useConversations users ERROR:", uErr);
-      } else {
-        for (const u of (users ?? []) as ConversationUser[]) {
-          userMap.set(u.id, u);
-          userCache.set(u.id, u);
-        }
+    /* Fetch via API endpoint — server uses user's JWT (RLS on messages),
+       then resolves user profiles from heliumdb (service-role) which is
+       the authoritative store for all user profiles. */
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        setLoading(false);
+        return;
       }
-    }
 
-    /* ── Step 4: build deduplicated conversation list ────────────────── */
-    const seen = new Set<string>();
-    const convs: Conversation[] = [];
-
-    for (const row of (msgs ?? []) as any[]) {
-      const fromMe  = row.sender_id === myId;
-      const otherId = fromMe ? row.receiver_id : row.sender_id;
-      if (seen.has(otherId)) continue;
-      seen.add(otherId);
-
-      const other = userMap.get(otherId) ?? userCache.get(otherId);
-
-      convs.push({
-        otherId,
-        otherName:       other?.name         || "",
-        otherUsername:   other?.username     || "",
-        otherAvatar:     other?.avatar_url   || "",
-        otherLastSeen:   other?.last_seen    ?? null,
-        otherIsOwner:    Boolean(other?.is_owner),
-        otherIsVerified: Boolean(other?.is_verified),
-        lastText:
-          row.text       ||
-          (row.image_url  ? "📷 Photo"         : "") ||
-          (row.audio_url  ? "🎤 Voice message"  : "") ||
-          "",
-        lastImageUrl: row.image_url ?? null,
-        lastAt:       row.created_at,
-        unread:       !row.seen && row.receiver_id === myId,
+      const res = await fetch("/api/conversations", {
+        headers: { Authorization: `Bearer ${token}` },
       });
-    }
 
-    setConversations(convs);
+      if (!res.ok) {
+        console.error("[Chat] useConversations HTTP", res.status);
+        setLoading(false);
+        return;
+      }
+
+      const json = await res.json() as { conversations: Conversation[] };
+      const convs = json.conversations ?? [];
+
+      /* Update in-memory user cache from profile data returned by server */
+      for (const c of convs) {
+        userCache.set(c.otherId, {
+          id:           c.otherId,
+          name:         c.otherName,
+          username:     c.otherUsername,
+          avatar_url:   c.otherAvatar,
+          last_seen:    c.otherLastSeen,
+          is_owner:     c.otherIsOwner,
+          is_verified:  c.otherIsVerified,
+        });
+      }
+
+      setConversations(convs);
+    } catch (err) {
+      console.error("[Chat] useConversations error:", err);
+    }
     setLoading(false);
   }, [myId]);
 

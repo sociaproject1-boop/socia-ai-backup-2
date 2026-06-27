@@ -19,6 +19,7 @@ import { Router } from "express";
 import { requireAuth, getAuthedUser, getRequestSupabase } from "../lib/replitAuth.js";
 import { takeChatToken } from "../lib/chatRateLimit.js";
 import { logger } from "../lib/logger.js";
+import { createClient } from "../lib/dbCompat.js";
 import {
   ADMIN_EMAIL,
   shouldAiReply,
@@ -30,6 +31,126 @@ import { getAdminUserId, triggerAiReply } from "../lib/aiAutoReplyEngine.js";
 const router = Router();
 
 const MAX_MESSAGE_CHARS = 4_000;
+
+/** Service-role dbCompat client — routes users→heliumdb, all else→Supabase PostgREST. */
+function svcDb() {
+  const url = (process.env["SUPABASE_URL"] ?? process.env["VITE_SUPABASE_URL"] ?? "").replace(/\/$/, "");
+  const key = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? process.env["SUPABASE_ANON_KEY"] ?? "";
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+
+/* ── GET /api/conversations — conversation list with user profiles ─────── */
+
+router.get("/conversations", requireAuth, async (req, res): Promise<void> => {
+  const user      = getAuthedUser(req);
+  const sbUser    = getRequestSupabase(req);  // user-scoped Supabase client (RLS applies to messages)
+  const svc       = svcDb();                  // service-role dbCompat (users→heliumdb, bypasses RLS)
+
+  /* Step 1: fetch messages involving this user from Supabase */
+  const { data: msgs, error: msgErr } = await sbUser
+    .from("messages")
+    .select("id, sender_id, receiver_id, text, image_url, audio_url, seen, created_at")
+    .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (msgErr) {
+    logger.warn({ err: msgErr }, "[conversations] messages fetch failed — returning empty");
+    res.json({ conversations: [] });
+    return;
+  }
+
+  /* Step 2: collect unique peer IDs */
+  const otherIdSet = new Set<string>();
+  for (const m of (msgs ?? [])) {
+    const peerId = m.sender_id === user.id ? m.receiver_id : m.sender_id;
+    if (peerId && peerId !== user.id) otherIdSet.add(peerId);
+  }
+  const otherIds = [...otherIdSet];
+
+  /* Step 3: batch-fetch profiles from heliumdb via dbCompat (svc.from("users") → heliumdb) */
+  const userMap = new Map<string, any>();
+  if (otherIds.length > 0) {
+    const { data: users } = await svc
+      .from("users")
+      .select("id, name, username, avatar_url, last_seen, is_owner, is_verified")
+      .in("id", otherIds);
+    for (const u of (users ?? [])) userMap.set(u.id, u);
+  }
+
+  /* Step 4: build deduplicated conversation list (most-recent message per peer) */
+  const seen = new Set<string>();
+  const convs: any[] = [];
+  for (const row of (msgs ?? []) as any[]) {
+    const fromMe  = row.sender_id === user.id;
+    const otherId = fromMe ? row.receiver_id : row.sender_id;
+    if (!otherId || seen.has(otherId)) continue;
+    seen.add(otherId);
+
+    const other = userMap.get(otherId);
+    convs.push({
+      otherId,
+      otherName:       other?.name      ?? "",
+      otherUsername:   other?.username  ?? "",
+      otherAvatar:     other?.avatar_url ?? "",
+      otherLastSeen:   other?.last_seen  ?? null,
+      otherIsOwner:    Boolean(other?.is_owner),
+      otherIsVerified: Boolean(other?.is_verified),
+      lastText:
+        row.text       ||
+        (row.image_url  ? "📷 Photo"        : "") ||
+        (row.audio_url  ? "🎤 Voice message" : "") ||
+        "",
+      lastImageUrl: row.image_url ?? null,
+      lastAt:       row.created_at,
+      unread:       !row.seen && row.receiver_id === user.id,
+    });
+  }
+
+  res.json({ conversations: convs });
+});
+
+/* ── GET /api/messages/thread — paginated thread messages ──────────────── */
+
+router.get("/messages/thread", requireAuth, async (req, res): Promise<void> => {
+  const user   = getAuthedUser(req);
+  const sbUser = getRequestSupabase(req);
+
+  const otherId = typeof req.query["otherId"] === "string" ? req.query["otherId"] : null;
+  if (!otherId) {
+    res.status(400).json({ error: "otherId query param is required" });
+    return;
+  }
+
+  const limit  = Math.min(Number(req.query["limit"] ?? 50), 100);
+  const before = typeof req.query["before"] === "string" ? req.query["before"] : null;
+
+  const orClause =
+    `and(sender_id.eq.${user.id},receiver_id.eq.${otherId}),` +
+    `and(sender_id.eq.${otherId},receiver_id.eq.${user.id})`;
+
+  let qb = sbUser
+    .from("messages")
+    .select("*")
+    .or(orClause)
+    .order("created_at", { ascending: false })
+    .limit(limit + 1);
+
+  if (before) qb = qb.lt("created_at", before);
+
+  const { data, error } = await qb;
+  if (error) {
+    logger.warn({ err: error }, "[messages/thread] fetch failed — returning empty");
+    res.json({ messages: [], hasMore: false });
+    return;
+  }
+
+  const raw     = (data ?? []) as any[];
+  const hasMore = raw.length > limit;
+  const messages = (hasMore ? raw.slice(0, limit) : raw).reverse();
+
+  res.json({ messages, hasMore });
+});
 
 /* ── POST /api/messages/send ─────────────────────────────────────────────── */
 
