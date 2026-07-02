@@ -159,14 +159,14 @@ export function BottomNav() {
   const tabs = isAuthenticated ? AUTH_TABS : GUEST_TABS;
 
   const handleTabClick = (path: string) => {
-    if (path === "__create__") {
-      setShowUploadSheet(true);
-    } else if (path === "__auth__") {
-      setShowGuestModal(true);
-    } else {
-      navigate(path);
-    }
-  };
+  if (path === "__create__") {
+    navigate("/create");
+  } else if (path === "__auth__") {
+    setShowGuestModal(true);
+  } else {
+    navigate(path);
+  }
+};
 
   return (
     <>

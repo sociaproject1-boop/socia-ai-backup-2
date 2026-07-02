@@ -1,3 +1,11 @@
+/*
+CHANGES:
+- MusicDisc removed
+- Stronger post divider
+- Preserve uploaded image/video aspect ratio (objectFit: contain)
+- Username vertically centered
+- Media container border
+*/
 /**
  * FeedCard.tsx — X (Twitter) style flat feed item.
  *
@@ -47,6 +55,7 @@ function RetweetIcon({ size = 19, color = "currentColor" }: { size?: number; col
   );
 }
 
+/* MUSIC DISC REMOVED
 /* ── Spinning music disc ──────────────────────────────────────────────── */
 const DISC_SPIN_STYLE: React.CSSProperties = {
   animation: "feedcard-disc-spin 4s linear infinite",
@@ -223,24 +232,30 @@ export const FeedCard = memo(function FeedCard({
 
   /* ── Action button helper ─────────────────────────────────────────────── */
   const ActionBtn = ({
-    children, onClick, count, active, activeColor,
+  children,
+  onClick,
+  count,
+  active,
+  activeColor,
+  className = "",
   }: {
     children: React.ReactNode;
     onClick?: (e: React.MouseEvent) => void;
     count?: number;
     active?: boolean;
     activeColor?: string;
+    className?: string;
   }) => (
     <motion.button
       whileTap={{ scale: 0.82 }}
       transition={{ type: "spring", stiffness: 600, damping: 30 }}
       onClick={onClick}
-      className="flex items-center gap-1.5 py-2.5 min-w-0"
+      className={`flex items-center justify-start gap-[6px] h-[34px] px-0 text-[#71767B] ${className}`}
       style={{ color: active ? activeColor : "#71767B" }}
     >
       {children}
       {count != null && count > 0 && (
-        <span style={{ fontSize: 12, fontWeight: 500, color: active ? activeColor : "#71767B" }}>
+        <span style={{ fontSize: 11, fontWeight: 500, color: active ? activeColor : "#71767B" }}>
           {fmtCount(count)}
         </span>
       )}
@@ -250,57 +265,71 @@ export const FeedCard = memo(function FeedCard({
   return (
     <article
       className="w-full overflow-hidden"
-      style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}
+      style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}
     >
       {/* ── Header: Avatar + Name/handle/time + menu ───────────────────── */}
-      <div className="flex items-start gap-3 px-4 pt-3 pb-0">
-        {/* Avatar */}
-        <motion.button
-          whileTap={{ scale: 0.92 }}
-          onClick={() => navigate(isMe ? "/profile" : `/profile/${post.author_id}`)}
-          className="flex-shrink-0"
-        >
-          {post.author?.avatar_url ? (
-            <img
-              src={post.author.avatar_url}
-              alt=""
-              className="h-10 w-10 rounded-full object-cover"
-            />
-          ) : (
-            <div className="h-10 w-10 rounded-full grid place-items-center text-sm font-bold text-white bg-[#1D9BF0]">
-              {(post.author?.name || post.author?.username || "?").charAt(0).toUpperCase()}
-            </div>
-          )}
-        </motion.button>
+      <div className="flex items-start gap-3 px-4 pt-2.5 pb-0">
+{/* Avatar */}
+<motion.button
+  whileTap={{ scale: 0.92 }}
+  onClick={() => navigate(isMe ? "/profile" : `/profile/${post.author_id}`)}
+  className="flex-shrink-0"
+>
+  {post.author?.avatar_url ? (
+    <img
+      src={post.author.avatar_url}
+      alt=""
+      className="h-[34px] w-[36px] rounded-full object-cover"
+    />
+  ) : (
+    <div className="h-[34px] w-[36px] rounded-full grid place-items-cente s-center text-sm font-bold text-white bg-[#1D9BF0]">
+      {(post.author?.name || post.author?.username || "?")
+        .charAt(0)
+        .toUpperCase()}
+    </div>
+  )}
+</motion.button>
 
         {/* Name row + menu */}
         <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
           <div className="min-w-0">
-            {/* Display name + verified + @username + dot + time — all one line */}
-            <div className="flex items-center gap-1 flex-wrap leading-none">
-              <motion.button
-                whileTap={{ scale: 0.97 }}
-                onClick={() => navigate(isMe ? "/profile" : `/profile/${post.author_id}`)}
-                className="text-[14px] font-bold text-[#E7E9EA] leading-none"
-              >
-                {post.author?.name || post.author?.username || "User"}
-              </motion.button>
-              {authorSupporterTier
-                ? <FoundingSupporterBadge tier={authorSupporterTier} size={14} showGlow={false} />
-                : (post.author?.is_verified &&
-                    (post.author?.subscription_status === "active" ||
-                     post.author?.subscription_status === "owner")) && (
-                  <BadgeCheck className="h-3.5 w-3.5 flex-shrink-0 text-[#1D9BF0]" />
-                )
-              }
-            </div>
+
+  <motion.button
+    whileTap={{ scale: 0.97 }}
+    onClick={() => navigate(isMe ? "/profile" : `/profile/${post.author_id}`)}
+    className="text-[14px] font-semibold text-[#E7E9EA] whitespace-nowrap"
+  >
+    {post.author?.name || post.author?.username || "User"}
+  </motion.button>
+
+  {authorSupporterTier ? (
+    <FoundingSupporterBadge
+      tier={authorSupporterTier}
+      size={12}
+      showGlow={false}
+    />
+  ) : (
+    (post.author?.is_verified &&
+      (post.author?.subscription_status === "active" ||
+        post.author?.subscription_status === "owner")) && (
+      <BadgeCheck className="h-3.5 w-3.5 flex-shrink-0 text-[#1D9BF0]" />
+    )
+  )}
             <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-              {post.author?.username && (
-                <span className="text-[13px] text-[#71767B]">@{post.author.username}</span>
-              )}
-              <span className="text-[13px] text-[#71767B]">·</span>
-              <span className="text-[13px] text-[#71767B]">{relTime(post.created_at)}</span>
-            </div>
+  {post.author?.username && (
+    <span className="text-[13px] text-[#71767B] truncate">
+      @{post.author.username}
+    </span>
+  )}
+
+  <span className="text-[#71767B]">·</span>
+
+  <span className="text-[13px] text-[#71767B] whitespace-nowrap">
+    {relTime(post.created_at)}
+  </span>
+</div>
+
+</div>
           </div>
 
           {/* More menu */}
@@ -364,14 +393,14 @@ export const FeedCard = memo(function FeedCard({
               )}
             </AnimatePresence>
           </div>
-        </div>
-      </div>
+
+
 
       {/* ── Caption — full width below header ─────────────────────────── */}
       {post.caption && (
-        <div className="px-4 pt-2 pb-2" style={{ paddingLeft: 68 }}>
+        <div className="px-4 pt-2 pb-2" style={{ paddingLeft: 54 }}>
           <p
-            className="text-[14px] leading-[1.5] text-[#E7E9EA]"
+            className="text-[13px] leading-[1.45] text-[#E7E9EA]"
             style={{
               textAlign: "left",
               display: captionExpand ? "block" : "-webkit-box",
@@ -397,7 +426,7 @@ export const FeedCard = memo(function FeedCard({
       {media.length > 0 && (
         <div
           className="relative mt-2"
-          style={{ marginLeft: 68, marginRight: 16, borderRadius: 16, overflow: "hidden" }}
+          style={{ marginLeft: 54, marginRight: 16, borderRadius: 20, overflow: "hidden", border:"1px solid rgba(255,255,255,0.08)" }}
           onClick={handleMediaTap}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
@@ -412,7 +441,7 @@ export const FeedCard = memo(function FeedCard({
                   src={currentMedia?.url}
                   alt={post.caption ?? ""}
                   className="w-full block"
-                  style={{ height: "auto", display: "block" }}
+                  style={{ width:"100%", height:"auto", display:"block", objectFit:"contain" }}
                   loading="lazy"
                   draggable={false}
                   initial={{ opacity: 0 }}
@@ -460,43 +489,49 @@ export const FeedCard = memo(function FeedCard({
                 <Heart className="h-20 w-20 fill-white text-white" />
               </motion.div>
             )}
-          </AnimatePresence>
+          </AnimatePresence> </div>
+)}
 
-          {/* Music disc overlay on photo */}
-          {post.sound_id && currentMedia?.type !== "video" && (
-            <div className="absolute right-3 bottom-3 z-20 flex flex-col items-center gap-1" style={{ pointerEvents: "auto" }}>
-              <MusicDisc sound={post.sound} soundId={post.sound_id} navigate={navigate} size={40} />
-            </div>
-          )}
-        </div>
-      )}
+
 
       {/* ── Engagement bar: Comment | Repost | Like | Analytics  [Bookmark][Share] ── */}
-      <div className="flex items-center justify-between pt-1 pb-1 pr-3" style={{ paddingLeft: 68 }}>
+     <div
+className="flex items-center h-[40px]"
+style={{
+paddingLeft: 52,
+paddingRight: 16
+}}
+>
         {/* Left group — wide gaps to match X */}
-        <div className="flex items-center gap-5">
+       <div className="flex flex-1 justify-evenly">
           {/* Comment */}
-          <ActionBtn onClick={handleCommentClick} count={post.comment_count ?? 0}>
-            <MessageCircle className="h-[19px] w-[19px]" strokeWidth={1.75} />
+          <ActionBtn
+  className="w-[72px]"
+  onClick={handleCommentClick}
+  count={post.comment_count ?? 0}
+>
+            <MessageCircle className="h-[18px] w-[18px]" strokeWidth={1.75} />
           </ActionBtn>
 
           {/* Repost */}
           <ActionBtn
-            onClick={(e) => { e.stopPropagation(); requireAuth(() => {}, "repost"); }}
+  className="w-[72px]"
+  onClick={(e) => { e.stopPropagation(); requireAuth(() => {}, "repost"); }}
             count={0}
           >
             <RetweetIcon size={19} color="#71767B" />
           </ActionBtn>
 
-          {/* Like */}
+            {/* Like */}
           <ActionBtn
-            onClick={(e) => { e.stopPropagation(); requireAuth(() => onLike(post.id), "like posts"); }}
+  className="w-[72px]"
+  onClick={(e) => { e.stopPropagation(); requireAuth(() => onLike(post.id), "like posts"); }}
             count={post.like_count ?? 0}
             active={post.has_liked}
             activeColor="#f91880"
           >
             <Heart
-              className="h-[19px] w-[19px] transition-colors"
+              className="h-[18px] w-[18px] transition-colors"
               style={{
                 fill: post.has_liked ? "#f91880" : "none",
                 color: post.has_liked ? "#f91880" : "#71767B",
@@ -506,10 +541,10 @@ export const FeedCard = memo(function FeedCard({
           </ActionBtn>
 
           {/* Analytics / Views */}
-          <ActionBtn>
-            <BarChart2 className="h-[19px] w-[19px]" strokeWidth={1.75} />
+          <ActionBtn className="w-[72px]">
+            <BarChart2 className="h-[18px] w-[18px]" strokeWidth={1.75} />
             {(post.view_count ?? 0) > 0 && (
-              <span style={{ fontSize: 12, fontWeight: 500, color: "#71767B" }}>
+              <span style={{ fontSize: 11, fontWeight: 500, color: "#71767B" }}>
                 {fmtCount(post.view_count ?? 0)}
               </span>
             )}
@@ -517,20 +552,19 @@ export const FeedCard = memo(function FeedCard({
         </div>
 
         {/* Right group: Bookmark + Share */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center ml-6 gap-4">
           {/* Music disc for text-only posts */}
-          {post.sound_id && media.length === 0 && (
-            <MusicDisc sound={post.sound} soundId={post.sound_id} navigate={navigate} size={32} />
-          )}
+
 
           {/* Bookmark */}
           <ActionBtn
-            onClick={(e) => { e.stopPropagation(); requireAuth(() => onSave(post.id), "save posts"); }}
+  className="w-auto"
+  onClick={(e) => { e.stopPropagation(); requireAuth(() => onSave(post.id), "save posts"); }}
             active={post.has_saved}
             activeColor="#1D9BF0"
           >
             <Bookmark
-              className="h-[19px] w-[19px] transition-colors"
+              className="h-[18px] w-[18px] transition-colors"
               style={{
                 fill: post.has_saved ? "#1D9BF0" : "none",
                 color: post.has_saved ? "#1D9BF0" : "#71767B",
@@ -540,11 +574,15 @@ export const FeedCard = memo(function FeedCard({
           </ActionBtn>
 
           {/* Share */}
-          <ActionBtn onClick={handleShare}>
-            <Share2 className="h-[19px] w-[19px]" strokeWidth={1.75} />
+          <ActionBtn
+  className="w-auto"
+  onClick={handleShare}
+>
+            <Share2 className="h-[18px] w-[18px]" strokeWidth={1.75} />
           </ActionBtn>
         </div>
       </div>
     </article>
   );
 });
+      
