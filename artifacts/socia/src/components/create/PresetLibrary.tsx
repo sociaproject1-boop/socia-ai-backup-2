@@ -1,13 +1,9 @@
-/**
- * PresetLibrary — compact AI Preset Studio section embedded in CreateHub.
- *
- * Behaviour:
- *  • Fetches presets from /api/presets (public, no auth required).
- *  • Displays 9 curated category tabs above a horizontal card row.
- *  • Tapping a card opens a preview sheet:
- *      – Guests   : see description + "Sign In to Use" CTA.
- *      – Auth users: "Use Preset" navigates to /studio/:presetId.
- */
+/*
+  PresetLibrary.tsx — VISUAL: wire each preset to the premium icon system.
+  Changes: import PresetIcon, compute icon paths (thumb / large) from preset
+  fields (iconThumb/iconLarge) or derive from id/category/title with safe
+  fallback to default assets. No behavioral changes.
+*/
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -18,6 +14,7 @@ import {
 import { usePresets, type ClientPreset } from "@/lib/presetClient";
 import { useAppStore } from "@/lib/store";
 import { useLoginGate } from "@/lib/useLoginGate";
+import { PresetIcon } from "./PresetIcon";
 
 /* ── Category definitions ────────────────────────────────────────────────── */
 interface CategoryDef {
@@ -95,7 +92,6 @@ const CATEGORIES: CategoryDef[] = [
   },
 ];
 
-/* ── Badge config ────────────────────────────────────────────────────────── */
 const BADGE: Record<string, { bg: string; color: string; Icon: typeof Flame }> = {
   Hot:        { bg: "rgba(239,68,68,0.90)",  color: "#fff", Icon: Flame    },
   New:        { bg: "rgba(34,197,94,0.90)",  color: "#fff", Icon: Sparkles },
@@ -104,13 +100,17 @@ const BADGE: Record<string, { bg: string; color: string; Icon: typeof Flame }> =
   Quick:      { bg: "rgba(34,211,238,0.90)", color: "#000", Icon: Zap      },
 };
 
-/* ── Helpers ─────────────────────────────────────────────────────────────── */
 function matchCategory(preset: ClientPreset, cat: CategoryDef): boolean {
   const hay = (preset.category + " " + preset.title + " " + (preset.tags ?? []).join(" ")).toLowerCase();
   return cat.match.some((m) => hay.includes(m.toLowerCase()));
 }
 
-/* ── Preset card ─────────────────────────────────────────────────────────── */
+/* Utility: create a filesystem-safe base name from preset id/category/title */
+function safeBase(p: ClientPreset): string {
+  const raw = (p.iconBase ?? p.id ?? p.category ?? p.title ?? "preset").toString();
+  return raw.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "preset";
+}
+
 function PresetCard({
   preset,
   catGradient,
@@ -123,6 +123,9 @@ function PresetCard({
   const bg = `linear-gradient(145deg, ${preset.thumb.from}, ${preset.thumb.to})`;
   const badgeCfg = preset.badge ? BADGE[preset.badge] : null;
   const BadgeIcon = badgeCfg?.Icon;
+
+  const base = safeBase(preset);
+  const iconThumb = preset.iconThumb ?? `/artifacts/socia/src/assets/presets/${base}-thumb.svg`;
 
   return (
     <motion.button
@@ -167,14 +170,13 @@ function PresetCard({
         )}
       </div>
 
-      {/* Center: emoji */}
-      <div style={{
-        position: "relative", zIndex: 1,
-        fontSize: 36, textAlign: "center", lineHeight: 1,
-        filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.4))",
-        userSelect: "none",
-      }}>
-        {preset.thumb.emoji}
+      {/* Center: premium icon (replaces emoji) */}
+      <div style={{ position: "relative", zIndex: 1, display: "grid", placeItems: "center" }}>
+        <PresetIcon
+          src={iconThumb}
+          alt={preset.title + " icon"}
+          size={56}
+        />
       </div>
 
       {/* Bottom: title + kind pill */}
@@ -202,7 +204,6 @@ function PresetCard({
   );
 }
 
-/* ── Preview / use sheet ─────────────────────────────────────────────────── */
 function PresetSheet({
   preset,
   catGradient,
@@ -219,6 +220,9 @@ function PresetSheet({
   const bg = preset
     ? `linear-gradient(145deg, ${preset.thumb.from}, ${preset.thumb.to})`
     : "none";
+
+  const base = preset ? safeBase(preset) : "preset";
+  const iconLarge = preset?.iconLarge ?? `/artifacts/socia/src/assets/presets/${base}-2048.svg`;
 
   return (
     <AnimatePresence>
@@ -268,9 +272,7 @@ function PresetSheet({
               fontSize: 52, position: "relative", overflow: "hidden",
             }}>
               <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,rgba(0,0,0,0.05),rgba(0,0,0,0.35))" }} />
-              <span style={{ position: "relative", filter: "drop-shadow(0 2px 12px rgba(0,0,0,0.5))" }}>
-                {preset.thumb.emoji}
-              </span>
+              <PresetIcon src={iconLarge} alt={preset.title + " icon"} size={88} />
             </div>
 
             {/* Meta */}
@@ -408,7 +410,6 @@ function PresetSheet({
   );
 }
 
-/* ── Main export ─────────────────────────────────────────────────────────── */
 export function PresetLibrary() {
   const [, navigate]       = useLocation();
   const isAuthenticated    = useAppStore((s) => s.isAuthenticated);
