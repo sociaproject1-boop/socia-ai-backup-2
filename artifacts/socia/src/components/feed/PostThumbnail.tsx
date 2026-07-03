@@ -1,9 +1,6 @@
-/**
- * PostThumbnail.tsx — Compact masonry thumbnail for profile grids.
- *
- * Accepts the old store `Post` type OR a minimal shape from backend.
- * Used in Profile.tsx and UserProfile.tsx masonry grids.
- */
+/*
+PostThumbnail.tsx — updated: use object-contain for thumbnails, add subtle border and consistent rounded corners so media with different aspect ratios are framed without cropping.
+*/
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { Play, Images } from "lucide-react";
