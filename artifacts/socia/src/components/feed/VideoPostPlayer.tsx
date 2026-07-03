@@ -11,7 +11,6 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Play } from "lucide-react";
-import { MusicDisc } from "./MusicDisc";
 import type { PostSound } from "@/lib/postsClient";
 
 interface Props {
@@ -89,8 +88,8 @@ export function VideoPostPlayer({
 
   if (errored && posterUrl) {
     return (
-      <div className="relative w-full overflow-hidden bg-black/90" style={{ aspectRatio }}>
-        <img src={posterUrl} alt="" className="h-full w-full object-cover" />
+      <div className="relative w-full overflow-hidden bg-black/90" style={{ aspectRatio, border: "1.5px solid rgba(255,255,255,0.06)", borderRadius: 16 }}>
+        <img src={posterUrl} alt="" className="h-full w-full object-contain" />
         <div className="absolute inset-0 flex items-center justify-center bg-black/40">
           <span className="text-xs text-white/60">Video unavailable</span>
         </div>
@@ -102,51 +101,31 @@ export function VideoPostPlayer({
     <div
       ref={containerRef}
       className="relative w-full overflow-hidden bg-black"
-      style={{ aspectRatio }}
+      style={{ aspectRatio, border: "1.5px solid rgba(255,255,255,0.06)", borderRadius: 16 }}
       onClick={togglePlay}
     >
       <video
         ref={videoRef}
         src={url}
-        poster={posterUrl}
-        loop
+        className="h-full w-full object-contain"
         playsInline
-        preload="metadata"
-        disablePictureInPicture
-        controlsList="nodownload noplaybackrate nofullscreen"
-        onContextMenu={(e) => e.preventDefault()}
+        loop
         onError={() => setErrored(true)}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        className="h-full w-full object-cover"
-        style={{ display: "block" }}
+        preload="metadata"
       />
 
-      {/* Play overlay — shown when paused */}
-      <AnimatePresence>
-        {!playing && (
-          <motion.div
-            key="play"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            transition={{ duration: 0.15 }}
-            className="pointer-events-none absolute inset-0 flex items-center justify-center"
-          >
-            <div className="grid h-14 w-14 place-items-center rounded-full bg-black/50 backdrop-blur-sm">
-              <Play className="h-6 w-6 fill-white text-white ml-0.5" />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Music disc — only when the post has a sound attached */}
-      {sound && (
-        <MusicDisc
-          sound={sound as any}
-          playing={playing}
-        />
+      {!started && posterUrl && (
+        <img src={posterUrl} alt="" className="absolute inset-0 h-full w-full object-contain" />
       )}
+
+      {!playing && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="grid h-12 w-12 place-items-center rounded-full bg-black/40">
+            <Play className="h-6 w-6 text-white" />
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

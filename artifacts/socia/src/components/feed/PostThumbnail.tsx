@@ -37,12 +37,12 @@ export function PostThumbnail({ post, index }: Props) {
         whileTap={{ scale: 0.96 }}
         onClick={() => navigate(`/post/${post.id}`)}
         className="relative overflow-hidden rounded-[16px] bg-white/5 cursor-pointer"
-        style={{ aspectRatio: aspect }}
+        style={{ aspectRatio: aspect, border: "1.2px solid rgba(255,255,255,0.06)" }}
       >
         {isVideo ? (
           <video
             src={thumbUrl}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain"
             muted
             playsInline
             preload="metadata"
@@ -51,8 +51,9 @@ export function PostThumbnail({ post, index }: Props) {
           <img
             src={thumbUrl}
             alt={post.caption ?? ""}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain"
             loading="lazy"
+            draggable={false}
           />
         )}
 
@@ -77,13 +78,12 @@ export function PostThumbnail({ post, index }: Props) {
         {(post.like_count ?? 0) > 0 && (
           <div className="absolute bottom-2 left-2 flex items-center gap-1">
             <svg viewBox="0 0 24 24" fill="white" className="h-3 w-3">
-              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              <path d="M12 21s-7-4.35-9-7.27C1.4 11.53 3 7 7 5c2.24-1.21 4.76-.7 5 0 .24-.7 2.76-1.21 5 0 4 2 5.6 6.53 4 8.73-2 2.92-9 7.27-9 7.27z" />
             </svg>
-            <span className="text-[10px] font-semibold text-white">
-              {post.like_count > 999 ? `${(post.like_count / 1000).toFixed(1)}k` : post.like_count}
-            </span>
+            <span className="text-xs font-semibold text-white">{post.like_count}</span>
           </div>
         )}
+
       </motion.div>
     </motion.div>
   );

@@ -13,28 +13,32 @@ export function PullToRefreshIndicator({ phase, indicatorRef }: Props) {
   useEffect(() => {
     if (!spinnerRef.current || !textRef.current) return;
 
-spinnerRef.current.style.display =
-  phase === "refreshing" ? "block" : "none";
+    spinnerRef.current.style.display =
+      phase === "refreshing" ? "block" : "none";
 
-textRef.current.textContent = "";
+    // Show helpful text when pulling or refreshing
+    if (phase === "pulling") textRef.current.textContent = "Pull to refresh";
+    else if (phase === "ready") textRef.current.textContent = "Release to refresh";
+    else if (phase === "refreshing") textRef.current.textContent = "Refreshing...";
+    else textRef.current.textContent = "";
   }, [phase]);
 
   return (
     <div ref={indicatorRef as React.RefObject<HTMLDivElement>}
       style={{position:"fixed",top:0,left:0,right:0,height:64,zIndex:55,display:"flex",justifyContent:"center",alignItems:"center",gap:8,transform:"translateY(-64px)",opacity:0,pointerEvents:"none"}}>
       <span
-  ref={spinnerRef}
-  style={{
-    width: 28,
-    height: 28,
-    borderRadius: "50%",
-    border: "2px solid rgba(255,255,255,.25)",
-    borderTopColor: "#ffffff",
-    display: "none",
-    animation: "ptr-spin .8s linear infinite",
-  }}
-/>
-      <span ref={textRef} style={{fontSize:12,color:"rgba(255,255,255,.75)"}}/>
+        ref={spinnerRef}
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: "50%",
+          border: "2px solid rgba(255,255,255,.25)",
+          borderTopColor: "#ffffff",
+          display: "none",
+          animation: "ptr-spin .8s linear infinite",
+        }}
+      />
+      <span ref={textRef} style={{fontSize:12,color:"rgba(255,255,255,.75)"}} />
     </div>
   );
 }
