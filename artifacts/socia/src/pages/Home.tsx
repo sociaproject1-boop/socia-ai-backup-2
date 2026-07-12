@@ -11,7 +11,7 @@ import { useNavHide } from "@/hooks/useNavHide";
 import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, ArrowUp, WifiOff } from "lucide-react";
+import { Sparkles, ArrowUp, WifiOff, Feather } from "lucide-react";
 import { FeedCard } from "@/components/feed/FeedCard";
 import { PullToRefreshIndicator } from "@/components/feed/PullToRefreshIndicator";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
@@ -48,6 +48,34 @@ function FeedSkeleton() {
         </div>
       ))}
     </div>
+  );
+}
+
+/* ── Floating compose button — X-style FAB, bottom-right above nav ───────── */
+function ComposeFAB({ onClick }: { onClick: () => void }) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.9 }}
+      onClick={onClick}
+      aria-label="Create post"
+      style={{
+        position: "fixed",
+        right: 16,
+        bottom: `calc(env(safe-area-inset-bottom, 0px) + 76px)`,
+        width: 56,
+        height: 56,
+        borderRadius: "50%",
+        display: "grid",
+        placeItems: "center",
+        background: "linear-gradient(135deg, var(--accent-primary, #a855f7), var(--accent-secondary, #3b82f6))",
+        border: "none",
+        boxShadow: "0 4px 14px rgba(0,0,0,0.4)",
+        zIndex: 30,
+        cursor: "pointer",
+      }}
+    >
+      <Feather style={{ width: 22, height: 22, color: "#fff" }} strokeWidth={2} />
+    </motion.button>
   );
 }
 
@@ -322,6 +350,9 @@ export default function Home() {
           </>
         )}
       </div>
+
+      {/* ── Floating compose button (matches reference FAB placement) ──── */}
+      {me && <ComposeFAB onClick={() => navigate("/create")} />}
 
       {/* ── Immersive fullscreen viewer ─────────────────────────────────── */}
       {createPortal(
