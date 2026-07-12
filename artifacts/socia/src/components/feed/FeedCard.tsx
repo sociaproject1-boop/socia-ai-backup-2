@@ -393,7 +393,7 @@ export const FeedCard = memo(function FeedCard({
               )}
             </AnimatePresence>
           </div>
-
+      </div>
 
 
       {/* ── Caption — full width below header ─────────────────────────── */}
