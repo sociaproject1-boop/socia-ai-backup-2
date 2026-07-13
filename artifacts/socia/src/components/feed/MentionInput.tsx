@@ -22,13 +22,27 @@ interface MentionInputProps extends Omit<React.TextareaHTMLAttributes<HTMLTextAr
   onChange: (value: string) => void;
 }
 
-export function MentionInput({ value, onChange, className, style, ...rest }: MentionInputProps) {
+interface MentionInputExtraProps {
+  /** When true, the textarea grows to fit its content instead of scrolling (X-style composer). */
+  autoGrow?: boolean;
+}
+
+export function MentionInput({ value, onChange, className, style, autoGrow, ...rest }: MentionInputProps & MentionInputExtraProps) {
   const textareaRef  = useRef<HTMLTextAreaElement>(null);
   const [query,       setQuery]       = useState<string | null>(null); /* null = dropdown closed */
   const [mentionAt,   setMentionAt]   = useState<number>(0);           /* index of the @ in value */
   const [suggestions, setSuggestions] = useState<MentionUser[]>([]);
   const [loading,     setLoading]     = useState(false);
   const abortRef     = useRef<AbortController | null>(null);
+
+  /* ── Auto-grow height to fit content (covers typing + programmatic inserts) ── */
+  useEffect(() => {
+    if (!autoGrow) return;
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value, autoGrow]);
 
   /* ── Detect @mention being typed ────────────────────────────────────── */
   const detectMention = useCallback((text: string, cursor: number) => {
