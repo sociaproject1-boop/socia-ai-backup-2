@@ -265,10 +265,10 @@ export const FeedCard = memo(function FeedCard({
   return (
     <article
       className="w-full overflow-hidden"
-      style={{ borderBottom: "1px solid rgba(255,255,255,0.12)" }}
+      style={{ borderBottom: "1px solid #2F3336" }}
     >
-      {/* ── Header: Avatar + Name/handle/time + menu ───────────────────── */}
-      <div className="flex items-start gap-3 px-4 pt-2.5 pb-0">
+      {/* ── Header: Avatar + Name/handle/time + menu — ONE horizontal line ── */}
+      <div className="flex items-start gap-3 px-4 pt-3 pb-0">
 {/* Avatar */}
 <motion.button
   whileTap={{ scale: 0.92 }}
@@ -279,10 +279,10 @@ export const FeedCard = memo(function FeedCard({
     <img
       src={post.author.avatar_url}
       alt=""
-      className="h-[34px] w-[36px] rounded-full object-cover"
+      className="h-10 w-10 rounded-full object-cover"
     />
   ) : (
-    <div className="h-[34px] w-[36px] rounded-full grid place-items-cente s-center text-sm font-bold text-white bg-[#1D9BF0]">
+    <div className="h-10 w-10 rounded-full grid place-items-center text-sm font-bold text-white bg-[#1D9BF0]">
       {(post.author?.name || post.author?.username || "?")
         .charAt(0)
         .toUpperCase()}
@@ -290,46 +290,42 @@ export const FeedCard = memo(function FeedCard({
   )}
 </motion.button>
 
-        {/* Name row + menu */}
+        {/* Name row + menu — single line, never wraps */}
         <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-          <div className="min-w-0">
+          <div className="flex items-center min-w-0 gap-1 overflow-hidden whitespace-nowrap">
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate(isMe ? "/profile" : `/profile/${post.author_id}`)}
+              className="text-[15px] font-bold text-[#E7E9EA] flex-shrink-0 max-w-[55%] truncate"
+            >
+              {post.author?.name || post.author?.username || "User"}
+            </motion.button>
 
-  <motion.button
-    whileTap={{ scale: 0.97 }}
-    onClick={() => navigate(isMe ? "/profile" : `/profile/${post.author_id}`)}
-    className="text-[14px] font-semibold text-[#E7E9EA] whitespace-nowrap"
-  >
-    {post.author?.name || post.author?.username || "User"}
-  </motion.button>
+            {authorSupporterTier ? (
+              <FoundingSupporterBadge
+                tier={authorSupporterTier}
+                size={13}
+                showGlow={false}
+              />
+            ) : (
+              (post.author?.is_verified &&
+                (post.author?.subscription_status === "active" ||
+                  post.author?.subscription_status === "owner")) && (
+                <BadgeCheck className="h-[15px] w-[15px] flex-shrink-0 text-[#1D9BF0]" />
+              )
+            )}
 
-  {authorSupporterTier ? (
-    <FoundingSupporterBadge
-      tier={authorSupporterTier}
-      size={12}
-      showGlow={false}
-    />
-  ) : (
-    (post.author?.is_verified &&
-      (post.author?.subscription_status === "active" ||
-        post.author?.subscription_status === "owner")) && (
-      <BadgeCheck className="h-3.5 w-3.5 flex-shrink-0 text-[#1D9BF0]" />
-    )
-  )}
-            <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-  {post.author?.username && (
-    <span className="text-[13px] text-[#71767B] truncate">
-      @{post.author.username}
-    </span>
-  )}
+            {post.author?.username && (
+              <span className="text-[14px] text-[#71767B] min-w-0 flex-shrink truncate">
+                @{post.author.username}
+              </span>
+            )}
 
-  <span className="text-[#71767B]">·</span>
+            <span className="text-[14px] text-[#71767B] flex-shrink-0">·</span>
 
-  <span className="text-[13px] text-[#71767B] whitespace-nowrap">
-    {relTime(post.created_at)}
-  </span>
-</div>
-
-</div>
+            <span className="text-[14px] text-[#71767B] flex-shrink-0 whitespace-nowrap">
+              {relTime(post.created_at)}
+            </span>
           </div>
 
           {/* More menu */}
@@ -393,14 +389,14 @@ export const FeedCard = memo(function FeedCard({
               )}
             </AnimatePresence>
           </div>
+        </div>
       </div>
 
-
-      {/* ── Caption — full width below header ─────────────────────────── */}
+      {/* ── Caption — left edge aligned with display name ──────────────── */}
       {post.caption && (
-        <div className="px-4 pt-2 pb-2" style={{ paddingLeft: 54 }}>
+        <div style={{ paddingLeft: 68, paddingRight: 16, paddingTop: 2, paddingBottom: 8 }}>
           <p
-            className="text-[13px] leading-[1.45] text-[#E7E9EA]"
+            className="text-[15px] leading-[1.4] text-[#E7E9EA]"
             style={{
               textAlign: "left",
               display: captionExpand ? "block" : "-webkit-box",
@@ -422,17 +418,17 @@ export const FeedCard = memo(function FeedCard({
         </div>
       )}
 
-      {/* ── Media — same horizontal alignment as caption text ──────────── */}
+      {/* ── Media — full post width, edge-to-edge with avatar/container (X style) ── */}
       {media.length > 0 && (
         <div
           className="relative mt-2"
-          style={{ marginLeft: 54, marginRight: 16, borderRadius: 20, overflow: "hidden", border:"1px solid rgba(255,255,255,0.08)" }}
+          style={{ marginLeft: 16, marginRight: 16, borderRadius: 16, overflow: "hidden", border:"1px solid rgba(255,255,255,0.08)" }}
           onClick={handleMediaTap}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
           {currentMedia?.type === "video" ? (
-            <VideoPostPlayer url={currentMedia.url} aspectRatio="16/9" sound={post.sound} />
+            <VideoPostPlayer url={currentMedia.url} sound={post.sound} />
           ) : (
             <div className="relative overflow-hidden" style={{ borderRadius: 16, background: "#111" }}>
               <AnimatePresence mode="popLayout" initial={false}>
@@ -498,8 +494,9 @@ export const FeedCard = memo(function FeedCard({
      <div
 className="flex items-center h-[40px]"
 style={{
-paddingLeft: 52,
-paddingRight: 16
+paddingLeft: 68,
+paddingRight: 16,
+marginTop: 4,
 }}
 >
         {/* Left group — wide gaps to match X */}

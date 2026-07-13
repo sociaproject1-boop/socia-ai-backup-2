@@ -34,6 +34,15 @@ export function VideoPostPlayer({
   const [playing, setPlaying] = useState(false);
   const [started, setStarted] = useState(false);
   const [errored, setErrored] = useState(false);
+  /* Preserve the uploaded video's real aspect ratio (no forced crop) —
+   * `aspectRatio` is a best-guess placeholder until metadata loads, then
+   * we swap to the video's true width/height so portrait stays portrait,
+   * landscape stays landscape, square stays square — matching X. */
+  const [ratio, setRatio] = useState(aspectRatio);
+  const handleLoadedMetadata = useCallback((e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const v = e.currentTarget;
+    if (v.videoWidth && v.videoHeight) setRatio(`${v.videoWidth}/${v.videoHeight}`);
+  }, []);
 
   /* ── IntersectionObserver — autoplay unmuted, muted fallback ─────────── */
   useEffect(() => {
@@ -102,7 +111,7 @@ export function VideoPostPlayer({
     <div
       ref={containerRef}
       className="relative w-full overflow-hidden bg-black"
-      style={{ aspectRatio }}
+      style={{ aspectRatio: ratio, maxHeight: "700px" }}
       onClick={togglePlay}
     >
       <video
@@ -118,7 +127,8 @@ export function VideoPostPlayer({
         onError={() => setErrored(true)}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
-        className="h-full w-full object-cover"
+        onLoadedMetadata={handleLoadedMetadata}
+        className="h-full w-full object-contain"
         style={{ display: "block" }}
       />
 
