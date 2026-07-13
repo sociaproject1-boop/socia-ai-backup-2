@@ -11,7 +11,7 @@ import { useNavHide } from "@/hooks/useNavHide";
 import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, ArrowUp, WifiOff, Feather } from "lucide-react";
+import { Sparkles, ArrowUp, WifiOff, Feather, Bell, MessageCircle } from "lucide-react";
 import { FeedCard } from "@/components/feed/FeedCard";
 import { PullToRefreshIndicator } from "@/components/feed/PullToRefreshIndicator";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
@@ -20,7 +20,8 @@ import { CommentsSheet } from "@/components/feed/CommentsSheet";
 import { usePulseSocket } from "@/lib/usePulse";
 import { useFeed, type FeedMode } from "@/lib/useFeed";
 import { useAppStore } from "@/lib/store";
-import { deletePost, type SocialPost } from "@/lib/postsClient";
+import { useDrawerStore } from "@/lib/drawerStore";
+import { deletePost, fetchNotifications, type SocialPost } from "@/lib/postsClient";
 
 /* ── Feed skeleton loader ────────────────────────────────────────────────── */
 function FeedSkeleton() {
@@ -82,12 +83,25 @@ function ComposeFAB({ onClick }: { onClick: () => void }) {
 export default function Home() {
   const [, navigate]    = useLocation();
   const me              = useAppStore((s) => s.user);
+  const unread          = useAppStore((s) => s.chats.some((c) => c.unread));
+  const openDrawer      = useDrawerStore((s) => s.openDrawer);
 
   const [feedTab, setFeedTab]         = useState<FeedMode>("for-you");
   const [viewerIdx, setViewerIdx]     = useState<number | null>(null);
   const [commentPostId, setCommentPostId] = useState<string | null>(null);
+  const [notifUnread, setNotifUnread] = useState(0);
 
   usePulseSocket();
+
+  /* ── Notification badge count ─────────────────────────────────────────── */
+  useEffect(() => {
+    if (!me) return;
+    fetchNotifications({ limit: 50 })
+      .then(({ notifications }) =>
+        setNotifUnread(notifications.filter((n) => !n.read).length),
+      )
+      .catch(() => {});
+  }, [me]);
 
   const {
     posts,
@@ -154,8 +168,9 @@ export default function Home() {
         className="app-bg h-full overflow-y-auto hide-scrollbar"
         style={{ overscrollBehaviorY: "contain", paddingBottom: 80 }}
       >
-        {/* ── X-style For You / Following tabs ──────────────────────────
-             Full-width equal columns, larger text, blue underline indicator */}
+        {/* ── Unified Home Header ────────────────────────────────────────
+             Single row: [Avatar] [For You | S Logo | Following] [Bell+Msg]
+             Replaces the old two-row Socia-title + tabs layout entirely. */}
         <div
           className="sticky top-0 z-20"
           style={{
@@ -171,59 +186,250 @@ export default function Home() {
             <div
               style={{
                 display: "flex",
+                alignItems: "stretch",
+                paddingTop: `calc(env(safe-area-inset-top, 0px) + 6px)`,
                 borderBottom: "1px solid #2F3336",
-                transform:  navHidden ? "translateY(-100%)" : "translateY(0)",
+                transform: navHidden ? "translateY(-100%)" : "translateY(0)",
                 transition: slideTransition,
                 willChange: "transform",
               }}
             >
-              {(["for-you", "following"] as FeedMode[]).map((t) => {
-                const active = feedTab === t;
-                return (
-                  <button
-                    key={t}
-                    onClick={() => setFeedTab(t)}
+              {/* ── LEFT: Avatar (opens drawer) ──────────────────────── */}
+              <div
+                style={{
+                  width: 64,
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  paddingLeft: 14,
+                  paddingBottom: 8,
+                }}
+              >
+                {me ? (
+                  <motion.button
+                    whileTap={{ scale: 0.88 }}
+                    onClick={openDrawer}
+                    aria-label="Open navigation menu"
                     style={{
-                      flex: 1,
+                      width: 34, height: 34,
+                      borderRadius: "50%",
+                      overflow: "hidden",
+                      border: "1.5px solid rgba(255,255,255,0.18)",
+                      background: "#1D9BF0",
+                      flexShrink: 0,
+                      cursor: "pointer",
+                      padding: 0,
+                      display: "grid",
+                      placeItems: "center",
+                    }}
+                  >
+                    {me.avatar ? (
+                      <img
+                        src={me.avatar}
+                        alt={me.name}
+                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
+                        {(me.name ?? "?").charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </motion.button>
+                ) : (
+                  <div style={{ width: 34 }} />
+                )}
+              </div>
+
+              {/* ── CENTER: For You  |  S Logo  |  Following ─────────── */}
+              <div style={{ flex: 1, display: "flex", alignItems: "stretch" }}>
+                {/* For You tab */}
+                <button
+                  onClick={() => setFeedTab("for-you")}
+                  style={{
+                    flex: 1,
+                    position: "relative",
+                    paddingTop: 10,
+                    paddingBottom: 14,
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 15,
+                      fontWeight: feedTab === "for-you" ? 700 : 500,
+                      color: feedTab === "for-you" ? "#E7E9EA" : "#71767B",
+                      letterSpacing: "-0.01em",
+                      transition: "color 0.15s ease",
+                    }}
+                  >
+                    For you
+                  </span>
+                  {feedTab === "for-you" && (
+                    <motion.div
+                      layoutId="xTabIndicator"
+                      style={{
+                        position: "absolute",
+                        bottom: 0,
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        width: 52,
+                        height: 4,
+                        borderRadius: 9999,
+                        background: "#1D9BF0",
+                      }}
+                      transition={{ type: "spring", stiffness: 520, damping: 38 }}
+                    />
+                  )}
+                </button>
+
+                {/* S Logo — branding divider, NOT a button */}
+                <div
+                  style={{
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0 4px",
+                    paddingBottom: 8,
+                    pointerEvents: "none",
+                    userSelect: "none",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 22,
+                      fontWeight: 900,
+                      lineHeight: 1,
+                      background: "linear-gradient(135deg, var(--accent-primary, #a855f7), var(--accent-secondary, #3b82f6))",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                      backgroundClip: "text",
+                      fontFamily: "var(--font-display, inherit)",
+                      letterSpacing: "-0.04em",
+                    }}
+                  >
+                    S
+                  </span>
+                </div>
+
+                {/* Following tab */}
+                <button
+                  onClick={() => setFeedTab("following")}
+                  style={{
+                    flex: 1,
+                    position: "relative",
+                    paddingTop: 10,
+                    paddingBottom: 14,
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 15,
+                      fontWeight: feedTab === "following" ? 700 : 500,
+                      color: feedTab === "following" ? "#E7E9EA" : "#71767B",
+                      letterSpacing: "-0.01em",
+                      transition: "color 0.15s ease",
+                    }}
+                  >
+                    Following
+                  </span>
+                  {feedTab === "following" && (
+                    <motion.div
+                      layoutId="xTabIndicator"
+                      style={{
+                        position: "absolute",
+                        bottom: 0,
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        width: 64,
+                        height: 4,
+                        borderRadius: 9999,
+                        background: "#1D9BF0",
+                      }}
+                      transition={{ type: "spring", stiffness: 520, damping: 38 }}
+                    />
+                  )}
+                </button>
+              </div>
+
+              {/* ── RIGHT: Notification bell + Messages ──────────────── */}
+              <div
+                style={{
+                  width: 64,
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "flex-end",
+                  gap: 4,
+                  paddingRight: 10,
+                  paddingBottom: 8,
+                }}
+              >
+                {me && (
+                  <motion.button
+                    whileTap={{ scale: 0.88 }}
+                    onClick={() => navigate("/notifications")}
+                    aria-label="Notifications"
+                    style={{
                       position: "relative",
-                      paddingTop: 15,
-                      paddingBottom: 15,
+                      width: 30, height: 30,
+                      borderRadius: "50%",
                       background: "none",
                       border: "none",
                       cursor: "pointer",
-                      WebkitTapHighlightColor: "transparent",
+                      display: "grid",
+                      placeItems: "center",
+                      color: "#E7E9EA",
                     }}
                   >
-                    <span
-                      style={{
-                        fontSize: 15,
-                        fontWeight: active ? 700 : 500,
-                        color: active ? "#E7E9EA" : "#71767B",
-                        letterSpacing: "-0.01em",
-                        transition: "color 0.15s ease, font-weight 0.15s ease",
-                      }}
-                    >
-                      {t === "for-you" ? "For you" : "Following"}
-                    </span>
-                    {active && (
-                      <motion.div
-                        layoutId="xTabIndicator"
+                    <Bell style={{ width: 16, height: 16, strokeWidth: 1.9 }} />
+                    {notifUnread > 0 && (
+                      <span
                         style={{
-                          position:     "absolute",
-                          bottom:       0,
-                          left:         "50%",
-                          transform:    "translateX(-50%)",
-                          width:        56,
-                          height:       4,
-                          borderRadius: 9999,
-                          background:   "#1D9BF0",
+                          position: "absolute", top: 3, right: 3,
+                          width: 7, height: 7, borderRadius: "50%",
+                          background: "#1D9BF0",
+                          border: "1.5px solid #000",
                         }}
-                        transition={{ type: "spring", stiffness: 520, damping: 38 }}
                       />
                     )}
-                  </button>
-                );
-              })}
+                  </motion.button>
+                )}
+                <motion.button
+                  whileTap={{ scale: 0.88 }}
+                  onClick={() => navigate("/messages")}
+                  aria-label="Messages"
+                  style={{
+                    position: "relative",
+                    width: 30, height: 30,
+                    borderRadius: "50%",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    display: "grid",
+                    placeItems: "center",
+                    color: "#E7E9EA",
+                  }}
+                >
+                  <MessageCircle style={{ width: 16, height: 16, strokeWidth: 1.9 }} />
+                  {unread && (
+                    <span
+                      style={{
+                        position: "absolute", top: 4, right: 4,
+                        width: 6, height: 6, borderRadius: "50%",
+                        background: "#1D9BF0",
+                      }}
+                    />
+                  )}
+                </motion.button>
+              </div>
             </div>
           </div>
         </div>

@@ -8,7 +8,7 @@ import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  User, UserPlus, Star, List, Users, Bookmark,
+  User, UserPlus, Star, List, Users, Gem,
   Rocket, Briefcase, Megaphone, Settings, LogOut,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
@@ -22,7 +22,7 @@ const MENU_ITEMS = [
   { icon: Star,      label: "Premium",            path: "/billing/upgrade" },
   { icon: List,      label: "Lists",              path: "/explore" },
   { icon: Users,     label: "Communities",        path: "/explore" },
-  { icon: Bookmark,  label: "Bookmarks",          path: "/profile" },
+  { icon: Gem,       label: "Founding Supporter",  path: "/support-hub" },
   { icon: Rocket,    label: "Creator Studio",     path: "/creator/dashboard" },
   { icon: Briefcase, label: "Business",           path: "/billing/upgrade" },
   { icon: Megaphone, label: "Ads",                path: "/billing/upgrade" },
