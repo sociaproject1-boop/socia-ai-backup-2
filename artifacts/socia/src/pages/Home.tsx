@@ -352,7 +352,7 @@ export default function Home() {
       </div>
 
       {/* ── Floating compose button (matches reference FAB placement) ──── */}
-      {me && <ComposeFAB onClick={() => navigate("/create")} />}
+      {me && <ComposeFAB onClick={() => navigate("/upload")} />}
 
       {/* ── Immersive fullscreen viewer ─────────────────────────────────── */}
       {createPortal(

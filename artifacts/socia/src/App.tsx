@@ -31,7 +31,7 @@ import Home from "@/pages/Home";
 // ── All other pages: lazy-loaded ─────────────────────────────────────────────
 // The browser only downloads a page's chunk on first navigation to it.
 // In production this cuts the initial JS parse by ~60-70%.
-const CreateHub          = lazy(() => import("@/pages/CreateHub"));
+const AiAcademyMarketplace = lazy(() => import("@/pages/AiAcademyMarketplace"));
 const CreatePromptImage  = lazy(() => import("@/pages/CreatePromptImage"));
 const CreatePromptVideo  = lazy(() => import("@/pages/CreatePromptVideo"));
 const CreateImageVideo   = lazy(() => import("@/pages/CreateImageVideo"));
@@ -203,7 +203,7 @@ function Router() {
       <Route path="/reset-password"        component={ResetPassword} />
       <Route path="/"                      component={Home} />
       <Route path="/search"               component={SearchPage} />
-      <Route path="/create"               component={CreateHub} />
+      <Route path="/create"               component={AiAcademyMarketplace} />
       <Route path="/create/prompt-image"  component={CreatePromptImage} />
       <Route path="/create/prompt-video"  component={CreatePromptVideo} />
       <Route path="/create/image-video"   component={CreateImageVideo} />

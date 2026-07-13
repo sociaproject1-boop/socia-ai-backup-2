@@ -521,6 +521,12 @@ export default function Studio() {
     return out;
   }, [presets]);
 
+  /* ── Deep-link from AI Academy Marketplace: /studio?cat=Anime%20Style ── */
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("cat");
+    if (q) setActiveCat(q);
+  }, []);
+
   const featured = useMemo(() => presets?.filter((p) => p.featured) ?? [], [presets]);
 
   const visible = useMemo(() => {

@@ -85,6 +85,14 @@ export default function SociaGpt() {
     void refreshPlan();
   }, [refreshPlan]);
 
+  /* ── Deep-link from AI Academy Marketplace: /socia-gpt?q=... prefills
+   * the composer so users land ready to send, instead of losing their
+   * typed prompt when navigating from the marketplace input box. ── */
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) setInput(q);
+  }, []);
+
   /* ── auto-scroll ── */
   useEffect(() => {
     const el = scrollerRef.current;

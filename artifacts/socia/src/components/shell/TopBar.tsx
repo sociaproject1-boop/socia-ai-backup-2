@@ -116,6 +116,7 @@ export function TopBar() {
 
   /* Page title for non-home authenticated pages */
   const title =
+    location === "/create"                ? "AI Academy"    :
     location.startsWith("/create")        ? "Create"        :
     location.startsWith("/messages")      ? "Messages"      :
     location.startsWith("/profile")       ? "Profile"       :
