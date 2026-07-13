@@ -54,7 +54,7 @@ interface Props {
 function RetweetIcon({ size = 18 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      stroke="currentColor" strokeWidth="2.0" strokeLinecap="round" strokeLinejoin="round">
       <path d="M17 1l4 4-4 4" />
       <path d="M3 11V9a4 4 0 014-4h14" />
       <path d="M7 23l-4-4 4-4" />
@@ -631,34 +631,26 @@ export const FeedCard = memo(function FeedCard({
           </div>
         )}
 
-        {/* ── Engagement bar ── */}
+        {/* ── Engagement bar ─────────────────────────────────────────────
+             Global order: ❤️ Like · 💬 Comment · 📈 Analytics (left)
+                           🔖 Bookmark · 🔁 Repost · 📤 Share (right)
+             strokeWidth 2.0 on all icons for a slightly stronger visual weight. */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
             marginTop: 10,
-            gap: 0,
           }}
         >
-          {/* Left group: Comment · Repost · Like · Analytics */}
-          <div style={{ display: "flex", flex: 1, justifyContent: "space-between", maxWidth: 280 }}>
-            {/* Comment */}
-            <ActionBtn onClick={handleCommentClick} count={post.comment_count ?? 0} minW={52}>
-              <MessageCircle style={{ width: 18, height: 18 }} strokeWidth={1.75} />
-            </ActionBtn>
-
-            {/* Repost */}
-            <ActionBtn onClick={(e) => { e.stopPropagation(); requireAuth(() => {}, "repost"); }} count={0} minW={52}>
-              <RetweetIcon size={18} />
-            </ActionBtn>
-
+          {/* Left group: Like · Comment · Analytics */}
+          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
             {/* Like */}
             <ActionBtn
               onClick={handleLike}
               count={displayLikeCount}
               active={displayLiked}
               activeColor="#f91880"
-              minW={52}
+              minW={48}
             >
               <Heart
                 style={{
@@ -667,18 +659,24 @@ export const FeedCard = memo(function FeedCard({
                   color: displayLiked ? "#f91880" : "#71767B",
                   transition: "fill 0.15s, color 0.15s",
                 }}
-                strokeWidth={1.75}
+                strokeWidth={2.0}
               />
             </ActionBtn>
 
+            {/* Comment */}
+            <ActionBtn onClick={handleCommentClick} count={post.comment_count ?? 0} minW={48}>
+              <MessageCircle style={{ width: 18, height: 18 }} strokeWidth={2.0} />
+            </ActionBtn>
+
             {/* Analytics / Views */}
-            <ActionBtn count={(post as any).view_count > 0 ? (post as any).view_count : undefined} minW={52}>
-              <BarChart2 style={{ width: 18, height: 18 }} strokeWidth={1.75} />
+            <ActionBtn count={(post as any).view_count > 0 ? (post as any).view_count : undefined} minW={44}>
+              <BarChart2 style={{ width: 18, height: 18 }} strokeWidth={2.0} />
             </ActionBtn>
           </div>
 
-          {/* Right group: Bookmark · Share */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
+          {/* Right group: Bookmark · Repost · Share */}
+          <div style={{ display: "flex", alignItems: "center", gap: 2, marginLeft: "auto" }}>
+            {/* Bookmark */}
             <ActionBtn onClick={handleSave} active={displaySaved} activeColor="#1D9BF0">
               <Bookmark
                 style={{
@@ -687,11 +685,18 @@ export const FeedCard = memo(function FeedCard({
                   color: displaySaved ? "#1D9BF0" : "#71767B",
                   transition: "fill 0.15s, color 0.15s",
                 }}
-                strokeWidth={1.75}
+                strokeWidth={2.0}
               />
             </ActionBtn>
+
+            {/* Repost */}
+            <ActionBtn onClick={(e) => { e.stopPropagation(); requireAuth(() => {}, "repost"); }}>
+              <RetweetIcon size={18} />
+            </ActionBtn>
+
+            {/* Share */}
             <ActionBtn onClick={handleShare}>
-              <Share2 style={{ width: 18, height: 18 }} strokeWidth={1.75} />
+              <Share2 style={{ width: 18, height: 18 }} strokeWidth={2.0} />
             </ActionBtn>
           </div>
         </div>
