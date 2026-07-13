@@ -19,3 +19,5 @@ await pool.end();
 EOF
 ```
 This correctly targets `heliumdb` which is what the running api-server queries.
+
+**Fresh environment note (2026-07-13):** after a clean import + `pnpm install`, PGHOST=helium pointed at a brand-new empty Postgres (no tables at all — the `DATABASE_URL` secret pointed at a different, populated Supabase DB). Symptom: api-server boots fine, feed loads via Supabase, but `renderWorker` spams `Uncaught error in worker tick` because Drizzle-queried tables (e.g. `render_jobs`) don't exist on PGHOST. Fix: `pnpm --filter @workspace/db run push` (drizzle-kit push) against PGHOST — pulls schema from `lib/db/src/schema/index.ts` and creates it on `heliumdb` directly, no manual pg driver script needed.

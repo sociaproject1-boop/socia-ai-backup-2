@@ -61,6 +61,7 @@ Messenger-style group chats, completely isolated from DMs.
 
 ## Run & Operate
 
+- After a fresh clone/import: `pnpm install`, then `pnpm --filter @workspace/db run push` to create/sync the schema on the PGHOST-based database the api-server actually connects to (see Architecture decisions below) — skip this only if you've confirmed the schema already exists there.
 - `pnpm --filter @workspace/socia run dev` — run the Socia frontend (port 21175)
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
 - `pnpm run typecheck` — full typecheck across all packages
@@ -96,6 +97,7 @@ Messenger-style group chats, completely isolated from DMs.
 
 - **Supabase for everything auth/db/realtime**: Auth, user profiles, posts, messages, billing all live in Supabase. Drizzle ORM is only for conversations/messages tables (chat log).
 - **Lazy OpenAI client init**: `lib/integrations-openai-ai-server/src/*/client.ts` uses a Proxy-based lazy singleton so the API server starts without AI keys set; routes that call OpenAI will throw a descriptive error instead of crashing the process on startup.
+- **Two DB connection strings, one implicit winner**: `artifacts/api-server/src/lib/db.ts`, `dbCompat.ts`, and `lib/db/drizzle.config.ts` all prefer a connection built from `PGHOST`/`PGUSER`/`PGPASSWORD`/`PGDATABASE` over the `DATABASE_URL` secret whenever all four are set. On this Replit environment PGHOST points at `heliumdb`, a separate Postgres from whatever `DATABASE_URL` resolves to — most reads go through Supabase REST so the app can look healthy even if the PGHOST-based DB is empty, but anything using the Drizzle pool (e.g. the render worker) will fail silently. Run `pnpm --filter @workspace/db run push` after any fresh import to sync schema onto the PGHOST database.
 - **Socket.IO for presence only**: Typing indicators and online/offline presence run through Socket.IO at `/api/socket.io/`. Chat messages use Supabase Realtime. Client-side socket.io-client is installed but presence is primarily driven by Supabase channels.
 - **Cloudinary unsigned preset**: Media uploads use an unsigned Cloudinary preset (no server secret needed). Cloud name and preset are hardcoded in `cloudinaryServer.ts`.
 - **Admin system separate from Supabase auth**: Super-admins log in with username + bcrypt password → short-lived JWT (8h). Service-role Supabase client for RLS bypass; requires `SUPABASE_SERVICE_ROLE_KEY`.
