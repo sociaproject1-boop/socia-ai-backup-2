@@ -8,7 +8,7 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { fetchUserPosts, fetchSavedFeed, type SocialPost } from "@/lib/postsClient";
 import type { SupporterTier } from "@/components/profile/FoundingSupporterBadge";
-import { XFeedPostCard } from "./ProfilePostGrid";
+import { FeedCard } from "@/components/feed/FeedCard";
 
 export type ProfileTabId = "posts" | "replies" | "media" | "likes" | "saved";
 
@@ -398,7 +398,7 @@ function XTabContent({
   return (
     <div>
       {posts.map((post, i) => (
-        <XFeedPostCard key={post.id} post={post} index={i} />
+        <FeedCard key={post.id} post={post} index={i} />
       ))}
       {(hasMore || loadingMore) && (
         <div ref={sentinelRef} className="flex justify-center py-6">
