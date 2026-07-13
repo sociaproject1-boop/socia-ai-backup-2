@@ -11,7 +11,7 @@ import { useNavHide } from "@/hooks/useNavHide";
 import { createPortal } from "react-dom";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, ArrowUp, WifiOff, Feather, Bell, MessageCircle } from "lucide-react";
+import { Sparkles, ArrowUp, WifiOff, Feather } from "lucide-react";
 import { FeedCard } from "@/components/feed/FeedCard";
 import { PullToRefreshIndicator } from "@/components/feed/PullToRefreshIndicator";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
@@ -21,7 +21,7 @@ import { usePulseSocket } from "@/lib/usePulse";
 import { useFeed, type FeedMode } from "@/lib/useFeed";
 import { useAppStore } from "@/lib/store";
 import { useDrawerStore } from "@/lib/drawerStore";
-import { deletePost, fetchNotifications, type SocialPost } from "@/lib/postsClient";
+import { deletePost, type SocialPost } from "@/lib/postsClient";
 
 /* ── Feed skeleton loader ────────────────────────────────────────────────── */
 function FeedSkeleton() {
@@ -83,25 +83,13 @@ function ComposeFAB({ onClick }: { onClick: () => void }) {
 export default function Home() {
   const [, navigate]    = useLocation();
   const me              = useAppStore((s) => s.user);
-  const unread          = useAppStore((s) => s.chats.some((c) => c.unread));
   const openDrawer      = useDrawerStore((s) => s.openDrawer);
 
   const [feedTab, setFeedTab]         = useState<FeedMode>("for-you");
   const [viewerIdx, setViewerIdx]     = useState<number | null>(null);
   const [commentPostId, setCommentPostId] = useState<string | null>(null);
-  const [notifUnread, setNotifUnread] = useState(0);
 
   usePulseSocket();
-
-  /* ── Notification badge count ─────────────────────────────────────────── */
-  useEffect(() => {
-    if (!me) return;
-    fetchNotifications({ limit: 50 })
-      .then(({ notifications }) =>
-        setNotifUnread(notifications.filter((n) => !n.read).length),
-      )
-      .catch(() => {});
-  }, [me]);
 
   const {
     posts,
@@ -168,9 +156,9 @@ export default function Home() {
         className="app-bg h-full overflow-y-auto hide-scrollbar"
         style={{ overscrollBehaviorY: "contain", paddingBottom: 80 }}
       >
-        {/* ── Unified Home Header ────────────────────────────────────────
-             Single row: [Avatar] [For You | S Logo | Following] [Bell+Msg]
-             Replaces the old two-row Socia-title + tabs layout entirely. */}
+        {/* ── Simplified Home Header ───────────────────────────────────────
+             Row 1: Avatar only (opens menu drawer). Center/right empty.
+             Row 2: For You | Following — the primary navigation tabs. */}
         <div
           className="sticky top-0 z-20"
           style={{
@@ -185,22 +173,17 @@ export default function Home() {
           <div style={{ overflow: "hidden" }}>
             <div
               style={{
-                display: "flex",
-                alignItems: "stretch",
-                paddingTop: `calc(env(safe-area-inset-top, 0px) + 6px)`,
-                borderBottom: "1px solid #2F3336",
                 transform: navHidden ? "translateY(-100%)" : "translateY(0)",
                 transition: slideTransition,
                 willChange: "transform",
               }}
             >
-              {/* ── LEFT: Avatar (opens drawer) ──────────────────────── */}
+              {/* ── Row 1: Avatar (opens drawer) ─────────────────────── */}
               <div
                 style={{
-                  width: 64,
-                  flexShrink: 0,
                   display: "flex",
                   alignItems: "center",
+                  paddingTop: `calc(env(safe-area-inset-top, 0px) + 6px)`,
                   paddingLeft: 14,
                   paddingBottom: 8,
                 }}
@@ -240,8 +223,14 @@ export default function Home() {
                 )}
               </div>
 
-              {/* ── CENTER: For You  |  S Logo  |  Following ─────────── */}
-              <div style={{ flex: 1, display: "flex", alignItems: "stretch" }}>
+              {/* ── Row 2: For You | Following ────────────────────────── */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "stretch",
+                  borderBottom: "1px solid #2F3336",
+                }}
+              >
                 {/* For You tab */}
                 <button
                   onClick={() => setFeedTab("for-you")}
@@ -285,36 +274,6 @@ export default function Home() {
                   )}
                 </button>
 
-                {/* S Logo — branding divider, NOT a button */}
-                <div
-                  style={{
-                    flexShrink: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "0 4px",
-                    paddingBottom: 8,
-                    pointerEvents: "none",
-                    userSelect: "none",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 22,
-                      fontWeight: 900,
-                      lineHeight: 1,
-                      background: "linear-gradient(135deg, var(--accent-primary, #a855f7), var(--accent-secondary, #3b82f6))",
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                      backgroundClip: "text",
-                      fontFamily: "var(--font-display, inherit)",
-                      letterSpacing: "-0.04em",
-                    }}
-                  >
-                    S
-                  </span>
-                </div>
-
                 {/* Following tab */}
                 <button
                   onClick={() => setFeedTab("following")}
@@ -357,78 +316,6 @@ export default function Home() {
                     />
                   )}
                 </button>
-              </div>
-
-              {/* ── RIGHT: Notification bell + Messages ──────────────── */}
-              <div
-                style={{
-                  width: 64,
-                  flexShrink: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "flex-end",
-                  gap: 4,
-                  paddingRight: 10,
-                  paddingBottom: 8,
-                }}
-              >
-                {me && (
-                  <motion.button
-                    whileTap={{ scale: 0.88 }}
-                    onClick={() => navigate("/notifications")}
-                    aria-label="Notifications"
-                    style={{
-                      position: "relative",
-                      width: 30, height: 30,
-                      borderRadius: "50%",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      display: "grid",
-                      placeItems: "center",
-                      color: "#E7E9EA",
-                    }}
-                  >
-                    <Bell style={{ width: 16, height: 16, strokeWidth: 1.9 }} />
-                    {notifUnread > 0 && (
-                      <span
-                        style={{
-                          position: "absolute", top: 3, right: 3,
-                          width: 7, height: 7, borderRadius: "50%",
-                          background: "#1D9BF0",
-                          border: "1.5px solid #000",
-                        }}
-                      />
-                    )}
-                  </motion.button>
-                )}
-                <motion.button
-                  whileTap={{ scale: 0.88 }}
-                  onClick={() => navigate("/messages")}
-                  aria-label="Messages"
-                  style={{
-                    position: "relative",
-                    width: 30, height: 30,
-                    borderRadius: "50%",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    display: "grid",
-                    placeItems: "center",
-                    color: "#E7E9EA",
-                  }}
-                >
-                  <MessageCircle style={{ width: 16, height: 16, strokeWidth: 1.9 }} />
-                  {unread && (
-                    <span
-                      style={{
-                        position: "absolute", top: 4, right: 4,
-                        width: 6, height: 6, borderRadius: "50%",
-                        background: "#1D9BF0",
-                      }}
-                    />
-                  )}
-                </motion.button>
               </div>
             </div>
           </div>
