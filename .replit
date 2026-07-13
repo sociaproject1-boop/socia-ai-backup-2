@@ -76,35 +76,3 @@ AI_INTEGRATIONS_OPENAI_BASE_URL = "https://api.openai.com/v1"
 [nix]
 channel = "stable-25_05"
 packages = ["curl", "wget"]
-
-[[ports]]
-localPort = 3000
-externalPort = 3002
-
-[[ports]]
-localPort = 5000
-externalPort = 80
-
-[[ports]]
-localPort = 5173
-externalPort = 5173
-
-[[ports]]
-localPort = 8080
-externalPort = 8080
-
-[[ports]]
-localPort = 8081
-externalPort = 8081
-
-[[ports]]
-localPort = 9999
-externalPort = 3003
-
-[[ports]]
-localPort = 18348
-externalPort = 3001
-
-[[ports]]
-localPort = 21175
-externalPort = 3000

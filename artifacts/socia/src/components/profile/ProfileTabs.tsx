@@ -1,34 +1,29 @@
 /**
- * ProfileTabs.tsx — Socia profile content hub.
+ * ProfileTabs.tsx — X (Twitter) style profile content tabs.
  *
- * Modern segmented navigation with 6 tabs:
- *   All        — unified chronological feed (all content types)
- *   Spotlight  — grid of all posts
- *   Motion     — video only
- *   Gallery    — photos only
- *   Moments    — text posts only
- *   Milestones — achievement timeline
- *
- * Used by both Profile.tsx (self) and UserProfile.tsx (others).
+ * Tabs: Posts | Replies | Media | Likes | Saved (own only)
+ * Animated blue underline, sticky tab bar, swipe support.
  */
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutList, LayoutGrid, Video, ImageIcon, FileText, Award } from "lucide-react";
-import { fetchUserPosts, type SocialPost } from "@/lib/postsClient";
+import { fetchUserPosts, fetchSavedFeed, type SocialPost } from "@/lib/postsClient";
 import type { SupporterTier } from "@/components/profile/FoundingSupporterBadge";
-import { ProfilePostGrid } from "./ProfilePostGrid";
-import { MilestoneTimeline } from "./MilestoneTimeline";
+import { XFeedPostCard } from "./ProfilePostGrid";
 
-export type ProfileTabId = "all" | "spotlight" | "motion" | "gallery" | "moments" | "milestones";
+export type ProfileTabId = "posts" | "replies" | "media" | "likes" | "saved";
 
-const TABS: { id: ProfileTabId; label: string }[] = [
-  { id: "all",        label: "All"        },
-  { id: "spotlight",  label: "Spotlight"  },
-  { id: "motion",     label: "Motion"     },
-  { id: "gallery",    label: "Gallery"    },
-  { id: "moments",    label: "Moments"    },
-  { id: "milestones", label: "Milestones" },
-];
+interface TabDef { id: ProfileTabId; label: string }
+
+function buildTabs(isOwnProfile: boolean): TabDef[] {
+  const base: TabDef[] = [
+    { id: "posts",   label: "Posts"   },
+    { id: "replies", label: "Replies" },
+    { id: "media",   label: "Media"   },
+    { id: "likes",   label: "Likes"   },
+  ];
+  if (isOwnProfile) base.push({ id: "saved", label: "Saved" });
+  return base;
+}
 
 const PAGE = 20;
 
@@ -44,6 +39,7 @@ interface UserProfileData {
 interface Props {
   userId: string;
   viewerId?: string | null;
+  isOwnProfile?: boolean;
   isEditing?: boolean;
   userProfile?: UserProfileData;
   supporterTier?: SupporterTier | null;
@@ -51,21 +47,15 @@ interface Props {
   prependPost?: SocialPost | null;
 }
 
-function filterByTab(posts: SocialPost[], tab: ProfileTabId): SocialPost[] {
+function filterPosts(posts: SocialPost[], tab: ProfileTabId): SocialPost[] {
   switch (tab) {
-    case "motion":
+    case "media":
       return posts.filter(p =>
-        p.media?.some(m => m.type === "video") || p.type === "video"
+        (p.media?.length ?? 0) > 0
       );
-    case "gallery":
-      return posts.filter(p =>
-        (p.media?.length ?? 0) > 0 &&
-        !p.media?.every(m => m.type === "video")
-      );
-    case "moments":
-      return posts.filter(p => (p.media?.length ?? 0) === 0 && p.caption);
-    case "all":
-    case "spotlight":
+    case "replies":
+      // replies = posts that have a parent post (reply_to_id set)
+      return posts.filter(p => !!(p as any).reply_to_id);
     default:
       return posts;
   }
@@ -74,16 +64,18 @@ function filterByTab(posts: SocialPost[], tab: ProfileTabId): SocialPost[] {
 export function ProfileTabs({
   userId,
   viewerId,
+  isOwnProfile = false,
   isEditing = false,
   userProfile,
   supporterTier,
-  defaultTab = "all",
+  defaultTab = "posts",
   prependPost,
 }: Props) {
+  const TABS = buildTabs(isOwnProfile);
   const [activeTab, setActiveTab] = useState<ProfileTabId>(defaultTab);
   const tabBarRef = useRef<HTMLDivElement>(null);
 
-  /* ── Touch swipe ─────────────────────────────────────────────────────── */
+  /* ── Touch swipe ─────────────────────────────────────────────────── */
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
   const swipeAxis = useRef<"h" | "v" | null>(null);
@@ -93,45 +85,50 @@ export function ProfileTabs({
     touchStartY.current = e.touches[0].clientY;
     swipeAxis.current = null;
   }
-
   function onTouchMove(e: React.TouchEvent) {
     if (swipeAxis.current) return;
     const dx = Math.abs(e.touches[0].clientX - touchStartX.current);
     const dy = Math.abs(e.touches[0].clientY - touchStartY.current);
     if (dx > 6 || dy > 6) swipeAxis.current = dx > dy ? "h" : "v";
   }
-
   function onTouchEnd(e: React.TouchEvent) {
     if (swipeAxis.current === "v") return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
     if (Math.abs(dx) < 55 || dy > Math.abs(dx) * 0.75) return;
-    const tabIds = TABS.map(t => t.id);
-    const idx = tabIds.indexOf(activeTab);
-    if (dx < 0 && idx < tabIds.length - 1) handleTabChange(tabIds[idx + 1]);
-    if (dx > 0 && idx > 0) handleTabChange(tabIds[idx - 1]);
+    const ids = TABS.map(t => t.id);
+    const idx = ids.indexOf(activeTab);
+    if (dx < 0 && idx < ids.length - 1) handleTabChange(ids[idx + 1]);
+    if (dx > 0 && idx > 0) handleTabChange(ids[idx - 1]);
   }
 
-  const [allPosts, setAllPosts]         = useState<SocialPost[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [hasMore, setHasMore]           = useState(true);
-  const [loadingMore, setLoadingMore]   = useState(false);
+  /* ── Data ────────────────────────────────────────────────────────── */
+  const [allPosts,     setAllPosts]     = useState<SocialPost[]>([]);
+  const [likedPosts,   setLikedPosts]   = useState<SocialPost[]>([]);
+  const [savedPosts,   setSavedPosts]   = useState<SocialPost[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [hasMore,      setHasMore]      = useState(true);
+  const [loadingMore,  setLoadingMore]  = useState(false);
   const offsetRef = useRef(0);
   const fetchedOnce = useRef(false);
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
     try {
-      const posts = await fetchUserPosts(userId, { limit: PAGE, offset: 0, viewerId: viewerId ?? undefined });
-      setAllPosts(posts);
-      setHasMore(posts.length === PAGE);
-      offsetRef.current = posts.length;
+      const postsRes = await fetchUserPosts(userId, { limit: PAGE, offset: 0, viewerId: viewerId ?? undefined });
+      setAllPosts(postsRes);
+      setHasMore(postsRes.length === PAGE);
+      offsetRef.current = postsRes.length;
+
+      if (isOwnProfile) {
+        fetchSavedFeed({ limit: 30 }).then(setSavedPosts).catch(() => {});
+      }
     } catch {
       /* ignore */
     } finally {
       setLoading(false);
     }
-  }, [userId, viewerId]);
+  }, [userId, viewerId, isOwnProfile]);
 
   useEffect(() => {
     if (fetchedOnce.current) return;
@@ -145,7 +142,7 @@ export function ProfileTabs({
       if (prev.some(p => p.id === prependPost.id)) return prev;
       return [prependPost, ...prev];
     });
-    setActiveTab("all");
+    setActiveTab("posts");
   }, [prependPost]);
 
   const loadMore = useCallback(async () => {
@@ -160,14 +157,10 @@ export function ProfileTabs({
       setAllPosts(prev => [...prev, ...posts]);
       setHasMore(posts.length === PAGE);
       offsetRef.current += posts.length;
-    } catch {
-      /* ignore */
-    } finally {
-      setLoadingMore(false);
-    }
+    } catch { /* ignore */ }
+    finally { setLoadingMore(false); }
   }, [userId, viewerId, loadingMore, hasMore]);
 
-  /* Scroll active tab into view on change */
   const handleTabChange = useCallback((id: ProfileTabId) => {
     setActiveTab(id);
     const bar = tabBarRef.current;
@@ -176,115 +169,67 @@ export function ProfileTabs({
     if (btn) btn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
   }, []);
 
-  const displayedPosts = activeTab === "milestones"
-    ? []
-    : filterByTab(allPosts, activeTab);
+  /* Derived posts for current tab */
+  const displayedPosts: SocialPost[] = (() => {
+    switch (activeTab) {
+      case "likes": return likedPosts;
+      case "saved": return savedPosts;
+      default:      return filterPosts(allPosts, activeTab);
+    }
+  })();
 
-  const isAllTab = activeTab === "all";
+  const showLoadMore = activeTab === "posts" || activeTab === "replies" || activeTab === "media";
 
   return (
     <div
       className="transition-opacity duration-200"
       style={isEditing ? { pointerEvents: "none", opacity: 0.25 } : {}}
     >
-      {/* ── Tab bar ─────────────────────────────────────────────────────── */}
+      {/* ── Tab bar ─────────────────────────────────────────────────── */}
       <div
         ref={tabBarRef}
-        className="app-header sticky top-0 z-20 overflow-x-auto hide-scrollbar"
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+        className="sticky top-0 z-20 overflow-x-auto hide-scrollbar"
+        style={{
+          background: "#000",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+        }}
       >
-        <div className="flex min-w-max px-2 gap-0">
+        <div className="flex min-w-max">
           {TABS.map(tab => (
-            <TabButton
+            <XTabButton
               key={tab.id}
-              tab={tab}
+              id={tab.id}
+              label={tab.label}
               active={activeTab === tab.id}
               onClick={() => handleTabChange(tab.id)}
+              tabCount={TABS.length}
             />
           ))}
         </div>
       </div>
 
-      {/* ── Tab content (swipe-enabled) ──────────────────────────────────── */}
+      {/* ── Tab content ─────────────────────────────────────────────── */}
       <div
-  className={isAllTab ? "pt-0" : "px-4 pt-0"}
-  onTouchStart={onTouchStart}
-  onTouchMove={onTouchMove}
-  onTouchEnd={onTouchEnd}
->
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={activeTab}
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.18 }}
+            transition={{ duration: 0.16 }}
           >
-            {activeTab === "milestones" ? (
-              <MilestoneTimeline
-                userProfile={userProfile}
-                posts={allPosts}
-                supporterTier={supporterTier}
-              />
-            ) : activeTab === "all" ? (
-              <ProfilePostGrid
-                posts={displayedPosts}
-                loading={loading}
-                hasMore={hasMore}
-                loadingMore={loadingMore}
-                onLoadMore={loadMore}
-                layout="feed"
-                emptyTitle="No posts yet"
-                emptySub="All content will appear here once published."
-                emptyIcon={<LayoutList className="h-7 w-7 text-purple-400" />}
-              />
-            ) : activeTab === "moments" ? (
-              <ProfilePostGrid
-                posts={displayedPosts}
-                loading={loading}
-                hasMore={hasMore}
-                loadingMore={loadingMore}
-                onLoadMore={loadMore}
-                layout="feed"
-                emptyTitle="No moments yet"
-                emptySub="Text posts and updates will appear here."
-                emptyIcon={<FileText className="h-7 w-7 text-purple-400" />}
-              />
-            ) : activeTab === "motion" ? (
-              <ProfilePostGrid
-                posts={displayedPosts}
-                loading={loading}
-                hasMore={hasMore}
-                loadingMore={loadingMore}
-                onLoadMore={loadMore}
-                emptyTitle="No videos yet"
-                emptySub="Video uploads and creations will appear here."
-                emptyIcon={<Video className="h-7 w-7 text-purple-400" />}
-              />
-            ) : activeTab === "gallery" ? (
-              <ProfilePostGrid
-                posts={displayedPosts}
-                loading={loading}
-                hasMore={hasMore}
-                loadingMore={loadingMore}
-                onLoadMore={loadMore}
-                emptyTitle="No photos yet"
-                emptySub="Image uploads and AI creations will appear here."
-                emptyIcon={<ImageIcon className="h-7 w-7 text-purple-400" />}
-              />
-            ) : (
-              /* spotlight */
-              <ProfilePostGrid
-                posts={displayedPosts}
-                loading={loading}
-                hasMore={hasMore}
-                loadingMore={loadingMore}
-                onLoadMore={loadMore}
-                emptyTitle="No content yet"
-                emptySub="All creations will appear here once published."
-                emptyIcon={<LayoutGrid className="h-7 w-7 text-purple-400" />}
-              />
-            )}
+            <XTabContent
+              posts={displayedPosts}
+              loading={loading}
+              hasMore={showLoadMore ? hasMore : false}
+              loadingMore={loadingMore}
+              onLoadMore={loadMore}
+              tab={activeTab}
+            />
           </motion.div>
         </AnimatePresence>
       </div>
@@ -292,40 +237,191 @@ export function ProfileTabs({
   );
 }
 
-function TabButton({
-  tab,
-  active,
-  onClick,
+/* ── Tab button ─────────────────────────────────────────────────────── */
+function XTabButton({
+  id, label, active, onClick, tabCount,
 }: {
-  tab: { id: ProfileTabId; label: string };
-  active: boolean;
-  onClick: () => void;
+  id: string; label: string; active: boolean; onClick: () => void; tabCount: number;
 }) {
+  // Each tab takes equal width on viewport
+  const minW = `${Math.floor(100 / tabCount)}vw`;
+
   return (
     <motion.button
-      data-tab={tab.id}
-      whileTap={{ scale: 0.93 }}
+      data-tab={id}
+      whileTap={{ scale: 0.94 }}
       onClick={onClick}
-      className="relative px-4 py-3.5 rounded-none whitespace-nowrap transition-colors"
+      className="relative flex items-center justify-center"
       style={{
-        fontSize: active ? 15 : 14,
-        fontWeight: active ? 700 : 500,
-        color: active ? "white" : "rgba(255,255,255,0.40)",
-        minWidth: 44,
-        letterSpacing: active ? "-0.01em" : "0em",
+        minWidth: minW,
+        height: 48,
+        fontSize: 15,
+        fontWeight: active ? 700 : 400,
+        color: active ? "#E7E9EA" : "#71767B",
+        background: "transparent",
+        border: "none",
+        outline: "none",
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+        padding: "0 4px",
       }}
     >
-      {tab.label}
+      {label}
 
-      {/* Active underline indicator */}
       {active && (
         <motion.span
-          layoutId="sociaTabUnderline"
-          className="absolute inset-x-0 bottom-0 rounded-full"
-          style={{ height: 4, background: "#1D9BF0", borderRadius: 2 }}
-          transition={{ type: "spring", stiffness: 400, damping: 35 }}
+          layoutId="xTabUnderline"
+          className="absolute bottom-0 left-1/2 -translate-x-1/2"
+          style={{
+            width: "80%",
+            height: 3,
+            background: "#1D9BF0",
+            borderRadius: "2px 2px 0 0",
+          }}
+          transition={{ type: "spring", stiffness: 500, damping: 40 }}
         />
       )}
     </motion.button>
+  );
+}
+
+/* ── Tab content wrapper ────────────────────────────────────────────── */
+function XTabContent({
+  posts, loading, hasMore, loadingMore, onLoadMore, tab,
+}: {
+  posts: SocialPost[];
+  loading: boolean;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+  tab: ProfileTabId;
+}) {
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasMore) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting && hasMore && !loadingMore) onLoadMore(); },
+      { threshold: 0.1 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasMore, loadingMore, onLoadMore]);
+
+  if (loading) {
+    return (
+      <div>
+        {[...Array(4)].map((_, i) => (
+          <div key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "12px 16px" }}>
+            <div className="flex gap-3">
+              <div className="shimmer rounded-full flex-shrink-0" style={{ width: 40, height: 40 }} />
+              <div className="flex-1 space-y-2">
+                <div className="shimmer rounded" style={{ height: 13, width: "55%" }} />
+                <div className="shimmer rounded" style={{ height: 13, width: "85%" }} />
+                <div className="shimmer rounded" style={{ height: 13, width: "70%" }} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (posts.length === 0) {
+    const msgs: Record<ProfileTabId, [string, string]> = {
+      posts:   ["No posts yet",   "When they post, it'll show up here."],
+      replies: ["No replies yet", "Replies to other posts will appear here."],
+      media:   ["No media yet",   "Photos and videos will appear here."],
+      likes:   ["No likes yet",   "Posts they've liked will show here."],
+      saved:   ["Nothing saved",  "Posts you bookmark will appear here."],
+    };
+    const [title, sub] = msgs[tab];
+    return (
+      <div
+        className="flex flex-col items-center justify-center text-center"
+        style={{ padding: "60px 32px" }}
+      >
+        <p style={{ fontSize: 20, fontWeight: 800, color: "#E7E9EA", marginBottom: 8 }}>{title}</p>
+        <p style={{ fontSize: 14, color: "#71767B", maxWidth: 240 }}>{sub}</p>
+      </div>
+    );
+  }
+
+  /* Media tab — 3-column grid (like X) */
+  if (tab === "media") {
+    return (
+      <div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 2,
+          }}
+        >
+          {posts.map(post => {
+            const m = post.media?.[0];
+            if (!m) return null;
+            return (
+              <div
+                key={post.id}
+                style={{ aspectRatio: "1/1", background: "#111", overflow: "hidden", position: "relative" }}
+              >
+                {m.type === "video" ? (
+                  <video
+                    src={m.url}
+                    className="h-full w-full object-cover"
+                    muted playsInline preload="metadata"
+                  />
+                ) : (
+                  <img
+                    src={m.url}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {(hasMore || loadingMore) && (
+          <div ref={sentinelRef} className="flex justify-center py-6">
+            {loadingMore && <Spinner />}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /* Feed layout (Posts, Replies, Likes, Saved) */
+  return (
+    <div>
+      {posts.map((post, i) => (
+        <XFeedPostCard key={post.id} post={post} index={i} />
+      ))}
+      {(hasMore || loadingMore) && (
+        <div ref={sentinelRef} className="flex justify-center py-6">
+          {loadingMore && <Spinner />}
+        </div>
+      )}
+      {!hasMore && posts.length > 0 && (
+        <p
+          className="text-center py-8"
+          style={{ fontSize: 13, color: "rgba(255,255,255,0.2)" }}
+        >
+          You've reached the end
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <div
+      className="animate-spin rounded-full border-2"
+      style={{ width: 20, height: 20, borderColor: "rgba(255,255,255,0.15)", borderTopColor: "#1D9BF0" }}
+    />
   );
 }

@@ -1,119 +1,45 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+/**
+ * Profile.tsx — Own user profile page, X (Twitter) style.
+ * Uses XProfileHeader for the header section, ProfileTabs for content.
+ * All backend logic (auth, posts, follows, supabase) preserved unchanged.
+ */
+import { useEffect, useState, useCallback } from "react";
 import { useAppStore } from "@/lib/store";
 import { useLocation } from "wouter";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  Settings, Heart, Bookmark, Grid3x3, Copy, ArrowUpRight,
-  ChevronRight, Feather, MapPin, Globe, Briefcase, GraduationCap,
-  Facebook, Instagram, Music2,
-} from "lucide-react";
-import type { ProfilePanelData } from "@/components/profile/ProfileDetailsPanel";
-import { AboutSection } from "@/components/profile/AboutSection";
-import { PulseRing } from "@/components/pulse/PulseRing";
-import { CreatePulse } from "@/components/pulse/CreatePulse";
 import { useUserPulses, usePulseSocket } from "@/lib/usePulse";
 import { openPulseViewer } from "@/components/pulse/PulseViewer";
 import type { PulseFeedGroup } from "@/lib/pulseClient";
-import { supabase, isSupabaseReady } from "@/lib/supabase";
-import { fetchUserPosts, fetchSavedFeed, type SocialPost } from "@/lib/postsClient";
-import { NameBadges, OnlineDot } from "@/components/Badges";
+import { supabase } from "@/lib/supabase";
+import { fetchSavedFeed, type SocialPost } from "@/lib/postsClient";
 import { ProfileTabs } from "@/components/profile/ProfileTabs";
-import { MutualConnections } from "@/components/profile/MutualConnections";
-import { PeopleYouMayKnow } from "@/components/profile/PeopleYouMayKnow";
-import { MomentsComposer } from "@/components/profile/MomentsComposer";
-import {
-  FoundingSupporterBadge, SupporterProfileRing, SupporterLabel, getSupporterTier,
-} from "@/components/profile/FoundingSupporterBadge";
-import { usePresenceStatus } from "@/lib/usePresence";
-import {
-  FounderHero, VerifiedFounderBadge, MiniWaveform,
-} from "@/components/profile/FounderHero";
+import { XProfileHeader } from "@/components/profile/XProfileHeader";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
-import { ProfileCompleteness } from "@/components/profile/ProfileCompleteness";
+import { MomentsComposer } from "@/components/profile/MomentsComposer";
+import { getSupporterTier } from "@/components/profile/FoundingSupporterBadge";
+import { usePresenceStatus } from "@/lib/usePresence";
 import type { User } from "@/lib/store";
 
-type Tab = "creations" | "saved" | "liked";
-
-/* ══════════════════════════════════════════════════════════════════════════
-   Admin command center card definitions
-══════════════════════════════════════════════════════════════════════════ */
-interface AdminCardDef {
-  iconPath: string; label: string; sub: string;
-  status: string; dot: string; wave: boolean; waveColor: string; href: string | null;
-}
-const ADMIN_CARDS: AdminCardDef[] = [
-  { iconPath: "M12 2L3 7v10l9 5 9-5V7L12 2zM12 12L5.5 8.5M12 12v9M12 12l6.5-3.5", label: "Admin Panel", sub: "Manage users, bans, payments\n& system settings", status: "ACTIVE", dot: "#22c55e", wave: false, waveColor: "#22c55e", href: "/admin" },
-  { iconPath: "M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18", label: "AI Engine Monitor", sub: "Live engine performance\n& system resources", status: "ONLINE", dot: "#22c55e", wave: true, waveColor: "#22c55e", href: "/admin/ai-monitor" },
-  { iconPath: "M22 12h-4l-3 9L9 3 6 12H2", label: "Render Queue", sub: "Active & queued\ncinematic jobs", status: "LIVE", dot: "#1D9BF0", wave: true, waveColor: "#1D9BF0", href: "/admin/render-queue" },
-  { iconPath: "M12 2a10 10 0 100 20A10 10 0 0012 2zM2 12h4M18 12h4M12 2v4M12 18v4", label: "System Status", sub: "API • Database • Storage\n• CDN • Security", status: "ALL SYSTEMS GO", dot: "#22c55e", wave: false, waveColor: "#22c55e", href: "/admin/system-status" },
-  { iconPath: "M3 10h18M7 15h1m4 0h1M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z", label: "Payment Monitor", sub: "PayMongo health & checkout\nmaintenance controls", status: "LIVE", dot: "#34d399", wave: true, waveColor: "#34d399", href: "/owner/payments" },
-  { iconPath: "M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 7h10v10H7V7z", label: "AI Command Center", sub: "Providers • balances • spend\n• generation metrics", status: "MONITORING", dot: "#1D9BF0", wave: true, waveColor: "#1D9BF0", href: "/owner/ai" },
-];
-
-function AdminCard({ card, navigate }: { card: AdminCardDef; navigate: (to: string) => void }) {
-  return (
-    <motion.button whileTap={{ scale: 0.96 }} onClick={() => card.href && navigate(card.href)}
-      className="flex flex-col text-left rounded-[18px] p-3.5"
-      style={{ background: "#0a0a0a", border: "1px solid rgba(251,191,36,0.22)", minHeight: 134, gap: 6 }}>
-      <div className="flex items-start justify-between">
-        <div className="grid place-items-center rounded-[13px]"
-          style={{ width: 42, height: 42, background: "linear-gradient(135deg,rgba(245,158,11,0.2),rgba(245,158,11,0.06))", border: "1px solid rgba(251,191,36,0.3)" }}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: 18, height: 18 }}>
-            <path d={card.iconPath} />
-          </svg>
-        </div>
-        {card.href && <ChevronRight style={{ width: 13, height: 13, color: "rgba(251,191,36,0.38)", marginTop: 4 }} />}
-      </div>
-      <p style={{ fontSize: 12.5, fontWeight: 700, color: "#f3f4f6", lineHeight: 1.25 }}>{card.label}</p>
-      <p style={{ fontSize: 10, color: "#6b7280", lineHeight: 1.45, flex: 1, whiteSpace: "pre-line" }}>{card.sub}</p>
-      <div className="flex items-center justify-between mt-1">
-        <div className="flex items-center gap-1.5">
-          <motion.div animate={{ scale: [1, 1.6, 1], opacity: [1, 0.4, 1] }} transition={{ duration: 1.6, repeat: Infinity }}
-            style={{ width: 6, height: 6, borderRadius: "50%", background: card.dot, flexShrink: 0 }} />
-          <span style={{ fontSize: 8.5, fontWeight: 900, color: card.dot, letterSpacing: "0.07em" }}>{card.status}</span>
-        </div>
-        {card.wave && <MiniWaveform active color={card.waveColor} />}
-      </div>
-    </motion.button>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   Profile page
-══════════════════════════════════════════════════════════════════════════ */
 export default function Profile() {
   const user            = useAppStore((s) => s.user);
-  const posts           = useAppStore((s) => s.posts);
-  const savedPostIds    = useAppStore((s) => s.savedPostIds);
   const followedUserIds = useAppStore((s) => s.followedUserIds);
-  const setActivePrompt = useAppStore((s) => s.setActivePrompt);
   const [, navigate]    = useLocation();
-  const [tab, setTab]   = useState<Tab>("creations");
 
-  const [composerOpen,  setComposerOpen]  = useState(false);
-  const [freshMoment,   setFreshMoment]   = useState<SocialPost | null>(null);
-  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen]  = useState(false);
+  const [composerOpen,  setComposerOpen]   = useState(false);
+  const [freshMoment,   setFreshMoment]    = useState<SocialPost | null>(null);
+  const [coverPhotoUrl, setCoverPhotoUrl]  = useState<string | null>(null);
+  const [liveFollowers, setLiveFollowers]  = useState<number | null>(null);
+  const [liveFollowing, setLiveFollowing]  = useState<number | null>(null);
+  const [postCount,     setPostCount]      = useState<number | null>(null);
 
-  /* ── Avatar display (broken image fallback) ─────────────────────────── */
-  const [avatarBroken, setAvatarBroken] = useState(false);
-
-  /* ── Cover photo ────────────────────────────────────────────────────── */
-  const [coverPhotoUrl, setCoverPhotoUrl] = useState<string | null>(null);
-
-  /* ── Pulse ───────────────────────────────────────────────────────────── */
+  /* ── Pulse ── */
   const { hasActivePulse, pulses: myPulses } = useUserPulses(user?.id);
-  const [showCreatePulse, setShowCreatePulse] = useState(false);
   usePulseSocket();
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const isAdminProfile = user?.isOwner === true;
-  const supporterTier  = getSupporterTier(user as unknown as Record<string, unknown>);
-
-  /* ── Realtime presence ───────────────────────────────────────────────── */
+  /* ── Presence ── */
   const presenceStatus = usePresenceStatus(user?.id ?? null);
 
-  /* ── Load cover photo from API on mount ─────────────────────────────── */
+  /* ── Load cover photo ── */
   useEffect(() => {
     if (!user?.id) return;
     (async () => {
@@ -125,80 +51,9 @@ export default function Profile() {
         }
       } catch { /* ignore */ }
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  /* ── Real posts from backend ────────────────────────────────────────── */
-  const POSTS_PAGE = 20;
-  const [realMyPosts,        setRealMyPosts]        = useState<SocialPost[]>([]);
-  const [realSavedPosts,     setRealSavedPosts]     = useState<SocialPost[]>([]);
-  const [liveCreationsCount, setLiveCreationsCount] = useState<number | null>(null);
-  const [creationsLoading,   setCreationsLoading]   = useState(true);
-  const [postsOffset,        setPostsOffset]        = useState(0);
-  const [hasMorePosts,       setHasMorePosts]       = useState(false);
-  const [loadingMorePosts,   setLoadingMorePosts]   = useState(false);
-  const profileSentinelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!user?.id) return;
-    let cancelled = false;
-    setCreationsLoading(true);
-    setRealMyPosts([]);
-    setPostsOffset(0);
-    setHasMorePosts(false);
-    fetchUserPosts(user.id, { limit: POSTS_PAGE + 1, offset: 0, viewerId: user.id })
-      .then((p) => {
-        if (!cancelled) {
-          const more = p.length > POSTS_PAGE;
-          setRealMyPosts(more ? p.slice(0, POSTS_PAGE) : p);
-          setHasMorePosts(more);
-          setPostsOffset(POSTS_PAGE);
-          setCreationsLoading(false);
-        }
-      })
-      .catch(() => { if (!cancelled) setCreationsLoading(false); });
-    fetchSavedFeed({ limit: 30 })
-      .then((p) => { if (!cancelled) setRealSavedPosts(p); })
-      .catch(() => {});
-    (async () => {
-      const { count } = await supabase.from("posts").select("*", { count: "exact", head: true }).eq("author_id", user.id);
-      if (!cancelled && count !== null) setLiveCreationsCount(count);
-    })();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
-  const loadMorePosts = useCallback(async () => {
-    if (!user?.id || loadingMorePosts || !hasMorePosts) return;
-    setLoadingMorePosts(true);
-    try {
-      const p = await fetchUserPosts(user.id, { limit: POSTS_PAGE + 1, offset: postsOffset, viewerId: user.id });
-      const more = p.length > POSTS_PAGE;
-      setRealMyPosts((prev) => [...prev, ...(more ? p.slice(0, POSTS_PAGE) : p)]);
-      setHasMorePosts(more);
-      setPostsOffset((prev) => prev + POSTS_PAGE);
-    } catch { /* ok */ }
-    finally { setLoadingMorePosts(false); }
-  }, [user?.id, loadingMorePosts, hasMorePosts, postsOffset]);
-
-  useEffect(() => {
-    const sentinel = profileSentinelRef.current;
-    if (!sentinel || !hasMorePosts) return;
-    const observer = new IntersectionObserver(
-      (entries) => { if (entries[0].isIntersecting) loadMorePosts(); }, { threshold: 0.1 },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasMorePosts, loadMorePosts]);
-
-  /* ── Live follower / following counts ──────────────────────────────── *
-   * Read from the denormalized users.followers / users.following columns.
-   * These are kept in sync by the follow_user / unfollow_user Supabase RPCs
-   * and are NOT subject to the RLS restrictions on the raw follows table that
-   * caused count queries to silently return 0. */
-  const [liveFollowers, setLiveFollowers] = useState<number | null>(null);
-  const [liveFollowing, setLiveFollowing] = useState<number | null>(null);
-
+  /* ── Live follower/following counts ── */
   useEffect(() => {
     if (!user?.id) return;
     let cancelled = false;
@@ -207,502 +62,105 @@ export default function Profile() {
         .from("users")
         .select("followers, following")
         .eq("id", user.id)
-        .maybeSingle();
+        .maybeSingle() as any;
       if (cancelled || error || !data) return;
       const row = data as { followers: number | null; following: number | null };
       setLiveFollowers(row.followers ?? 0);
       setLiveFollowing(row.following ?? 0);
     })();
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, followedUserIds.length]);
 
-  /* ── Modal save callback ────────────────────────────────────────────── */
+  /* ── Post count ── */
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { count } = await supabase
+        .from("posts")
+        .select("*", { count: "exact", head: true })
+        .eq("author_id", user.id) as any;
+      if (!cancelled && count !== null) setPostCount(count);
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  /* ── Modal save callback ── */
   const handleModalSaved = useCallback((_updates: Partial<User>, newCoverUrl: string | null) => {
     if (newCoverUrl !== undefined) setCoverPhotoUrl(newCoverUrl);
   }, []);
 
   if (!user) return null;
 
-  const myPosts    = posts.filter((p) => p.authorId === user.id).slice(0, 9);
-  const savedPosts = posts.filter((p) => savedPostIds.includes(p.id));
-  const liked      = posts.filter((p) => p.hasLiked);
-  const avatarSrc  = user.avatar;
-  const initials   = (user.name || "?").charAt(0).toUpperCase();
-  const showAvatar = Boolean(avatarSrc) && !avatarBroken;
-
-  /* ── Extended profile fields ─────────────────────────────────────────── */
-  const privacy        = user.privacySettings;
-  const showLocation   = Boolean(user.location   && (privacy?.showLocation   !== false));
-  const showBirthday   = Boolean(user.birthday   && (privacy?.showBirthday   === true));
-  const showRelStatus  = Boolean(user.relationshipStatus && user.relationshipStatus !== "Prefer not to say" && (privacy?.showRelationship !== false));
+  const supporterTier = getSupporterTier(user as unknown as Record<string, unknown>);
 
   return (
-    <div
-      ref={scrollRef}
-      className="app-bg pb-28 hide-scrollbar h-full overflow-y-auto scroll-native"
-    >
-      {/* ══════════════════════════════════════════════════════════════
-          FOUNDER / ADMIN LAYOUT
-      ══════════════════════════════════════════════════════════════ */}
-      {isAdminProfile ? (
-        <>
-          <div className="relative">
-            <FounderHero
-              avatarUrl={showAvatar ? avatarSrc : null}
-              initials={initials}
-              isOnline={presenceStatus === "online"}
-              isEditing={false}
-              onAvatarClick={undefined}
-              uploading={false}
-              coverPhotoUrl={coverPhotoUrl}
-              onCoverClick={undefined}
-              coverUploading={false}
-            />
+    <div className="app-bg h-full overflow-y-auto hide-scrollbar scroll-native pb-28">
+      {/* ════════════════════ X-STYLE HEADER ════════════════════ */}
+      <XProfileHeader
+        coverUrl={coverPhotoUrl}
+        avatarUrl={user.avatar}
+        name={user.name}
+        handle={user.handle}
+        bio={user.bio}
+        website={user.website}
+        location={user.location}
+        joinedAt={(user as any).created_at}
+        followers={liveFollowers ?? user.followers}
+        following={liveFollowing ?? user.following}
+        postCount={postCount}
+        isVerified={user.isVerified}
+        isOwner={user.isOwner}
+        supporterTier={supporterTier}
+        hasActivePulse={hasActivePulse}
+        isOwnProfile
+        onEditProfile={() => setEditModalOpen(true)}
+        onCreatorDash={() => navigate("/creator/dashboard")}
+        onSettings={() => navigate("/profile/settings")}
+        onFollowersClick={() => navigate(`/followers/${user.id}`)}
+        onFollowingClick={() => navigate(`/following/${user.id}`)}
+        onSearch={() => navigate("/search")}
+        onAvatarClick={() =>
+          hasActivePulse
+            ? openPulseViewer(
+                [{ user: { id: user.id, name: user.name, username: user.handle, avatar_url: user.avatar ?? null }, pulses: myPulses, has_unviewed: myPulses.some(p => !p.is_viewed) } satisfies PulseFeedGroup],
+                0, 0,
+              )
+            : setComposerOpen(true)
+        }
+      />
 
-            {/* Settings button — top-right */}
-            <div className="absolute top-0 right-3 flex gap-2 z-30"
-              style={{ paddingTop: `calc(env(safe-area-inset-top,0px) + 10px)` }}>
-              <motion.button whileTap={{ scale: 0.88 }} onClick={() => navigate("/profile/settings")}
-                className="grid h-9 w-9 place-items-center rounded-full text-white"
-                style={{ background: "rgba(0,0,0,0.65)", border: "1px solid rgba(255,255,255,0.15)" }}>
-                <Settings style={{ width: 15, height: 15 }} />
-              </motion.button>
-            </div>
-          </div>
+      {/* ════════════════════ PROFILE TABS ════════════════════ */}
+      <ProfileTabs
+        userId={user.id}
+        viewerId={user.id}
+        isOwnProfile
+        isEditing={editModalOpen}
+        userProfile={{
+          created_at:          (user as any).created_at,
+          is_verified:         user.isVerified,
+          is_owner:            user.isOwner,
+          subscription_status: (user as any).subscription_status,
+          name:                user.name,
+          followers:           liveFollowers ?? user.followers ?? 0,
+        }}
+        supporterTier={supporterTier}
+        prependPost={freshMoment}
+        defaultTab="posts"
+      />
 
-          {/* ── Centered founder identity ────────────────────────── */}
-          <div className="px-5 pt-4 text-center">
-            <div className="flex items-center justify-center gap-2 flex-wrap">
-              <VerifiedFounderBadge />
-              <h2 style={{ fontSize: 26, fontWeight: 900, color: "#ffffff", letterSpacing: "-0.01em", lineHeight: 1.1 }}>
-                {user.name}
-              </h2>
-            </div>
-
-            <motion.div className="flex items-center justify-center gap-1.5 mt-2"
-              animate={{ opacity: [0.85, 1, 0.85] }} transition={{ duration: 3, repeat: Infinity }}>
-              <svg viewBox="0 0 18 14" style={{ width: 13, height: 10 }}>
-                <path d="M1 12 L3 4 L7 8 L9 1 L11 8 L15 4 L17 12 Z" fill="#fbbf24" />
-                <rect x="1" y="11" width="16" height="2.5" rx="1" fill="#fbbf24" />
-              </svg>
-              <span style={{ fontSize: 12, fontWeight: 900, letterSpacing: "0.18em", textTransform: "uppercase", color: "#fbbf24" }}>
-                Founder • Socia
-              </span>
-            </motion.div>
-
-            {/* Bio */}
-            {user.bio && (
-              <p className="mt-2 text-[13px] leading-relaxed app-text-muted max-w-sm mx-auto whitespace-pre-line">{user.bio}</p>
-            )}
-
-            {/* Extended info chips */}
-            <ExtendedInfoRow user={user} showLocation={showLocation} showBirthday={showBirthday} showRelStatus={showRelStatus} centered />
-
-            {/* Social links */}
-            <SocialLinkRow user={user} centered />
-
-            {/* Stats */}
-            <div className="mt-4 flex items-center overflow-hidden rounded-[18px]"
-              style={{ border: "1px solid rgba(251,191,36,0.15)", background: "rgba(251,191,36,0.025)" }}>
-              <StatBtn label="Creations" value={myPosts.length} />
-              <div className="my-3 w-px self-stretch" style={{ background: "rgba(251,191,36,0.12)" }} />
-              <StatBtn label="Followers" value={liveFollowers ?? user.followers} onClick={() => navigate(`/followers/${user.id}`)} />
-              <div className="my-3 w-px self-stretch" style={{ background: "rgba(251,191,36,0.12)" }} />
-              <StatBtn label="Following" value={liveFollowing ?? user.following} onClick={() => navigate(`/following/${user.id}`)} />
-            </div>
-
-            {/* Edit Profile button */}
-            <motion.button whileTap={{ scale: 0.97 }} onClick={() => setEditModalOpen(true)}
-              className="mt-3 w-full rounded-[14px] py-2.5 text-[13px] font-semibold tracking-wide app-surface app-text">
-              Edit Profile
-            </motion.button>
-
-            {/* Admin Command Center */}
-            <div className="mt-6">
-              <div className="flex items-center justify-center gap-2 mb-3">
-                <svg viewBox="0 0 18 14" style={{ width: 12, height: 9 }}>
-                  <path d="M1 12 L3 4 L7 8 L9 1 L11 8 L15 4 L17 12 Z" fill="#fbbf24" />
-                  <rect x="1" y="11" width="16" height="2.5" rx="1" fill="#fbbf24" />
-                </svg>
-                <span style={{ fontSize: 10.5, fontWeight: 900, letterSpacing: "0.18em", textTransform: "uppercase", color: "#fbbf24" }}>
-                  Admin Command Center
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2.5">
-                {ADMIN_CARDS.map((card) => (
-                  <AdminCard key={card.label} card={card} navigate={navigate} />
-                ))}
-              </div>
-            </div>
-          </div>
-        </>
-      ) : (
-        /* ══════════════════════════════════════════════════════════════
-           STANDARD USER LAYOUT — X (Twitter) style
-        ══════════════════════════════════════════════════════════════ */
-        <>
-          {/* Cover photo — 180px, X-style */}
-          <div className="relative overflow-hidden" style={{ height: 180 }}>
-            {coverPhotoUrl ? (
-              <img src={coverPhotoUrl} alt="cover"
-                className="absolute inset-0 w-full h-full object-cover object-center" />
-            ) : (
-              <div className="absolute inset-0"
-                style={{ background: "linear-gradient(160deg,#0d0b1a 0%,#1a0e2e 45%,#0a0c18 100%)" }} />
-            )}
-
-            {/* Settings button — top right */}
-            <div className="absolute top-0 right-3 flex gap-2 z-10"
-              style={{ paddingTop: `calc(env(safe-area-inset-top,0px) + 10px)` }}>
-              <motion.button whileTap={{ scale: 0.88 }} onClick={() => navigate("/profile/settings")}
-                className="grid h-9 w-9 place-items-center rounded-full text-white"
-                style={{ background: "rgba(0,0,0,0.65)", border: "1px solid rgba(255,255,255,0.15)" }}>
-                <Settings style={{ width: 15, height: 15 }} />
-              </motion.button>
-            </div>
-          </div>
-
-          {/* Avatar row: avatar bottom-left (overlapping cover), action buttons right */}
-          <div className="px-4 flex items-end justify-between" style={{ marginTop: -44 }}>
-            {/* Avatar */}
-            <div
-              className="relative cursor-pointer"
-              onClick={() => hasActivePulse
-                ? openPulseViewer(
-                    [{ user: { id: user!.id, name: user!.name, username: user!.handle, avatar_url: user!.avatar ?? null }, pulses: myPulses, has_unviewed: myPulses.some(p => !p.is_viewed) } satisfies PulseFeedGroup],
-                    0, 0
-                  )
-                : setShowCreatePulse(true)
-              }
-            >
-              {hasActivePulse && (
-                <>
-                  <div className="pulse-ring-anim absolute rounded-full pointer-events-none"
-                    style={{ inset: -7, background: "conic-gradient(from 0deg,#ff006e,#8338ec,#3a86ff,#06d6a0,#ffbe0b,#ff006e)", zIndex: 0 }} />
-                  <div className="absolute rounded-full pointer-events-none"
-                    style={{ inset: -4, background: "#000", zIndex: 1 }} />
-                </>
-              )}
-              <div className="relative" style={{ zIndex: 2 }}>
-                <SupporterProfileRing tier={supporterTier} size={84}>
-                  <div className="h-[84px] w-[84px] overflow-hidden rounded-full"
-                    style={{ border: "3px solid #000" }}>
-                    {showAvatar ? (
-                      <img src={avatarSrc!} alt={user.name}
-                        className="h-full w-full object-cover"
-                        onError={() => setAvatarBroken(true)} />
-                    ) : (
-                      <div className="h-full w-full bg-[#2F3336] grid place-items-center text-2xl font-bold text-white">
-                        {initials}
-                      </div>
-                    )}
-                  </div>
-                </SupporterProfileRing>
-              </div>
-            </div>
-
-            {/* Action buttons — right side, X-style outlined */}
-            <div className="flex items-center gap-2 pb-1">
-              <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate("/creator/dashboard")}
-                className="grid h-9 w-9 place-items-center rounded-full text-white"
-                style={{ border: "1px solid rgba(255,255,255,0.2)" }}>
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-                  <path d="M2 12h12M2 8l4-4 3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </motion.button>
-              <motion.button whileTap={{ scale: 0.95 }} onClick={() => setEditModalOpen(true)}
-                className="rounded-full px-4 py-1.5 text-[14px] font-bold text-white"
-                style={{ border: "1px solid rgba(255,255,255,0.2)" }}>
-                Edit profile
-              </motion.button>
-            </div>
-          </div>
-
-          {/* Identity: Name / handle / bio / stats */}
-          <div className="px-4 mt-3">
-            {/* Name + badges */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <h2 className="text-[19px] font-bold text-[#E7E9EA] leading-tight">{user.name}</h2>
-              {user.isOwner && <NameBadges isOwner={user.isOwner} isVerified={user.isVerified} size="md" />}
-              {supporterTier && !user.isOwner && (
-                <FoundingSupporterBadge tier={supporterTier} size={18} />
-              )}
-            </div>
-            {supporterTier && !user.isOwner && (
-              <div className="mt-0.5"><SupporterLabel tier={supporterTier} /></div>
-            )}
-
-            {/* @handle + presence */}
-            <p className="mt-0.5 text-[14px] flex items-center gap-1.5" style={{ color: "#71767B" }}>
-              <OnlineDot status={presenceStatus} size={7} />
-              @{user.handle}
-            </p>
-
-            {/* Bio */}
-            {user.bio && (
-              <p className="mt-2 text-[14px] leading-[1.5] text-[#E7E9EA] max-w-sm whitespace-pre-line">{user.bio}</p>
-            )}
-
-            {/* Extended info chips */}
-            <ExtendedInfoRow user={user} showLocation={showLocation} showBirthday={showBirthday} showRelStatus={showRelStatus} />
-
-            {/* Social links */}
-            <SocialLinkRow user={user} />
-
-            {/* Following / Followers — X-style inline text */}
-            <div className="mt-3 flex items-center gap-4">
-              <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate(`/following/${user.id}`)}
-                className="flex items-center gap-1 text-[14px]">
-                <span className="font-bold text-[#E7E9EA]">{compact(liveFollowing ?? user.following)}</span>
-                <span style={{ color: "#71767B" }}>Following</span>
-              </motion.button>
-              <motion.button whileTap={{ scale: 0.95 }} onClick={() => navigate(`/followers/${user.id}`)}
-                className="flex items-center gap-1 text-[14px]">
-                <span className="font-bold text-[#E7E9EA]">{compact(liveFollowers ?? user.followers)}</span>
-                <span style={{ color: "#71767B" }}>Followers</span>
-              </motion.button>
-            </div>
-          </div>
-
-          {/* Profile Completeness bar */}
-          <ProfileCompleteness user={user} onEdit={() => setEditModalOpen(true)} />
-
-          {/* About — collapsible accordion */}
-          <AboutSection
-            profile={{
-              id:                   user.id,
-              name:                 user.name,
-              username:             user.handle,
-              avatar_url:           user.avatar ?? undefined,
-              followers:            liveFollowers ?? user.followers,
-              following:            liveFollowing ?? user.following,
-              location:             user.location,
-              birthday:             user.birthday,
-              gender:               user.gender,
-              relationship_status:  user.relationshipStatus,
-              work:                 user.work,
-              work_previous:        user.workPrevious,
-              education:            user.education,
-              school:               (user as any).school,
-              college:              (user as any).college,
-              website:              user.website,
-              social_facebook:      user.social?.facebook,
-              social_instagram:     user.social?.instagram,
-              social_tiktok:        user.social?.tiktok,
-              social_x:             user.social?.x,
-              social_youtube:       user.social?.youtube,
-              social_linkedin:      user.social?.linkedin,
-              created_at:           (user as any).created_at,
-              privacy_settings:     user.privacySettings as Record<string, boolean | string>,
-              public_email:         (user as any).public_email,
-              public_phone:         (user as any).public_phone,
-              headline:             (user as any).headline,
-              pronunciation:        (user as any).pronunciation,
-              interests:            (user as any).interests,
-              skills:               (user as any).skills,
-              languages:            (user as any).languages,
-              timezone:             (user as any).timezone,
-              mood_emoji:           (user as any).mood_emoji,
-              mood_status:          (user as any).mood_status,
-            } satisfies ProfilePanelData}
-            isOwnProfile
-            onEditOpen={() => setEditModalOpen(true)}
-          />
-        </>
-      )}
-
-      {/* ── Write a Moment button ── */}
-      <motion.button
-        whileTap={{ scale: 0.97 }}
-        onClick={() => setComposerOpen(true)}
-        className="mx-4 mt-4 flex w-[calc(100%-2rem)] items-center gap-3 rounded-[18px] px-4 py-3 text-left"
-        style={{ background: "rgba(255,255,255,0.028)", border: "1px solid rgba(255,255,255,0.055)" }}
-      >
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full"
-          style={{ background: "linear-gradient(135deg,rgba(168,85,247,0.22),rgba(236,72,153,0.12))", border: "1px solid rgba(168,85,247,0.28)" }}>
-          <Feather className="h-3.5 w-3.5 text-[#1D9BF0]" />
-        </span>
-        <span className="flex-1 text-[13px] text-white/30">Write a Moment…</span>
-        <span className="text-[10px] font-mono text-white/15">⌘E</span>
-      </motion.button>
-
-      {/* ── People You May Know ── */}
-      <div className="mt-4">
-        <PeopleYouMayKnow viewerId={user.id} />
-      </div>
-
-      {/* ── Socia Profile Tabs ── */}
-      <div className="mt-4">
-        <ProfileTabs
-          userId={user.id}
-          viewerId={user.id}
-          isEditing={editModalOpen}
-          userProfile={{
-            created_at:          (user as any)?.created_at,
-            is_verified:         user?.isVerified,
-            is_owner:            user?.isOwner,
-            subscription_status: (user as any)?.subscription_status,
-            name:                user?.name,
-            followers:           liveFollowers ?? user?.followers ?? 0,
-          }}
-          supporterTier={supporterTier}
-          prependPost={freshMoment}
-        />
-      </div>
-
-      {/* ── Moments Composer ── */}
+      {/* ════════════════════ MODALS ════════════════════ */}
       <MomentsComposer
         open={composerOpen}
         onClose={() => setComposerOpen(false)}
         onPosted={(post) => { setFreshMoment(post); setComposerOpen(false); }}
       />
-
-      {/* ── Edit Profile Modal ── */}
       <EditProfileModal
         open={editModalOpen}
         onClose={() => setEditModalOpen(false)}
         onSaved={handleModalSaved}
         initialCoverUrl={coverPhotoUrl}
       />
-
-      {/* ── Create Pulse ── */}
-      {showCreatePulse && (
-        <CreatePulse
-          onClose={() => setShowCreatePulse(false)}
-          onCreated={() => setShowCreatePulse(false)}
-        />
-      )}
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   Extended info row — location, birthday, relationship, work, education
-══════════════════════════════════════════════════════════════════════════ */
-function ExtendedInfoRow({ user, showLocation, showBirthday, showRelStatus, centered }: {
-  user: User; showLocation: boolean; showBirthday: boolean; showRelStatus: boolean; centered?: boolean;
-}) {
-  const items: { icon: React.ReactNode; text: string; link?: string }[] = [];
-
-  if (showLocation && user.location) {
-    items.push({ icon: <MapPin style={{ width: 11, height: 11 }} />, text: user.location });
-  }
-  if (user.work) {
-    items.push({ icon: <Briefcase style={{ width: 11, height: 11 }} />, text: user.work });
-  }
-  if (user.education) {
-    items.push({ icon: <GraduationCap style={{ width: 11, height: 11 }} />, text: user.education });
-  }
-  if (user.website) {
-    const url = /^https?:\/\//i.test(user.website) ? user.website : `https://${user.website}`;
-    const display = user.website.replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, "");
-    items.push({ icon: <Globe style={{ width: 11, height: 11 }} />, text: display, link: url });
-  }
-  if (showBirthday && user.birthday) {
-    const d = new Date(user.birthday);
-    items.push({ icon: <span style={{ fontSize: 11 }}>🎂</span>, text: d.toLocaleDateString(undefined, { month: "long", day: "numeric" }) });
-  }
-  if (showRelStatus && user.relationshipStatus) {
-    items.push({ icon: <span style={{ fontSize: 11 }}>💜</span>, text: user.relationshipStatus });
-  }
-
-  if (items.length === 0) return null;
-
-  return (
-    <div className={`mt-3 flex flex-wrap gap-x-3 gap-y-1.5 ${centered ? "justify-center" : ""}`}>
-      {items.map(({ icon, text, link }) =>
-        link ? (
-          <a key={text} href={link} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-1 text-[12px] font-medium"
-            style={{ color: "#1D9BF0" }}>
-            <span className="text-[#1D9BF0]">{icon}</span>
-            <span>{text}</span>
-          </a>
-        ) : (
-          <span key={text} className="flex items-center gap-1 text-[12px] app-text-muted">
-            <span className="text-[#1D9BF0]">{icon}</span>
-            <span>{text}</span>
-          </span>
-        )
-      )}
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   Social link row — all 6 networks
-══════════════════════════════════════════════════════════════════════════ */
-function SocialLinkRow({ user, centered }: { user: User; centered?: boolean }) {
-  const s = user.social;
-
-  function buildUrl(kind: string, val?: string): string | null {
-    if (!val) return null;
-    const t = val.trim();
-    if (!t) return null;
-    if (/^https?:\/\//i.test(t)) return t;
-    const h = t.replace(/^@/, "");
-    switch (kind) {
-      case "facebook":  return `https://facebook.com/${h}`;
-      case "instagram": return `https://instagram.com/${h}`;
-      case "tiktok":    return `https://tiktok.com/@${h}`;
-      case "x":         return `https://x.com/${h}`;
-      case "youtube":   return `https://youtube.com/@${h}`;
-      case "linkedin":  return `https://linkedin.com/in/${h}`;
-      default:          return `https://${h}`;
-    }
-  }
-
-  const links: { label: string; url: string; icon: React.ReactNode }[] = [];
-  const fb = buildUrl("facebook",  s?.facebook);  if (fb) links.push({ label: "Facebook",  url: fb, icon: <Facebook  style={{ width: 11, height: 11 }} /> });
-  const ig = buildUrl("instagram", s?.instagram); if (ig) links.push({ label: "Instagram", url: ig, icon: <Instagram style={{ width: 11, height: 11 }} /> });
-  const tt = buildUrl("tiktok",    s?.tiktok);    if (tt) links.push({ label: "TikTok",    url: tt, icon: <Music2    style={{ width: 11, height: 11 }} /> });
-  const xv = buildUrl("x",         s?.x);         if (xv) links.push({ label: "X",         url: xv, icon: <span style={{ fontSize: 10, fontWeight: 900, lineHeight: 1 }}>𝕏</span> });
-  const yt = buildUrl("youtube",   s?.youtube);   if (yt) links.push({ label: "YouTube",   url: yt, icon: <span style={{ fontSize: 10 }}>▶</span> });
-  const li = buildUrl("linkedin",  s?.linkedin);  if (li) links.push({ label: "LinkedIn",  url: li, icon: <span style={{ fontSize: 10, fontWeight: 900 }}>in</span> });
-
-  if (links.length === 0) return null;
-
-  return (
-    <div className={`mt-3 flex flex-wrap gap-2 ${centered ? "justify-center" : ""}`}>
-      {links.map(({ label, url, icon }) => (
-        <a key={label} href={url} target="_blank" rel="noopener noreferrer"
-          className="app-surface inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold app-text">
-          {icon}{label}
-        </a>
-      ))}
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   Helpers
-══════════════════════════════════════════════════════════════════════════ */
-function StatBtn({ label, value, onClick }: { label: string; value: number; onClick?: () => void }) {
-  return (
-    <motion.button whileTap={{ scale: 0.93 }} onClick={onClick}
-      className="flex flex-1 flex-col items-center justify-center py-3.5">
-      <div className="font-display text-[17px] font-bold leading-none app-text">{compact(value)}</div>
-      <div className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] app-text-muted">{label}</div>
-    </motion.button>
-  );
-}
-
-function compact(n: number) {
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K";
-  return (n / 1_000_000).toFixed(1) + "M";
-}
-
-/* Keep legacy TabBtn for any import side-effects */
-function EmptyState({ icon: Icon, title, sub }: { icon: typeof Heart; title: string; sub: string }) {
-  return (
-    <div className="grid place-items-center px-8 py-16 text-center">
-      <div className="float grid h-14 w-14 place-items-center rounded-full app-surface mb-4">
-        <Icon className="app-text-muted" style={{ width: 22, height: 22 }} />
-      </div>
-      <p className="font-display text-base font-semibold app-text">{title}</p>
-      <p className="mt-1 text-xs app-text-muted">{sub}</p>
     </div>
   );
 }
