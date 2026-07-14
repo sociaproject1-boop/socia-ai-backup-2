@@ -31,3 +31,4 @@
 - [Hybrid PostgREST router](hybrid-postgrest-router.md) — HELIUMDB_TABLES set gates QueryBuilder vs SupabaseRestBuilder; FK-join selects (`table!fk`) fail PostgREST — replace with flat select + batch user fetch.
 - [Replit PG migration table target](replit-pg-table-target.md) — executeSql tool creates tables in a different DB than PGHOST=helium; always use the api-server's pg driver (via node --input-type=module + artifacts/api-server/node_modules/pg) to create schema against the real heliumdb.
 - [heliumdb schema types](heliumdb-schema-types.md) — users.id is text not uuid; all FK columns must be text; use gen_random_uuid()::text for PKs; gen_random_bytes() unavailable (use md5 instead).
+- [Multi-artifact preview & screenshot testing](multi-artifact-preview-testing.md) — no local port-5000 router; screenshot with the artifact's real port; CORS allow-lists skip 127.0.0.1; cache-bust timed UI checks.
