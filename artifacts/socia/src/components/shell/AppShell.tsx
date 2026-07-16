@@ -12,7 +12,7 @@ import { useBillingStore } from "@/lib/billing";
 interface Props { children: ReactNode }
 
 const HIDE_CHROME    = [/^\/auth/, /^\/sys-admin/, /^\/admin/];
-const HIDE_TOPBAR    = [/^\/$/, /^\/messages\/[^/]+$/, /^\/post\//, /^\/create\/[^/]+$/, /^\/profile\/settings/, /^\/profile\/.+/, /^\/billing/, /^\/topup/, /^\/subscription/, /^\/admin/, /^\/socia-gpt/, /^\/studio/, /^\/notifications/];
+const HIDE_TOPBAR    = [/^\/$/, /^\/search/, /^\/messages$/, /^\/messages\/[^/]+$/, /^\/upload/, /^\/post\//, /^\/create\/[^/]+$/, /^\/profile$/, /^\/profile\/settings/, /^\/profile\/.+/, /^\/billing/, /^\/topup/, /^\/subscription/, /^\/admin/, /^\/socia-gpt/, /^\/studio/, /^\/notifications/];
 
 /* Bottom tab bar is a ROOT-ONLY navigator: it appears only on the four
    primary tab roots (Home / Create / Inbox / Me) and is automatically
