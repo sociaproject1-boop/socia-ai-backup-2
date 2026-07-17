@@ -1,76 +1,19 @@
 /**
  * AiAcademyMarketplace.tsx — AI Academy Marketplace
  *
- * Each category card is a live Three.js/R3F WebGL scene:
- *   • Photo texture on an oversized background plane (never shows edges)
- *   • Two orbiting point lights → sweeping specular highlights on overlay planes
- *   • Mid-plane drifts at 0.4× camera speed  → near-field colour layer
- *   • Glass panel drifts at 1.5× camera speed → highly-reflective surface
- *   • Particle cloud drifts at 2.5× camera speed → foreground depth
- *   • Camera follows a Lissajous path → ALL planes parallax relative to camera
- *
- * This is genuine GPU-rendered 3-D parallax, not CSS transforms.
+ * Four category cards each show a looping background video.
+ * Videos autoplay, are muted, loop forever and never pause.
  */
-import { useState, useRef, useMemo, Suspense, Component } from "react";
-import type { ReactNode } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { useTexture } from "@react-three/drei";
-import * as THREE from "three";
 import {
   Box, Clapperboard, Drama, Megaphone,
   Image as ImageIcon, Video as VideoIcon,
   Paperclip, Mic, ArrowUp,
 } from "lucide-react";
 import { useLoginGate } from "@/lib/useLoginGate";
-import sociaMark        from "@assets/splash2/mark.png";
-import productImg       from "@/assets/marketplace/ai-product.jpg";
-import movieImg         from "@/assets/marketplace/movie.jpg";
-import animeImg         from "@/assets/marketplace/anime.jpg";
-import advertisingImg   from "@/assets/marketplace/advertising.jpg";
-
-/* ─────────────────────────────────────────────────────────────────────────
-   WebGL guard — runs ONCE at module load time.
-
-   Two-layer defence against headless / sandboxed environments that claim
-   WebGL support but fail when Three.js actually binds the context:
-
-   1. console.error filter — Three.js calls console.error (not throw) when
-      context creation fails; the Vite runtime-error-modal plugin intercepts
-      ALL console.error calls and shows a full-screen overlay.  We patch
-      console.error here (once, idempotently) to swallow THREE.WebGLRenderer
-      lines before they reach the plugin.
-
-   2. WEBGL_OK flag — probes with the exact options our Canvas uses.  If even
-      the probe fails, we skip mounting the Canvas entirely so React never
-      sees an error from R3F.
-   ───────────────────────────────────────────────────────────────────────── */
-
-// 1. Filter Three.js renderer errors from console.error (idempotent)
-if (typeof window !== "undefined" && !(window as Record<string, unknown>).__r3fPatch__) {
-  (window as Record<string, unknown>).__r3fPatch__ = true;
-  const _orig = console.error.bind(console);
-  console.error = (...args: unknown[]) => {
-    if (typeof args[0] === "string" && args[0].startsWith("THREE.WebGLRenderer")) return;
-    _orig(...args);
-  };
-}
-
-// 2. WEBGL_OK — probe with the same options React Three Fiber will use
-const WEBGL_OK: boolean = (() => {
-  try {
-    if (typeof window === "undefined" || !window.WebGLRenderingContext) return false;
-    const c = document.createElement("canvas");
-    c.width = 1; c.height = 1;
-    const gl =
-      c.getContext("webgl",              { antialias: false, alpha: true }) ||
-      c.getContext("experimental-webgl", { antialias: false, alpha: true });
-    return gl !== null;
-  } catch {
-    return false;
-  }
-})();
+import sociaMark from "@assets/splash2/mark.png";
 
 /* ─────────────────────────────────────────────────────────────────────────
    Design tokens
@@ -84,273 +27,46 @@ const TEXT       = "#FFFFFF";
 const TEXT_MUTED = "#A1A1AA";
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Per-card 3-D scene config
-   ───────────────────────────────────────────────────────────────────────── */
-interface R3DConfig {
-  /** Primary orbiting point light */
-  primaryLight:       string;
-  primaryIntensity:   number;
-  primaryOrbitX:      number;   // angular velocity (rad/s)
-  primaryOrbitY:      number;
-  /** Fill orbiting point light */
-  secondaryLight:     string;
-  secondaryIntensity: number;
-  secondaryOrbitX:    number;
-  secondaryOrbitY:    number;
-  /** Translucent mid-plane (colour + light pickup) */
-  overlayColor:       string;
-  overlayOpacity:     number;
-  /** Floating particles */
-  particleColor:      string;
-  particleCount:      number;
-  particleSize:       number;
-  /** Camera drift */
-  camAmpX:            number;
-  camAmpY:            number;
-  camSpeedX:          number;
-  camSpeedY:          number;
-}
-
-const R3D: Record<string, R3DConfig> = {
-  /** Luxury product — warm violet lighting, gold particles, slow breathing */
-  product: {
-    primaryLight: "#c084fc",   primaryIntensity: 16,
-    primaryOrbitX: 0.22,       primaryOrbitY: 0.17,
-    secondaryLight: "#f0abfc", secondaryIntensity: 8,
-    secondaryOrbitX: -0.14,    secondaryOrbitY: 0.19,
-    overlayColor: "#7c3aed",   overlayOpacity: 0.11,
-    particleColor: "#f5d0fe",  particleCount: 30, particleSize: 0.013,
-    camAmpX: 0.13, camAmpY: 0.09, camSpeedX: 0.09, camSpeedY: 0.07,
-  },
-  /** Cinematic — cool blue, sparse drifting particles, slow push */
-  movie: {
-    primaryLight: "#3b82f6",   primaryIntensity: 12,
-    primaryOrbitX: 0.13,       primaryOrbitY: 0.09,
-    secondaryLight: "#93c5fd", secondaryIntensity: 6,
-    secondaryOrbitX: -0.10,    secondaryOrbitY: 0.12,
-    overlayColor: "#1e3a8a",   overlayOpacity: 0.08,
-    particleColor: "#bfdbfe",  particleCount: 16, particleSize: 0.022,
-    camAmpX: 0.19, camAmpY: 0.07, camSpeedX: 0.06, camSpeedY: 0.05,
-  },
-  /** Anime — soft fuchsia, dense petal-like particles, gentle float */
-  anime: {
-    primaryLight: "#e879f9",   primaryIntensity: 11,
-    primaryOrbitX: 0.18,       primaryOrbitY: 0.24,
-    secondaryLight: "#c084fc", secondaryIntensity: 9,
-    secondaryOrbitX: -0.21,    secondaryOrbitY: 0.16,
-    overlayColor: "#86198f",   overlayOpacity: 0.12,
-    particleColor: "#fae8ff",  particleCount: 42, particleSize: 0.009,
-    camAmpX: 0.09, camAmpY: 0.13, camSpeedX: 0.13, camSpeedY: 0.11,
-  },
-  /** Advertising — hot orange/amber neon, faster rhythm */
-  advertising: {
-    primaryLight: "#f97316",   primaryIntensity: 14,
-    primaryOrbitX: 0.21,       primaryOrbitY: 0.16,
-    secondaryLight: "#fbbf24", secondaryIntensity: 8,
-    secondaryOrbitX: -0.17,    secondaryOrbitY: 0.14,
-    overlayColor: "#92400e",   overlayOpacity: 0.10,
-    particleColor: "#fed7aa",  particleCount: 24, particleSize: 0.015,
-    camAmpX: 0.15, camAmpY: 0.08, camSpeedX: 0.15, camSpeedY: 0.12,
-  },
-};
-
-/* ─────────────────────────────────────────────────────────────────────────
-   R3F scene sub-components
-   ───────────────────────────────────────────────────────────────────────── */
-
-/**
- * CameraRig — drives the Lissajous camera path.
- * Everything else in the scene drifts *relative to the camera* at a
- * different multiplier, producing genuine multi-plane depth parallax.
- */
-function CameraRig({ cfg }: { cfg: R3DConfig }) {
-  useFrame(({ camera, clock }) => {
-    const t = clock.elapsedTime;
-    camera.position.x = Math.sin(t * cfg.camSpeedX) * cfg.camAmpX;
-    camera.position.y = Math.cos(t * cfg.camSpeedY) * cfg.camAmpY;
-    camera.lookAt(0, 0, 0);
-  });
-  return null;
-}
-
-/** Two point lights on independent orbits — dynamic specular sweeps */
-function SceneLights({ cfg }: { cfg: R3DConfig }) {
-  const l1 = useRef<THREE.PointLight>(null!);
-  const l2 = useRef<THREE.PointLight>(null!);
-  useFrame(({ clock }) => {
-    const t = clock.elapsedTime;
-    l1.current.position.set(
-      Math.sin(t * cfg.primaryOrbitX) * 1.9,
-      Math.cos(t * cfg.primaryOrbitY) * 1.5,
-      1.3,
-    );
-    l2.current.position.set(
-      Math.cos(t * cfg.secondaryOrbitX) * 1.6,
-      Math.sin(t * cfg.secondaryOrbitY) * 1.1,
-      1.1,
-    );
-  });
-  return (
-    <>
-      <ambientLight intensity={0.22} />
-      <pointLight
-        ref={l1}
-        color={cfg.primaryLight}
-        intensity={cfg.primaryIntensity}
-        distance={7}
-        decay={2}
-      />
-      <pointLight
-        ref={l2}
-        color={cfg.secondaryLight}
-        intensity={cfg.secondaryIntensity}
-        distance={6}
-        decay={2}
-      />
-    </>
-  );
-}
-
-/**
- * Background photo — MeshBasicMaterial so the image always renders at
- * full fidelity regardless of lighting. The plane is oversized (+60% bleed
- * each side) so camera movement never exposes the card edges.
- */
-function PhotoPlane({ texture }: { texture: THREE.Texture }) {
-  return (
-    <mesh position={[0, 0, 0]}>
-      <planeGeometry args={[4.2, 3.6]} />
-      <meshBasicMaterial map={texture} />
-    </mesh>
-  );
-}
-
-/**
- * Mid overlay — a semi-transparent plane that picks up the point-light
- * colours and drifts at 0.4× camera speed (closer than background → parallax).
- */
-function MidPlane({ cfg }: { cfg: R3DConfig }) {
-  const ref = useRef<THREE.Mesh>(null!);
-  useFrame(({ camera }) => {
-    ref.current.position.x = -camera.position.x * 0.4;
-    ref.current.position.y = -camera.position.y * 0.4;
-  });
-  return (
-    <mesh ref={ref} position={[0, 0, 0.22]}>
-      <planeGeometry args={[3.8, 3.2]} />
-      <meshStandardMaterial
-        color={cfg.overlayColor}
-        transparent
-        opacity={cfg.overlayOpacity}
-        roughness={0.22}
-        metalness={0.70}
-      />
-    </mesh>
-  );
-}
-
-/**
- * Glass specular panel — nearly invisible but highly metallic so it catches
- * hard specular highlights from the orbiting lights. Drifts at 1.5× camera.
- */
-function GlassPanel({ cfg }: { cfg: R3DConfig }) {
-  const ref = useRef<THREE.Mesh>(null!);
-  useFrame(({ camera }) => {
-    ref.current.position.x = -camera.position.x * 1.5;
-    ref.current.position.y = -camera.position.y * 1.5;
-  });
-  return (
-    <mesh ref={ref} position={[0, 0, 0.48]}>
-      <planeGeometry args={[3.6, 3.0]} />
-      <meshStandardMaterial
-        color="#ffffff"
-        transparent
-        opacity={0.028}
-        roughness={0.0}
-        metalness={1.0}
-      />
-    </mesh>
-  );
-}
-
-/**
- * Particle cloud — the most forward element, drifts at 2.5× camera speed.
- * The extreme parallax multiplier makes even tiny camera movement feel like
- * the particles are floating just in front of the lens.
- */
-function Particles({ cfg }: { cfg: R3DConfig }) {
-  const geometry = useMemo(() => {
-    const geo = new THREE.BufferGeometry();
-    const arr = new Float32Array(cfg.particleCount * 3);
-    for (let i = 0; i < cfg.particleCount; i++) {
-      arr[i * 3]     = (Math.random() - 0.5) * 3.4;
-      arr[i * 3 + 1] = (Math.random() - 0.5) * 2.8;
-      arr[i * 3 + 2] = Math.random() * 1.0 + 0.4;
-    }
-    geo.setAttribute("position", new THREE.BufferAttribute(arr, 3));
-    return geo;
-  }, [cfg.particleCount]);
-
-  const ref = useRef<THREE.Points>(null!);
-  useFrame(({ camera, clock }) => {
-    ref.current.position.x = -camera.position.x * 2.5;
-    ref.current.position.y = -camera.position.y * 2.5;
-    ref.current.rotation.z = clock.elapsedTime * 0.013;
-  });
-
-  return (
-    <points ref={ref} geometry={geometry}>
-      <pointsMaterial
-        color={cfg.particleColor}
-        size={cfg.particleSize}
-        transparent
-        opacity={0.68}
-        sizeAttenuation
-      />
-    </points>
-  );
-}
-
-/** Inner scene — useTexture suspends here until the image is decoded */
-function CardSceneInner({ imageUrl, cfg }: { imageUrl: string; cfg: R3DConfig }) {
-  const texture = useTexture(imageUrl);
-  return (
-    <>
-      <CameraRig cfg={cfg} />
-      <SceneLights cfg={cfg} />
-      <PhotoPlane texture={texture} />
-      <MidPlane cfg={cfg} />
-      <GlassPanel cfg={cfg} />
-      <Particles cfg={cfg} />
-    </>
-  );
-}
-
-/**
- * CanvasErrorBoundary — catches any React-level error R3F propagates when the
- * WebGL context fails to bind (e.g. in sandboxed/headless environments).
- * On error it renders nothing; the fallback <img> behind the canvas shows through.
- */
-class CanvasErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() { return { failed: true }; }
-  componentDidCatch() { /* silently suppress — Three.js already logged it */ }
-  render() { return this.state.failed ? null : this.props.children; }
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
    Data types
    ───────────────────────────────────────────────────────────────────────── */
 interface CategoryDef {
   key: string; title: string; subtitle: string;
-  image: string; icon: typeof Box; serverCategory: string;
+  video: string; icon: typeof Box; serverCategory: string;
 }
 
 const CATEGORIES: CategoryDef[] = [
-  { key: "product",     title: "AI Product",   subtitle: "Generate stunning AI product visuals.",         image: productImg,     icon: Box,          serverCategory: "Luxury Product Ads" },
-  { key: "movie",       title: "Movie",         subtitle: "Cinematic scenes, storyboards & more.",         image: movieImg,       icon: Clapperboard, serverCategory: "Cinematic Film"     },
-  { key: "anime",       title: "Anime",          subtitle: "Characters, scenes, worlds & story prompts.",  image: animeImg,       icon: Drama,        serverCategory: "Anime Style"        },
-  { key: "advertising", title: "Advertising",    subtitle: "High-converting ads, product promos & more.", image: advertisingImg, icon: Megaphone,    serverCategory: "Viral TikTok Ads"  },
+  {
+    key:            "product",
+    title:          "AI Product",
+    subtitle:       "Generate stunning AI product visuals.",
+    video:          "/videos/ai-product.mp4",
+    icon:           Box,
+    serverCategory: "Luxury Product Ads",
+  },
+  {
+    key:            "movie",
+    title:          "Movie",
+    subtitle:       "Cinematic scenes, storyboards & more.",
+    video:          "/videos/movie.mp4",
+    icon:           Clapperboard,
+    serverCategory: "Cinematic Film",
+  },
+  {
+    key:            "anime",
+    title:          "Anime",
+    subtitle:       "Characters, scenes, worlds & story prompts.",
+    video:          "/videos/anime.mp4",
+    icon:           Drama,
+    serverCategory: "Anime Style",
+  },
+  {
+    key:            "advertising",
+    title:          "Advertising",
+    subtitle:       "High-converting ads, product promos & more.",
+    video:          "/videos/advertising.mp4",
+    icon:           Megaphone,
+    serverCategory: "Viral TikTok Ads",
+  },
 ];
 
 const QUICK_ACTIONS = [
@@ -359,7 +75,7 @@ const QUICK_ACTIONS = [
 ] as const;
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Shared CSS (fade-in + glow pulse only — no keyframe animations on cards)
+   Shared CSS
    ───────────────────────────────────────────────────────────────────────── */
 function MarketplaceStyles() {
   return (
@@ -379,12 +95,11 @@ function MarketplaceStyles() {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   CinemaCard — card shell wrapping the R3F Canvas
+   VideoCard — card shell with a looping background video
    ───────────────────────────────────────────────────────────────────────── */
-function CinemaCard({
+function VideoCard({
   cat, index, onTap,
 }: { cat: CategoryDef; index: number; onTap: () => void }) {
-  const cfg  = R3D[cat.key];
   const Icon = cat.icon;
 
   return (
@@ -400,7 +115,7 @@ function CinemaCard({
       transition={{ type: "spring", stiffness: 420, damping: 30 }}
       onClick={onTap}
     >
-      {/* Card shell — overflow:hidden clips the Canvas + overlays */}
+      {/* Card shell — overflow:hidden clips the video + overlays */}
       <div
         style={{
           position: "relative",
@@ -412,36 +127,27 @@ function CinemaCard({
             "0 10px 28px -10px rgba(138,77,255,0.30)," +
             "0 1px 0 rgba(255,255,255,0.04) inset",
           border: "1px solid rgba(255,255,255,0.09)",
+          background: "#0a0a0a",
         }}
       >
-        {/* ── Fallback image — always rendered; visible when WebGL unavailable ── */}
-        <img
-          src={cat.image}
-          alt={cat.title}
-          draggable={false}
+        {/* ── Looping background video ── */}
+        <video
+          src={cat.video}
+          autoPlay
+          muted
+          loop
+          playsInline
+          disablePictureInPicture
           style={{
-            position: "absolute", inset: 0,
-            width: "100%", height: "100%",
-            objectFit: "cover", display: "block",
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+            pointerEvents: "none",
           }}
         />
-
-        {/* ── WebGL 3-D scene — guarded by capability probe + error boundary ── */}
-        {WEBGL_OK && (
-          <CanvasErrorBoundary>
-            <Canvas
-              style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-              camera={{ position: [0, 0, 2.2], fov: 60 }}
-              dpr={[1, 1.5]}
-              gl={{ antialias: false, alpha: true }}
-              frameloop="always"
-            >
-              <Suspense fallback={null}>
-                <CardSceneInner imageUrl={cat.image} cfg={cfg} />
-              </Suspense>
-            </Canvas>
-          </CanvasErrorBoundary>
-        )}
 
         {/* ── Bottom vignette for text legibility ── */}
         <div
@@ -730,7 +436,6 @@ export default function AiAcademyMarketplace() {
         overflowY: "auto",
         overscrollBehavior: "contain",
         WebkitOverflowScrolling: "touch",
-        /* Clear bottom nav only — no extra gap below last card */
         paddingBottom: "calc(60px + env(safe-area-inset-bottom))",
       }}
     >
@@ -758,7 +463,7 @@ export default function AiAcademyMarketplace() {
         </p>
       </div>
 
-      {/* 2×2 R3F card grid */}
+      {/* 2×2 video card grid */}
       <div
         style={{
           marginTop: 10,
@@ -769,7 +474,7 @@ export default function AiAcademyMarketplace() {
         }}
       >
         {CATEGORIES.map((cat, i) => (
-          <CinemaCard key={cat.key} cat={cat} index={i} onTap={() => openCategory(cat)} />
+          <VideoCard key={cat.key} cat={cat} index={i} onTap={() => openCategory(cat)} />
         ))}
       </div>
 
