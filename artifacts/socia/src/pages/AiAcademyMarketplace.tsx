@@ -9,11 +9,12 @@ import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import {
   Box, Clapperboard, Drama, Megaphone,
-  Image as ImageIcon, Video as VideoIcon,
   Paperclip, Mic, ArrowUp,
 } from "lucide-react";
 import { useLoginGate } from "@/lib/useLoginGate";
-import sociaMark from "@assets/splash2/mark.png";
+import sociaMark        from "@assets/splash2/mark.png";
+import promptImageBg   from "@/assets/marketplace/advertising.jpg";
+import videoGeneratorBg from "@/assets/marketplace/movie.jpg";
 
 /* ─────────────────────────────────────────────────────────────────────────
    Design tokens
@@ -70,9 +71,9 @@ const CATEGORIES: CategoryDef[] = [
 ];
 
 const QUICK_ACTIONS = [
-  { key: "prompt-image",    title: "Prompt to Image",  subtitle: "Describe it. We create it.",    icon: ImageIcon, path: "/create/prompt-image"  },
-  { key: "video-generator", title: "Video Generator",   subtitle: "Turn your ideas into videos.", icon: VideoIcon, path: "/create/prompt-video"   },
-] as const;
+  { key: "prompt-image",    title: "Prompt to Image",  subtitle: "Describe it. We create it.",    bg: promptImageBg,    path: "/create/prompt-image" },
+  { key: "video-generator", title: "Video Generator",  subtitle: "Turn your ideas into videos.",  bg: videoGeneratorBg, path: "/create/prompt-video"  },
+];
 
 /* ─────────────────────────────────────────────────────────────────────────
    Shared CSS
@@ -210,49 +211,63 @@ function VideoCard({
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Quick action card
+   Quick action card — full-bleed background image, centred text, no icon
    ───────────────────────────────────────────────────────────────────────── */
 function QuickActionCard({
-  title, subtitle, icon: Icon, index, onTap,
+  title, subtitle, bg, index, onTap,
 }: {
-  title: string; subtitle: string; icon: typeof ImageIcon; index: number; onTap: () => void;
+  title: string; subtitle: string; bg: string; index: number; onTap: () => void;
 }) {
   return (
     <motion.button
       className="aam-fade-up"
-      style={{ animationDelay: `${(index + 4) * 55}ms`, textAlign: "left" }}
+      style={{ animationDelay: `${(index + 4) * 55}ms`, display: "block", width: "100%" }}
       whileTap={{ scale: 0.96 }}
       transition={{ type: "spring", stiffness: 420, damping: 30 }}
       onClick={onTap}
     >
       <div
         style={{
-          height: 74,
+          position: "relative",
+          height: 90,
           borderRadius: 16,
-          background: CARD_BG,
+          overflow: "hidden",
           border: `1px solid ${BORDER}`,
-          padding: "12px",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
           boxShadow: "0 6px 20px -12px rgba(0,0,0,0.6)",
         }}
       >
+        {/* Background image */}
+        <img
+          src={bg}
+          alt={title}
+          draggable={false}
+          style={{
+            position: "absolute", inset: 0,
+            width: "100%", height: "100%",
+            objectFit: "cover", display: "block",
+          }}
+        />
+        {/* Dark scrim so text is always legible */}
         <div
           style={{
-            width: 30, height: 30, borderRadius: 9,
-            background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`,
-            display: "grid", placeItems: "center",
-            boxShadow: "0 3px 12px -3px rgba(138,77,255,0.58)",
+            position: "absolute", inset: 0,
+            background: "rgba(0,0,0,0.52)",
+          }}
+        />
+        {/* Centred text */}
+        <div
+          style={{
+            position: "absolute", inset: 0,
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center",
+            padding: "0 10px",
+            textAlign: "center",
           }}
         >
-          <Icon style={{ width: 15, height: 15, color: "#fff" }} strokeWidth={2} />
-        </div>
-        <div>
-          <h3 style={{ fontSize: 12.5, fontWeight: 700, color: TEXT, margin: 0, lineHeight: 1.2 }}>
+          <h3 style={{ fontSize: 12.5, fontWeight: 700, color: "#fff", margin: 0, lineHeight: 1.2, textShadow: "0 1px 6px rgba(0,0,0,0.9)" }}>
             {title}
           </h3>
-          <p style={{ marginTop: 2, fontSize: 10.5, color: TEXT_MUTED, lineHeight: 1.3 }}>
+          <p style={{ marginTop: 3, fontSize: 10, color: "rgba(255,255,255,0.75)", lineHeight: 1.3, textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
             {subtitle}
           </p>
         </div>
@@ -432,7 +447,7 @@ export default function AiAcademyMarketplace() {
     <div
       style={{
         background: BG,
-        height: "100%",
+        minHeight: "100%",
         overflowY: "auto",
         overscrollBehavior: "contain",
         WebkitOverflowScrolling: "touch",
@@ -493,7 +508,7 @@ export default function AiAcademyMarketplace() {
             key={qa.key}
             title={qa.title}
             subtitle={qa.subtitle}
-            icon={qa.icon}
+            bg={qa.bg}
             index={i}
             onTap={() => openQuickAction(qa.path, qa.title)}
           />

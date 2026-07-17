@@ -178,67 +178,61 @@ export default function Home() {
                 willChange: "transform",
               }}
             >
-              {/* ── Row 1: Avatar (opens drawer) ─────────────────────── */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  paddingTop: `calc(env(safe-area-inset-top, 0px) + 6px)`,
-                  paddingLeft: 14,
-                  paddingBottom: 8,
-                }}
-              >
-                {me ? (
-                  <motion.button
-                    whileTap={{ scale: 0.88 }}
-                    onClick={openDrawer}
-                    aria-label="Open navigation menu"
-                    style={{
-                      width: 34, height: 34,
-                      borderRadius: "50%",
-                      overflow: "hidden",
-                      border: "1.5px solid rgba(255,255,255,0.18)",
-                      background: "#1D9BF0",
-                      flexShrink: 0,
-                      cursor: "pointer",
-                      padding: 0,
-                      display: "grid",
-                      placeItems: "center",
-                    }}
-                  >
-                    {me.avatar ? (
-                      <img
-                        src={me.avatar}
-                        alt={me.name}
-                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                      />
-                    ) : (
-                      <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
-                        {(me.name ?? "?").charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                  </motion.button>
-                ) : (
-                  <div style={{ width: 34 }} />
-                )}
-              </div>
-
-              {/* ── Row 2: For You | Following ────────────────────────── */}
+              {/* ── Single row: Avatar | For You | Following ──────────── */}
               <div
                 style={{
                   display: "flex",
                   alignItems: "stretch",
                   borderBottom: "1px solid #2F3336",
+                  paddingTop: `calc(env(safe-area-inset-top, 0px) + 6px)`,
+                  paddingLeft: 14,
                 }}
               >
+                {/* Avatar */}
+                <div style={{ display: "flex", alignItems: "center", paddingRight: 8, paddingBottom: 6 }}>
+                  {me ? (
+                    <motion.button
+                      whileTap={{ scale: 0.88 }}
+                      onClick={openDrawer}
+                      aria-label="Open navigation menu"
+                      style={{
+                        width: 34, height: 34,
+                        borderRadius: "50%",
+                        overflow: "hidden",
+                        border: "1.5px solid rgba(255,255,255,0.18)",
+                        background: "#1D9BF0",
+                        flexShrink: 0,
+                        cursor: "pointer",
+                        padding: 0,
+                        display: "grid",
+                        placeItems: "center",
+                      }}
+                    >
+                      {me.avatar ? (
+                        <img
+                          src={me.avatar}
+                          alt={me.name}
+                          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                        />
+                      ) : (
+                        <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
+                          {(me.name ?? "?").charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </motion.button>
+                  ) : (
+                    <div style={{ width: 34 }} />
+                  )}
+                </div>
+
                 {/* For You tab */}
                 <button
                   onClick={() => setFeedTab("for-you")}
                   style={{
                     flex: 1,
                     position: "relative",
-                    paddingTop: 10,
-                    paddingBottom: 14,
+                    paddingTop: 6,
+                    paddingBottom: 12,
                     background: "none",
                     border: "none",
                     cursor: "pointer",
@@ -280,8 +274,8 @@ export default function Home() {
                   style={{
                     flex: 1,
                     position: "relative",
-                    paddingTop: 10,
-                    paddingBottom: 14,
+                    paddingTop: 6,
+                    paddingBottom: 12,
                     background: "none",
                     border: "none",
                     cursor: "pointer",
