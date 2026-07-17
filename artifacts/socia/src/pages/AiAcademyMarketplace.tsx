@@ -12,9 +12,7 @@ import {
   Paperclip, Mic, ArrowUp,
 } from "lucide-react";
 import { useLoginGate } from "@/lib/useLoginGate";
-import sociaMark        from "@assets/splash2/mark.png";
-import promptImageBg   from "@/assets/marketplace/advertising.jpg";
-import videoGeneratorBg from "@/assets/marketplace/movie.jpg";
+import sociaMark from "@assets/splash2/mark.png";
 
 /* ─────────────────────────────────────────────────────────────────────────
    Design tokens
