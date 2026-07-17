@@ -98,6 +98,13 @@ export default defineConfig({
     fs: {
       strict: false,
     },
+    /* Pre-transform heavy pages so dep-optimization finishes before
+     * the first browser request arrives (eliminates 504 stale-dep race). */
+    warmup: {
+      clientFiles: [
+        "./src/pages/AiAcademyMarketplace.tsx",
+      ],
+    },
     hmr: false,
     watch: {
       // Use polling only when explicitly requested (e.g. Docker); otherwise
@@ -124,5 +131,10 @@ export default defineConfig({
   },
   optimizeDeps: {
     holdUntilCrawlEnd: false,
+    include: [
+      "three",
+      "@react-three/fiber",
+      "@react-three/drei",
+    ],
   },
 });

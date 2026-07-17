@@ -1,33 +1,80 @@
 /**
  * AiAcademyMarketplace.tsx — AI Academy Marketplace
  *
- * No-scroll single-screen layout with premium CSS 3D cinemagraph cards.
- * All category cards animate via requestAnimationFrame using only
- * transform + opacity (GPU-friendly). IntersectionObserver pauses
- * off-screen cards automatically for battery efficiency.
+ * Each category card is a live Three.js/R3F WebGL scene:
+ *   • Photo texture on an oversized background plane (never shows edges)
+ *   • Two orbiting point lights → sweeping specular highlights on overlay planes
+ *   • Mid-plane drifts at 0.4× camera speed  → near-field colour layer
+ *   • Glass panel drifts at 1.5× camera speed → highly-reflective surface
+ *   • Particle cloud drifts at 2.5× camera speed → foreground depth
+ *   • Camera follows a Lissajous path → ALL planes parallax relative to camera
  *
- * Routing:
- *   Category cards  → /studio?cat=<serverCategory>
- *   Prompt to Image → /create/prompt-image
- *   Video Generator → /create/prompt-video
- *   Socia GPT       → /socia-gpt
+ * This is genuine GPU-rendered 3-D parallax, not CSS transforms.
  */
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useMemo, Suspense, Component } from "react";
+import type { ReactNode } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { useTexture } from "@react-three/drei";
+import * as THREE from "three";
 import {
   Box, Clapperboard, Drama, Megaphone,
   Image as ImageIcon, Video as VideoIcon,
   Paperclip, Mic, ArrowUp,
 } from "lucide-react";
 import { useLoginGate } from "@/lib/useLoginGate";
-import sociaMark    from "@assets/splash2/mark.png";
-import productImg   from "@/assets/marketplace/ai-product.jpg";
-import movieImg     from "@/assets/marketplace/movie.jpg";
-import animeImg     from "@/assets/marketplace/anime.jpg";
-import advertisingImg from "@/assets/marketplace/advertising.jpg";
+import sociaMark        from "@assets/splash2/mark.png";
+import productImg       from "@/assets/marketplace/ai-product.jpg";
+import movieImg         from "@/assets/marketplace/movie.jpg";
+import animeImg         from "@/assets/marketplace/anime.jpg";
+import advertisingImg   from "@/assets/marketplace/advertising.jpg";
 
-/* ── Design tokens ─────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────
+   WebGL guard — runs ONCE at module load time.
+
+   Two-layer defence against headless / sandboxed environments that claim
+   WebGL support but fail when Three.js actually binds the context:
+
+   1. console.error filter — Three.js calls console.error (not throw) when
+      context creation fails; the Vite runtime-error-modal plugin intercepts
+      ALL console.error calls and shows a full-screen overlay.  We patch
+      console.error here (once, idempotently) to swallow THREE.WebGLRenderer
+      lines before they reach the plugin.
+
+   2. WEBGL_OK flag — probes with the exact options our Canvas uses.  If even
+      the probe fails, we skip mounting the Canvas entirely so React never
+      sees an error from R3F.
+   ───────────────────────────────────────────────────────────────────────── */
+
+// 1. Filter Three.js renderer errors from console.error (idempotent)
+if (typeof window !== "undefined" && !(window as Record<string, unknown>).__r3fPatch__) {
+  (window as Record<string, unknown>).__r3fPatch__ = true;
+  const _orig = console.error.bind(console);
+  console.error = (...args: unknown[]) => {
+    if (typeof args[0] === "string" && args[0].startsWith("THREE.WebGLRenderer")) return;
+    _orig(...args);
+  };
+}
+
+// 2. WEBGL_OK — probe with the same options React Three Fiber will use
+const WEBGL_OK: boolean = (() => {
+  try {
+    if (typeof window === "undefined" || !window.WebGLRenderingContext) return false;
+    const c = document.createElement("canvas");
+    c.width = 1; c.height = 1;
+    const gl =
+      c.getContext("webgl",              { antialias: false, alpha: true }) ||
+      c.getContext("experimental-webgl", { antialias: false, alpha: true });
+    return gl !== null;
+  } catch {
+    return false;
+  }
+})();
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Design tokens
+   ───────────────────────────────────────────────────────────────────────── */
 const BG         = "#090909";
 const CARD_BG    = "#111111";
 const BORDER     = "rgba(255,255,255,0.08)";
@@ -36,62 +83,274 @@ const GLOW       = "#A855F7";
 const TEXT       = "#FFFFFF";
 const TEXT_MUTED = "#A1A1AA";
 
-/* ── Cinemagraph animation config per card ─────────────────────────────── */
-interface CinemaConfig {
-  scaleMin: number; scaleMax: number; scalePeriod: number;
-  panXAmp: number;  panYAmp: number;  panXPeriod: number; panYPeriod: number;
-  rotXAmp: number;  rotYAmp: number;  rotXPeriod: number; rotYPeriod: number;
-  lightR: number;   lightG: number;   lightB: number;
-  lightAmp: number; lightPeriod: number;
-  shinePeriod: number;
+/* ─────────────────────────────────────────────────────────────────────────
+   Per-card 3-D scene config
+   ───────────────────────────────────────────────────────────────────────── */
+interface R3DConfig {
+  /** Primary orbiting point light */
+  primaryLight:       string;
+  primaryIntensity:   number;
+  primaryOrbitX:      number;   // angular velocity (rad/s)
+  primaryOrbitY:      number;
+  /** Fill orbiting point light */
+  secondaryLight:     string;
+  secondaryIntensity: number;
+  secondaryOrbitX:    number;
+  secondaryOrbitY:    number;
+  /** Translucent mid-plane (colour + light pickup) */
+  overlayColor:       string;
+  overlayOpacity:     number;
+  /** Floating particles */
+  particleColor:      string;
+  particleCount:      number;
+  particleSize:       number;
+  /** Camera drift */
+  camAmpX:            number;
+  camAmpY:            number;
+  camSpeedX:          number;
+  camSpeedY:          number;
 }
 
-const CINEMA: Record<string, CinemaConfig> = {
-  /** AI Product — luxury lighting, bottle gently breathes, glass reflection moves */
+const R3D: Record<string, R3DConfig> = {
+  /** Luxury product — warm violet lighting, gold particles, slow breathing */
   product: {
-    scaleMin: 1.00, scaleMax: 1.09, scalePeriod: 8,
-    panXAmp: 3.0,  panYAmp: 2.5,  panXPeriod: 11, panYPeriod: 9,
-    rotXAmp: 1.5,  rotYAmp: 2.2,  rotXPeriod: 13, rotYPeriod: 10,
-    lightR: 168, lightG: 100, lightB: 255, lightAmp: 0.14, lightPeriod: 5,
-    shinePeriod: 7,
+    primaryLight: "#c084fc",   primaryIntensity: 16,
+    primaryOrbitX: 0.22,       primaryOrbitY: 0.17,
+    secondaryLight: "#f0abfc", secondaryIntensity: 8,
+    secondaryOrbitX: -0.14,    secondaryOrbitY: 0.19,
+    overlayColor: "#7c3aed",   overlayOpacity: 0.11,
+    particleColor: "#f5d0fe",  particleCount: 30, particleSize: 0.013,
+    camAmpX: 0.13, camAmpY: 0.09, camSpeedX: 0.09, camSpeedY: 0.07,
   },
-  /** Movie — clouds drift, smoke moves, cinematic camera push */
+  /** Cinematic — cool blue, sparse drifting particles, slow push */
   movie: {
-    scaleMin: 1.03, scaleMax: 1.11, scalePeriod: 14,
-    panXAmp: 6.0,  panYAmp: 2.0,  panXPeriod: 16, panYPeriod: 20,
-    rotXAmp: 0.6,  rotYAmp: 1.2,  rotXPeriod: 18, rotYPeriod: 13,
-    lightR: 30,  lightG: 70,  lightB: 160, lightAmp: 0.16, lightPeriod: 8,
-    shinePeriod: 11,
+    primaryLight: "#3b82f6",   primaryIntensity: 12,
+    primaryOrbitX: 0.13,       primaryOrbitY: 0.09,
+    secondaryLight: "#93c5fd", secondaryIntensity: 6,
+    secondaryOrbitX: -0.10,    secondaryOrbitY: 0.12,
+    overlayColor: "#1e3a8a",   overlayOpacity: 0.08,
+    particleColor: "#bfdbfe",  particleCount: 16, particleSize: 0.022,
+    camAmpX: 0.19, camAmpY: 0.07, camSpeedX: 0.06, camSpeedY: 0.05,
   },
-  /** Anime — hair sways, petals float, moonlight shifts */
+  /** Anime — soft fuchsia, dense petal-like particles, gentle float */
   anime: {
-    scaleMin: 1.02, scaleMax: 1.07, scalePeriod: 6,
-    panXAmp: 2.5,  panYAmp: 5.0,  panXPeriod: 8,  panYPeriod: 6,
-    rotXAmp: 2.2,  rotYAmp: 1.5,  rotXPeriod: 9,  rotYPeriod: 12,
-    lightR: 210, lightG: 150, lightB: 255, lightAmp: 0.11, lightPeriod: 4,
-    shinePeriod: 6,
+    primaryLight: "#e879f9",   primaryIntensity: 11,
+    primaryOrbitX: 0.18,       primaryOrbitY: 0.24,
+    secondaryLight: "#c084fc", secondaryIntensity: 9,
+    secondaryOrbitX: -0.21,    secondaryOrbitY: 0.16,
+    overlayColor: "#86198f",   overlayOpacity: 0.12,
+    particleColor: "#fae8ff",  particleCount: 42, particleSize: 0.009,
+    camAmpX: 0.09, camAmpY: 0.13, camSpeedX: 0.13, camSpeedY: 0.11,
   },
-  /** Advertising — neon reflections move, road shimmer, environment lighting */
+  /** Advertising — hot orange/amber neon, faster rhythm */
   advertising: {
-    scaleMin: 1.02, scaleMax: 1.10, scalePeriod: 10,
-    panXAmp: 5.0,  panYAmp: 2.0,  panXPeriod: 12, panYPeriod: 10,
-    rotXAmp: 1.0,  rotYAmp: 2.8,  rotXPeriod: 9,  rotYPeriod: 14,
-    lightR: 255, lightG: 160, lightB: 80,  lightAmp: 0.11, lightPeriod: 6,
-    shinePeriod: 9,
+    primaryLight: "#f97316",   primaryIntensity: 14,
+    primaryOrbitX: 0.21,       primaryOrbitY: 0.16,
+    secondaryLight: "#fbbf24", secondaryIntensity: 8,
+    secondaryOrbitX: -0.17,    secondaryOrbitY: 0.14,
+    overlayColor: "#92400e",   overlayOpacity: 0.10,
+    particleColor: "#fed7aa",  particleCount: 24, particleSize: 0.015,
+    camAmpX: 0.15, camAmpY: 0.08, camSpeedX: 0.15, camSpeedY: 0.12,
   },
 };
 
-/* ── Category / quick-action types ─────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────
+   R3F scene sub-components
+   ───────────────────────────────────────────────────────────────────────── */
+
+/**
+ * CameraRig — drives the Lissajous camera path.
+ * Everything else in the scene drifts *relative to the camera* at a
+ * different multiplier, producing genuine multi-plane depth parallax.
+ */
+function CameraRig({ cfg }: { cfg: R3DConfig }) {
+  useFrame(({ camera, clock }) => {
+    const t = clock.elapsedTime;
+    camera.position.x = Math.sin(t * cfg.camSpeedX) * cfg.camAmpX;
+    camera.position.y = Math.cos(t * cfg.camSpeedY) * cfg.camAmpY;
+    camera.lookAt(0, 0, 0);
+  });
+  return null;
+}
+
+/** Two point lights on independent orbits — dynamic specular sweeps */
+function SceneLights({ cfg }: { cfg: R3DConfig }) {
+  const l1 = useRef<THREE.PointLight>(null!);
+  const l2 = useRef<THREE.PointLight>(null!);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    l1.current.position.set(
+      Math.sin(t * cfg.primaryOrbitX) * 1.9,
+      Math.cos(t * cfg.primaryOrbitY) * 1.5,
+      1.3,
+    );
+    l2.current.position.set(
+      Math.cos(t * cfg.secondaryOrbitX) * 1.6,
+      Math.sin(t * cfg.secondaryOrbitY) * 1.1,
+      1.1,
+    );
+  });
+  return (
+    <>
+      <ambientLight intensity={0.22} />
+      <pointLight
+        ref={l1}
+        color={cfg.primaryLight}
+        intensity={cfg.primaryIntensity}
+        distance={7}
+        decay={2}
+      />
+      <pointLight
+        ref={l2}
+        color={cfg.secondaryLight}
+        intensity={cfg.secondaryIntensity}
+        distance={6}
+        decay={2}
+      />
+    </>
+  );
+}
+
+/**
+ * Background photo — MeshBasicMaterial so the image always renders at
+ * full fidelity regardless of lighting. The plane is oversized (+60% bleed
+ * each side) so camera movement never exposes the card edges.
+ */
+function PhotoPlane({ texture }: { texture: THREE.Texture }) {
+  return (
+    <mesh position={[0, 0, 0]}>
+      <planeGeometry args={[4.2, 3.6]} />
+      <meshBasicMaterial map={texture} />
+    </mesh>
+  );
+}
+
+/**
+ * Mid overlay — a semi-transparent plane that picks up the point-light
+ * colours and drifts at 0.4× camera speed (closer than background → parallax).
+ */
+function MidPlane({ cfg }: { cfg: R3DConfig }) {
+  const ref = useRef<THREE.Mesh>(null!);
+  useFrame(({ camera }) => {
+    ref.current.position.x = -camera.position.x * 0.4;
+    ref.current.position.y = -camera.position.y * 0.4;
+  });
+  return (
+    <mesh ref={ref} position={[0, 0, 0.22]}>
+      <planeGeometry args={[3.8, 3.2]} />
+      <meshStandardMaterial
+        color={cfg.overlayColor}
+        transparent
+        opacity={cfg.overlayOpacity}
+        roughness={0.22}
+        metalness={0.70}
+      />
+    </mesh>
+  );
+}
+
+/**
+ * Glass specular panel — nearly invisible but highly metallic so it catches
+ * hard specular highlights from the orbiting lights. Drifts at 1.5× camera.
+ */
+function GlassPanel({ cfg }: { cfg: R3DConfig }) {
+  const ref = useRef<THREE.Mesh>(null!);
+  useFrame(({ camera }) => {
+    ref.current.position.x = -camera.position.x * 1.5;
+    ref.current.position.y = -camera.position.y * 1.5;
+  });
+  return (
+    <mesh ref={ref} position={[0, 0, 0.48]}>
+      <planeGeometry args={[3.6, 3.0]} />
+      <meshStandardMaterial
+        color="#ffffff"
+        transparent
+        opacity={0.028}
+        roughness={0.0}
+        metalness={1.0}
+      />
+    </mesh>
+  );
+}
+
+/**
+ * Particle cloud — the most forward element, drifts at 2.5× camera speed.
+ * The extreme parallax multiplier makes even tiny camera movement feel like
+ * the particles are floating just in front of the lens.
+ */
+function Particles({ cfg }: { cfg: R3DConfig }) {
+  const geometry = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    const arr = new Float32Array(cfg.particleCount * 3);
+    for (let i = 0; i < cfg.particleCount; i++) {
+      arr[i * 3]     = (Math.random() - 0.5) * 3.4;
+      arr[i * 3 + 1] = (Math.random() - 0.5) * 2.8;
+      arr[i * 3 + 2] = Math.random() * 1.0 + 0.4;
+    }
+    geo.setAttribute("position", new THREE.BufferAttribute(arr, 3));
+    return geo;
+  }, [cfg.particleCount]);
+
+  const ref = useRef<THREE.Points>(null!);
+  useFrame(({ camera, clock }) => {
+    ref.current.position.x = -camera.position.x * 2.5;
+    ref.current.position.y = -camera.position.y * 2.5;
+    ref.current.rotation.z = clock.elapsedTime * 0.013;
+  });
+
+  return (
+    <points ref={ref} geometry={geometry}>
+      <pointsMaterial
+        color={cfg.particleColor}
+        size={cfg.particleSize}
+        transparent
+        opacity={0.68}
+        sizeAttenuation
+      />
+    </points>
+  );
+}
+
+/** Inner scene — useTexture suspends here until the image is decoded */
+function CardSceneInner({ imageUrl, cfg }: { imageUrl: string; cfg: R3DConfig }) {
+  const texture = useTexture(imageUrl);
+  return (
+    <>
+      <CameraRig cfg={cfg} />
+      <SceneLights cfg={cfg} />
+      <PhotoPlane texture={texture} />
+      <MidPlane cfg={cfg} />
+      <GlassPanel cfg={cfg} />
+      <Particles cfg={cfg} />
+    </>
+  );
+}
+
+/**
+ * CanvasErrorBoundary — catches any React-level error R3F propagates when the
+ * WebGL context fails to bind (e.g. in sandboxed/headless environments).
+ * On error it renders nothing; the fallback <img> behind the canvas shows through.
+ */
+class CanvasErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { /* silently suppress — Three.js already logged it */ }
+  render() { return this.state.failed ? null : this.props.children; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Data types
+   ───────────────────────────────────────────────────────────────────────── */
 interface CategoryDef {
   key: string; title: string; subtitle: string;
   image: string; icon: typeof Box; serverCategory: string;
 }
 
 const CATEGORIES: CategoryDef[] = [
-  { key: "product",     title: "AI Product",  subtitle: "Generate stunning AI product visuals.",               image: productImg,     icon: Box,          serverCategory: "Luxury Product Ads" },
-  { key: "movie",       title: "Movie",        subtitle: "Cinematic scenes, storyboards & more.",              image: movieImg,       icon: Clapperboard, serverCategory: "Cinematic Film"      },
-  { key: "anime",       title: "Anime",         subtitle: "Characters, scenes, worlds & story prompts.",       image: animeImg,       icon: Drama,        serverCategory: "Anime Style"         },
-  { key: "advertising", title: "Advertising",   subtitle: "High-converting ads, product promos & more.",       image: advertisingImg, icon: Megaphone,    serverCategory: "Viral TikTok Ads"   },
+  { key: "product",     title: "AI Product",   subtitle: "Generate stunning AI product visuals.",         image: productImg,     icon: Box,          serverCategory: "Luxury Product Ads" },
+  { key: "movie",       title: "Movie",         subtitle: "Cinematic scenes, storyboards & more.",         image: movieImg,       icon: Clapperboard, serverCategory: "Cinematic Film"     },
+  { key: "anime",       title: "Anime",          subtitle: "Characters, scenes, worlds & story prompts.",  image: animeImg,       icon: Drama,        serverCategory: "Anime Style"        },
+  { key: "advertising", title: "Advertising",    subtitle: "High-converting ads, product promos & more.", image: advertisingImg, icon: Megaphone,    serverCategory: "Viral TikTok Ads"  },
 ];
 
 const QUICK_ACTIONS = [
@@ -99,16 +358,12 @@ const QUICK_ACTIONS = [
   { key: "video-generator", title: "Video Generator",   subtitle: "Turn your ideas into videos.", icon: VideoIcon, path: "/create/prompt-video"   },
 ] as const;
 
-/* ── Shared CSS ─────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────
+   Shared CSS (fade-in + glow pulse only — no keyframe animations on cards)
+   ───────────────────────────────────────────────────────────────────────── */
 function MarketplaceStyles() {
   return (
     <style>{`
-      .aam-scroll {
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        -webkit-overflow-scrolling: touch;
-        scroll-behavior: smooth;
-      }
       @keyframes aam-glow-pulse {
         0%, 100% { opacity: .55; transform: scale(1);    }
         50%       { opacity: .9;  transform: scale(1.06); }
@@ -123,81 +378,13 @@ function MarketplaceStyles() {
   );
 }
 
-/* ── CinemaCard — GPU-accelerated living artwork ────────────────────────
- *
- * The image layer is inset by -12% on all sides so that pan + zoom
- * animations never expose the card edge. Only `transform` and `opacity`
- * are animated — both are compositor-thread properties that run at 60 fps
- * without touching the main thread. IntersectionObserver suspends the
- * rAF loop when the card is scrolled off screen.                        */
-function CinemaCard({ cat, index, onTap }: { cat: CategoryDef; index: number; onTap: () => void }) {
-  const wrapRef  = useRef<HTMLDivElement>(null);
-  const imgRef   = useRef<HTMLDivElement>(null);
-  const lightRef = useRef<HTMLDivElement>(null);
-  const shineRef = useRef<HTMLDivElement>(null);
-  const cfg      = CINEMA[cat.key];
-  const TAU      = Math.PI * 2;
-
-  useEffect(() => {
-    const wrap  = wrapRef.current;
-    const img   = imgRef.current;
-    const light = lightRef.current;
-    const shine = shineRef.current;
-    if (!wrap || !img || !light || !shine || !cfg) return;
-
-    let rafId  = 0;
-    let active = false;
-    const t0   = performance.now();
-
-    function tick(now: number) {
-      if (!active || !img || !light || !shine) return;
-      const t = (now - t0) * 0.001; // seconds
-
-      // ── Scale: slow breathing zoom ──────────────────────────────────
-      const scale = cfg.scaleMin + (cfg.scaleMax - cfg.scaleMin) *
-        (0.5 + 0.5 * Math.sin(TAU * t / cfg.scalePeriod));
-
-      // ── Pan: smooth Lissajous-figure drift ──────────────────────────
-      const tx = cfg.panXAmp * Math.sin(TAU * t / cfg.panXPeriod);
-      const ty = cfg.panYAmp * Math.cos(TAU * t / cfg.panYPeriod);
-
-      // ── Tilt: subtle 3-D perspective rotation ───────────────────────
-      const rx = cfg.rotXAmp * Math.sin(TAU * t / cfg.rotXPeriod);
-      const ry = cfg.rotYAmp * Math.cos(TAU * t / cfg.rotYPeriod);
-
-      // Single transform string — GPU composite layer, no layout touches
-      img.style.transform =
-        `perspective(420px)` +
-        ` translate3d(${tx.toFixed(3)}px,${ty.toFixed(3)}px,0)` +
-        ` scale(${scale.toFixed(5)})` +
-        ` rotateX(${rx.toFixed(3)}deg)` +
-        ` rotateY(${ry.toFixed(3)}deg)`;
-
-      // ── Ambient light overlay pulse ──────────────────────────────────
-      light.style.opacity = String(
-        (0.04 + cfg.lightAmp * (0.5 + 0.5 * Math.sin(TAU * t / cfg.lightPeriod))).toFixed(4),
-      );
-
-      // ── Glass-shine slide ────────────────────────────────────────────
-      const shineX = -20 + 140 * (0.5 + 0.5 * Math.sin(TAU * t / cfg.shinePeriod));
-      shine.style.transform = `translate3d(${shineX.toFixed(2)}%,0,0)`;
-
-      rafId = requestAnimationFrame(tick);
-    }
-
-    function start() { if (active) return; active = true;  rafId = requestAnimationFrame(tick); }
-    function stop()  {                     active = false; cancelAnimationFrame(rafId); }
-
-    const obs = new IntersectionObserver(
-      ([entry]) => { entry.isIntersecting ? start() : stop(); },
-      { threshold: 0.05 },
-    );
-    obs.observe(wrap);
-    return () => { stop(); obs.disconnect(); };
-  // cfg is a module-level constant — safe to omit from deps
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+/* ─────────────────────────────────────────────────────────────────────────
+   CinemaCard — card shell wrapping the R3F Canvas
+   ───────────────────────────────────────────────────────────────────────── */
+function CinemaCard({
+  cat, index, onTap,
+}: { cat: CategoryDef; index: number; onTap: () => void }) {
+  const cfg  = R3D[cat.key];
   const Icon = cat.icon;
 
   return (
@@ -213,9 +400,8 @@ function CinemaCard({ cat, index, onTap }: { cat: CategoryDef; index: number; on
       transition={{ type: "spring", stiffness: 420, damping: 30 }}
       onClick={onTap}
     >
-      {/* ── Card shell ── */}
+      {/* Card shell — overflow:hidden clips the Canvas + overlays */}
       <div
-        ref={wrapRef}
         style={{
           position: "relative",
           width: "100%",
@@ -223,76 +409,71 @@ function CinemaCard({ cat, index, onTap }: { cat: CategoryDef; index: number; on
           borderRadius: 18,
           overflow: "hidden",
           boxShadow:
-            "0 10px 28px -10px rgba(138,77,255,0.28)," +
+            "0 10px 28px -10px rgba(138,77,255,0.30)," +
             "0 1px 0 rgba(255,255,255,0.04) inset",
           border: "1px solid rgba(255,255,255,0.09)",
         }}
       >
-        {/* ── Layer 1: artwork (oversized, animated) ── */}
-        <div
-          ref={imgRef}
+        {/* ── Fallback image — always rendered; visible when WebGL unavailable ── */}
+        <img
+          src={cat.image}
+          alt={cat.title}
+          draggable={false}
           style={{
-            position: "absolute",
-            inset: "-12%",         /* extra bleed prevents edge exposure */
-            willChange: "transform",
-            transformOrigin: "center center",
+            position: "absolute", inset: 0,
+            width: "100%", height: "100%",
+            objectFit: "cover", display: "block",
           }}
-        >
-          <img
-            src={cat.image}
-            alt={cat.title}
-            draggable={false}
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-          />
-        </div>
+        />
 
-        {/* ── Layer 2: bottom vignette for text legibility ── */}
+        {/* ── WebGL 3-D scene — guarded by capability probe + error boundary ── */}
+        {WEBGL_OK && (
+          <CanvasErrorBoundary>
+            <Canvas
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+              camera={{ position: [0, 0, 2.2], fov: 60 }}
+              dpr={[1, 1.5]}
+              gl={{ antialias: false, alpha: true }}
+              frameloop="always"
+            >
+              <Suspense fallback={null}>
+                <CardSceneInner imageUrl={cat.image} cfg={cfg} />
+              </Suspense>
+            </Canvas>
+          </CanvasErrorBoundary>
+        )}
+
+        {/* ── Bottom vignette for text legibility ── */}
         <div
           style={{
             position: "absolute", inset: 0, pointerEvents: "none",
             background:
-              "linear-gradient(180deg, rgba(0,0,0,0) 28%, rgba(0,0,0,0.72) 100%)",
+              "linear-gradient(180deg," +
+              " rgba(0,0,0,0) 26%," +
+              " rgba(0,0,0,0.75) 100%)",
           }}
         />
 
-        {/* ── Layer 3: ambient colour light overlay ── */}
+        {/* ── Top edge fade for depth ── */}
         <div
-          ref={lightRef}
           style={{
             position: "absolute", inset: 0, pointerEvents: "none",
-            background: `radial-gradient(ellipse at 35% 25%,` +
-              ` rgba(${cfg.lightR},${cfg.lightG},${cfg.lightB},0.55) 0%,` +
-              ` transparent 65%)`,
-            willChange: "opacity",
-            opacity: 0.04,
-          }}
-        />
-
-        {/* ── Layer 4: glass-shine stripe ── */}
-        <div
-          ref={shineRef}
-          style={{
-            position: "absolute",
-            top: 0, bottom: 0, left: 0,
-            width: "28%", pointerEvents: "none",
             background:
-              "linear-gradient(108deg," +
-              " transparent 0%," +
-              " rgba(255,255,255,0.065) 50%," +
-              " transparent 100%)",
-            willChange: "transform",
+              "linear-gradient(180deg," +
+              " rgba(0,0,0,0.25) 0%," +
+              " rgba(0,0,0,0) 18%)",
           }}
         />
 
-        {/* ── Icon badge (top-left) ── */}
+        {/* ── Icon badge ── */}
         <div
           style={{
             position: "absolute", top: 9, left: 9,
             width: 30, height: 30, borderRadius: "50%",
-            background: "rgba(12,8,22,0.75)",
-            border: "1px solid rgba(255,255,255,0.13)",
+            background: "rgba(12,8,22,0.78)",
+            border: "1px solid rgba(255,255,255,0.14)",
             display: "grid", placeItems: "center",
-            boxShadow: "0 0 14px rgba(138,77,255,0.38)",
+            boxShadow: "0 0 14px rgba(138,77,255,0.40)",
             backdropFilter: "blur(6px)",
             WebkitBackdropFilter: "blur(6px)",
           }}
@@ -300,7 +481,7 @@ function CinemaCard({ cat, index, onTap }: { cat: CategoryDef; index: number; on
           <Icon style={{ width: 14, height: 14, color: PURPLE }} strokeWidth={2.1} />
         </div>
 
-        {/* ── Title overlay (bottom) ── */}
+        {/* ── Title overlay ── */}
         <div
           style={{
             position: "absolute", bottom: 0, left: 0, right: 0,
@@ -311,7 +492,7 @@ function CinemaCard({ cat, index, onTap }: { cat: CategoryDef; index: number; on
             style={{
               fontSize: 13, fontWeight: 700, color: "#fff",
               margin: 0, lineHeight: 1.2,
-              textShadow: "0 1px 8px rgba(0,0,0,0.9)",
+              textShadow: "0 1px 8px rgba(0,0,0,0.95)",
             }}
           >
             {cat.title}
@@ -322,7 +503,9 @@ function CinemaCard({ cat, index, onTap }: { cat: CategoryDef; index: number; on
   );
 }
 
-/* ── Quick action card ──────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────
+   Quick action card
+   ───────────────────────────────────────────────────────────────────────── */
 function QuickActionCard({
   title, subtitle, icon: Icon, index, onTap,
 }: {
@@ -372,7 +555,9 @@ function QuickActionCard({
   );
 }
 
-/* ── Socia GPT card ─────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────
+   Socia GPT card
+   ───────────────────────────────────────────────────────────────────────── */
 function SociaGptCard({ onSubmit }: { onSubmit: (text: string) => void }) {
   const [value, setValue] = useState("");
   const submit = () => { onSubmit(value.trim()); };
@@ -405,7 +590,6 @@ function SociaGptCard({ onSubmit }: { onSubmit: (text: string) => void }) {
 
       {/* Header row */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, position: "relative" }}>
-        {/* Logo with glow ring */}
         <div
           style={{
             position: "relative",
@@ -517,7 +701,9 @@ function SociaGptCard({ onSubmit }: { onSubmit: (text: string) => void }) {
   );
 }
 
-/* ── Main page ──────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────
+   Main page
+   ───────────────────────────────────────────────────────────────────────── */
 export default function AiAcademyMarketplace() {
   const [, navigate]     = useLocation();
   const { requireLogin } = useLoginGate();
@@ -538,17 +724,19 @@ export default function AiAcademyMarketplace() {
 
   return (
     <div
-      className="aam-scroll h-full"
       style={{
         background: BG,
+        height: "100%",
+        overflowY: "auto",
+        overscrollBehavior: "contain",
         WebkitOverflowScrolling: "touch",
-        /* enough clearance for bottom nav + safe area */
-        paddingBottom: "calc(60px + env(safe-area-inset-bottom, 12px))",
+        /* Clear bottom nav only — no extra gap below last card */
+        paddingBottom: "calc(60px + env(safe-area-inset-bottom))",
       }}
     >
       <MarketplaceStyles />
 
-      {/* ── Title ── */}
+      {/* Title */}
       <div style={{ padding: "12px 14px 0", textAlign: "center" }}>
         <h1
           style={{
@@ -570,7 +758,7 @@ export default function AiAcademyMarketplace() {
         </p>
       </div>
 
-      {/* ── Category grid — 2 × 2 cinemagraph cards ── */}
+      {/* 2×2 R3F card grid */}
       <div
         style={{
           marginTop: 10,
@@ -585,7 +773,7 @@ export default function AiAcademyMarketplace() {
         ))}
       </div>
 
-      {/* ── Quick actions ── */}
+      {/* Quick actions */}
       <div
         style={{
           marginTop: 10,
@@ -607,7 +795,7 @@ export default function AiAcademyMarketplace() {
         ))}
       </div>
 
-      {/* ── Socia GPT ── */}
+      {/* Socia GPT */}
       <div style={{ marginTop: 10, padding: "0 12px" }}>
         <SociaGptCard onSubmit={openSociaGpt} />
       </div>
