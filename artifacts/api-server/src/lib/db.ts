@@ -10,16 +10,23 @@ function getReplitConnectionString(): string {
   const user = process.env["PGUSER"];
   const password = process.env["PGPASSWORD"];
   const database = process.env["PGDATABASE"];
+
   if (host && user && password && database) {
     return `postgresql://${user}:${encodeURIComponent(password)}@${host}:${port}/${database}`;
   }
+
   return "";
 }
 
-const connectionString = getReplitConnectionString() || process.env["DATABASE_URL"];
+// Prefer the external DATABASE_URL (Supabase/Render).
+// Keep the Replit connection as a fallback for the old environment.
+const connectionString =
+  process.env["DATABASE_URL"] || getReplitConnectionString();
 
 if (!connectionString) {
-  throw new Error("No database connection available. Ensure the database is provisioned.");
+  throw new Error(
+    "No database connection available. Ensure the database is provisioned."
+  );
 }
 
 export const pool = new Pool({ connectionString });
