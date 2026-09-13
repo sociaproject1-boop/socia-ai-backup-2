@@ -1,0 +1,285 @@
+/**
+ * Explore.tsx — Public guest-accessible explore feed.
+ *
+ * Shows popular creators and a discover feed.
+ * Trending is its own dedicated page at /trending.
+ * No authentication required. Engagement actions show GuestAuthModal.
+ */
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useNavHide } from "@/hooks/useNavHide";
+import { useLocation } from "wouter";
+import { motion, AnimatePresence } from "framer-motion";
+import { Flame, Users, Search, ChevronRight } from "lucide-react";
+import { PullToRefreshIndicator } from "@/components/feed/PullToRefreshIndicator";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { FeedCard } from "@/components/feed/FeedCard";
+import { useGuestGate } from "@/lib/useGuestGate";
+import { useAppStore } from "@/lib/store";
+import { toggleLike, toggleSave, type SocialPost } from "@/lib/postsClient";
+
+interface Creator {
+  id: string;
+  name: string;
+  username: string;
+  avatar_url: string | null;
+  is_verified: boolean;
+  followers: number;
+  subscription_status: string | null;
+}
+
+interface ExploreData {
+  posts: SocialPost[];
+  creators: Creator[];
+}
+
+async function fetchExplore(): Promise<ExploreData> {
+  const res = await fetch("/api/explore");
+  if (!res.ok) throw new Error("Failed to load explore");
+  return res.json();
+}
+
+function fmtCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+function CreatorCard({ creator }: { creator: Creator }) {
+  const [, navigate] = useLocation();
+
+  return (
+    <motion.button
+      whileTap={{ scale: 0.95 }}
+      onClick={() => navigate(`/user/${creator.username}`)}
+      className="flex flex-col items-center gap-2 rounded-2xl p-3 flex-shrink-0"
+      style={{
+        width: 100,
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.07)",
+      }}
+    >
+      {creator.avatar_url ? (
+        <img
+          src={creator.avatar_url}
+          alt=""
+          className="h-12 w-12 rounded-full object-cover"
+          style={{ border: "1.5px solid rgba(255,255,255,0.12)" }}
+          loading="lazy"
+        />
+      ) : (
+        <div
+          className="h-12 w-12 rounded-full grid place-items-center text-lg font-bold text-white"
+          style={{ background: "linear-gradient(135deg,var(--accent-primary),var(--accent-secondary))" }}
+        >
+          {(creator.name || creator.username || "?").charAt(0).toUpperCase()}
+        </div>
+      )}
+      <div className="w-full text-center">
+        <p className="truncate text-[12px] font-bold text-white leading-tight">
+          {creator.name || creator.username}
+        </p>
+        {creator.followers > 0 && (
+          <p className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+            {fmtCount(creator.followers)}
+          </p>
+        )}
+      </div>
+    </motion.button>
+  );
+}
+
+function ShimmerCard() {
+  return (
+    <div className="mx-3 my-2 overflow-hidden rounded-[18px] px-4 py-4 space-y-3"
+      style={{ background: "rgba(14,14,14,1)", border: "1px solid rgba(255,255,255,0.07)" }}>
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-full shimmer" />
+        <div className="flex-1 space-y-1.5">
+          <div className="h-3.5 w-28 rounded shimmer" />
+          <div className="h-3 w-20 rounded shimmer" />
+        </div>
+      </div>
+      <div className="h-56 w-full rounded-2xl shimmer" />
+      <div className="flex gap-3">
+        <div className="h-7 w-16 rounded-full shimmer" />
+        <div className="h-7 w-16 rounded-full shimmer" />
+        <div className="h-7 w-10 rounded-full shimmer" />
+      </div>
+    </div>
+  );
+}
+
+export default function Explore() {
+  const [, navigate]    = useLocation();
+  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+  const { gateAction, GuestModalPortal } = useGuestGate();
+
+  const [data, setData]       = useState<ExploreData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(false);
+  const [posts, setPosts]     = useState<SocialPost[]>([]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const d = await fetchExplore();
+      setData(d);
+      setPosts(d.posts);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleLike = useCallback((postId: string) => {
+    gateAction(async () => {
+      try {
+        const result = await toggleLike(postId);
+        setPosts((prev) => prev.map((p) => {
+          if (p.id !== postId) return p;
+          const wasLiked = !!p.has_liked;
+          return { ...p, has_liked: result.liked, like_count: Math.max(0, (p.like_count ?? 0) + (result.liked === wasLiked ? 0 : result.liked ? 1 : -1)) };
+        }));
+      } catch { /* silent */ }
+    }, "like posts");
+  }, [gateAction]);
+
+  const handleSave = useCallback((postId: string) => {
+    gateAction(async () => {
+      try {
+        const result = await toggleSave(postId);
+        setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, has_saved: result.saved } : p));
+      } catch { /* silent */ }
+    }, "save posts");
+  }, [gateAction]);
+
+  const handleComment = useCallback((postId: string) => {
+    gateAction(() => navigate(`/post/${postId}`), "comment on posts");
+  }, [gateAction, navigate]);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  useNavHide(containerRef);
+
+  /* ── Pull-to-refresh ─────────────────────────────────────────────────── */
+  const { phase: ptrPhase, indicatorRef } = usePullToRefresh(containerRef, load);
+
+  return (
+    <>
+    <PullToRefreshIndicator phase={ptrPhase} indicatorRef={indicatorRef} />
+    <div ref={containerRef} className="h-full overflow-y-auto app-bg" style={{ overscrollBehaviorY: "contain" }}>
+
+      {/* ── Search bar (authenticated users only) ─────────────────────── */}
+      {isAuthenticated && (
+        <div className="px-4 pt-4 pb-2">
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate("/search")}
+            className="w-full flex items-center gap-3 rounded-2xl px-4 py-3"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
+            <Search className="h-4 w-4" style={{ color: "rgba(255,255,255,0.4)" }} />
+            <span className="text-[14px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+              Search posts, creators, hashtags…
+            </span>
+          </motion.button>
+        </div>
+      )}
+
+      {/* ── Trending CTA ──────────────────────────────────────────────── */}
+      <div className={isAuthenticated ? "px-4 pb-3" : "px-4 pt-4 pb-3"}>
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={() => navigate("/trending")}
+          className="w-full flex items-center justify-between rounded-2xl px-4 py-3"
+          style={{
+            background: "linear-gradient(135deg,rgba(245,158,11,0.1),rgba(239,68,68,0.08))",
+            border: "1px solid rgba(245,158,11,0.2)",
+          }}
+        >
+          <div className="flex items-center gap-2.5">
+            <Flame className="h-4 w-4" style={{ color: "#f59e0b" }} />
+            <div className="text-left">
+              <p className="text-[13px] font-bold text-white leading-tight">Trending Now</p>
+              <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                Ranked by engagement · views · watch time
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="h-4 w-4" style={{ color: "rgba(245,158,11,0.6)" }} />
+        </motion.button>
+      </div>
+
+      {/* ── Popular creators ──────────────────────────────────────────── */}
+      {!loading && data?.creators && data.creators.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center px-4 pb-2 gap-1.5">
+            <Users className="h-4 w-4" style={{ color: "#60a5fa" }} />
+            <h2 className="text-[14px] font-bold text-white">Popular Creators</h2>
+          </div>
+          <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-none" style={{ scrollbarWidth: "none" }}>
+            {data.creators.map((c) => (
+              <CreatorCard key={c.id} creator={c} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Discover posts header ─────────────────────────────────────── */}
+      <div className="px-4 pb-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[14px] font-bold text-white">Discover</h2>
+        </div>
+      </div>
+
+      {loading && (
+        <div>
+          {[1, 2, 3].map((i) => <ShimmerCard key={i} />)}
+        </div>
+      )}
+
+      {error && !loading && (
+        <div className="flex flex-col items-center gap-3 py-12">
+          <p className="text-[14px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+            Couldn't load explore feed
+          </p>
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={load}
+            className="rounded-full px-4 py-2 text-[13px] font-semibold text-white"
+            style={{ background: "#1D9BF0" }}
+          >
+            Retry
+          </motion.button>
+        </div>
+      )}
+
+      {!loading && !error && posts.length === 0 && (
+        <div className="flex flex-col items-center gap-3 py-16">
+          <Flame className="h-12 w-12" style={{ color: "rgba(255,255,255,0.12)" }} />
+          <p className="text-[14px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+            No posts yet — be the first to create
+          </p>
+        </div>
+      )}
+
+      {!loading && posts.map((post) => (
+        <FeedCard
+          key={post.id}
+          post={post}
+          onLike={handleLike}
+          onSave={handleSave}
+          onComment={handleComment}
+          onGuestAction={(label) => gateAction(() => {}, label)}
+        />
+      ))}
+
+      <div className="h-24" />
+      {GuestModalPortal}
+    </div>
+    </>
+  );
+}
