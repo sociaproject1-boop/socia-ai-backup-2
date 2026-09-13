@@ -16,7 +16,7 @@ import { useGuestGate } from "@/lib/useGuestGate";
 import { useNavHide } from "@/hooks/useNavHide";
 import { useAppStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
-import type { SocialPost } from "@/lib/postsClient";
+import { toggleLike, toggleSave, type SocialPost } from "@/lib/postsClient";
 
 interface TrendingMeta {
   total_candidates: number;
@@ -138,19 +138,12 @@ export default function Trending() {
   const handleLike = useCallback((postId: string) => {
     gateAction(async () => {
       try {
-        const { data: session } = await supabase.auth.getSession();
-        const jwt = session.session?.access_token;
-        await fetch(`/api/posts/${postId}/like`, {
-          method: "POST",
-          headers: jwt ? { Authorization: `Bearer ${jwt}` } : {},
-        });
-        setPosts((prev) =>
-          prev.map((p) =>
-            p.id === postId
-              ? { ...p, has_liked: !p.has_liked, like_count: (p.like_count ?? 0) + (p.has_liked ? -1 : 1) }
-              : p
-          )
-        );
+        const result = await toggleLike(postId);
+        setPosts((prev) => prev.map((p) => {
+          if (p.id !== postId) return p;
+          const wasLiked = !!p.has_liked;
+          return { ...p, has_liked: result.liked, like_count: Math.max(0, (p.like_count ?? 0) + (result.liked === wasLiked ? 0 : result.liked ? 1 : -1)) };
+        }));
       } catch { /* silent */ }
     }, "like posts");
   }, [gateAction]);
